@@ -36,8 +36,8 @@ jobs:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
         run: |
-          # webappディレクトリに移動
-          cd webapp
+          # webappディレクトリに移動（不要）
+          # cd webapp（不要）
           
           # SecretsからFirebaseの認証キーJSONを生成
           echo "$FIREBASE_CREDENTIALS" > firebase_key.json
