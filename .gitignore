@@ -1,0 +1,5 @@
+firebase_key.json
+*.txt
+debug_*.py
+*バックアップ*.txt
+__pycache__/
