@@ -1,6 +1,9 @@
 name: Update Stock Data
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     # 毎日深夜0時(JST) = 15:00 UTC に自動実行
     - cron: '0 15 * * *'
