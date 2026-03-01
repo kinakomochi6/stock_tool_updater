@@ -15,8 +15,12 @@ import unicodedata
 import warnings
 import os
 import argparse
+import socket
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
+
+# 全通信に対するグローバルなタイムアウト（ハング防止用）
+socket.setdefaulttimeout(15)
 
 # ==========================================
 # ★設定エリア
@@ -625,9 +629,8 @@ def analyze_real_estate_and_securities_html(doc_id):
                     except:
                         content_str = content.decode('cp932', errors='replace')
                     
-                    # === 高速化: 不要なHTMLをスキップ（精度を落とさないようタグ除去して判定） ===
-                    quick_text = re.sub(r'<[^>]+>', '', content_str).replace(' ', '').replace('\n', '').replace('\u3000', '')
-                    if not any(x in quick_text for x in ["不動産", "期末時価", "取得", "評価差", "評価益", "含み損益", "v", "z", "擾"]):
+                    # === 高速化: まず元の文字列から確実に必要なキーワードを探す ===
+                    if not any(keyword in content_str for keyword in ["不動産", "期末時価", "取得", "評価差", "評価益", "含み損益", "v", "z", "擾"]):
                         continue
                         
                     soup = BeautifulSoup(content_str, 'lxml')
@@ -690,11 +693,15 @@ def analyze_real_estate_and_securities_html(doc_id):
 # 4. Yahoo Finance データ取得 
 # ==========================================
 def get_valid_ticker_and_price(code):
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    })
     suffixes = ['.T', '.S', '.F', '.N'] 
     for suffix in suffixes:
         symbol = f"{code}{suffix}"
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(symbol, session=session)
             try:
                 info = ticker.info
                 if info and info.get('currentPrice'):
