@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: |
           # 必要なライブラリ群をインストール
-          pip install firebase-admin yfinance requests beautifulsoup4 lxml pandas numpy openpyxl
+          pip install firebase-admin yfinance requests beautifulsoup4 lxml pandas numpy openpyxl xlrd
           
           # もしrequirements.txtが必要な場合は以下のようにもできます（今回は明記）
           # pip install -r webapp/requirements.txt
