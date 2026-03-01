@@ -38,6 +38,7 @@ jobs:
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          PYTHONUNBUFFERED: "1"
         run: |
           # webappディレクトリに移動（不要）
           # cd webapp（不要）
