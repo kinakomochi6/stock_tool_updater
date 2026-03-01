@@ -19,9 +19,6 @@ import socket
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-# 全通信に対するグローバルなタイムアウト（ハング防止用）
-socket.setdefaulttimeout(15)
-
 # ==========================================
 # ★設定エリア
 # ==========================================
@@ -694,15 +691,11 @@ def analyze_real_estate_and_securities_html(doc_id):
 # 4. Yahoo Finance データ取得 
 # ==========================================
 def get_valid_ticker_and_price(code):
-    session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    })
     suffixes = ['.T', '.S', '.F', '.N'] 
     for suffix in suffixes:
         symbol = f"{code}{suffix}"
         try:
-            ticker = yf.Ticker(symbol, session=session)
+            ticker = yf.Ticker(symbol)
             try:
                 info = ticker.info
                 if info and info.get('currentPrice'):
