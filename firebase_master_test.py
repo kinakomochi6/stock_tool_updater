@@ -99,7 +99,46 @@ TAG_MAPPING = {
     "CapitalStock": "純資_資本金", "CapitalSurplus": "純資_資本剰余金",
     "RetainedEarnings": "純資_利益剰余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
     "ValuationAndTranslationAdjustments": "純資_評価換算差額金",
-    "NonControllingInterests": "純資_非支配株主持分", "SubscriptionRightsToShares": "純資_新株予約権"
+    "NonControllingInterests": "純資_非支配株主持分", "SubscriptionRightsToShares": "純資_新株予約権",
+    
+    # === IFRS 追加タグ ===
+    "CashAndCashEquivalents": "流動_現金及び預金",
+    "TradeAndOtherCurrentReceivables": "流動_売掛金",
+    "OtherCurrentFinancialAssets": "流動_その他流動資産",
+    "ShorttermFinancialAssets": "流動_有価証券",
+    "OtherFinancialAssetsCurrent": "流動_その他流動資産",
+    "IntangibleAssetsOtherThanGoodwill": "無形_その他無形固定資産",
+    "IntangibleAssets": "無形_その他無形固定資産",
+    "InvestmentsAccountedForUsingEquityMethod": "投資_関係会社株式",
+    "InvestmentsInAssociatesAndJointVentures": "投資_関係会社株式",
+    "OtherNoncurrentFinancialAssets": "投資_その他固定資産",
+    "OtherFinancialAssetsNoncurrent": "投資_その他固定資産",
+    "InvestmentProperty": "投資_投資不動産",
+    "TradeAndOtherCurrentPayables": "流負_支払手形・買掛金",
+    "TradeAndOtherPayables": "流負_支払手形・買掛金",
+    "BondsAndBorrowingsCurrent": "流負_短期借入金",
+    "ShorttermBorrowings": "流負_短期借入金",
+    "OtherCurrentFinancialLiabilities": "流負_その他流動負債",
+    "OtherFinancialLiabilitiesCurrent": "流負_その他流動負債",
+    "BondsAndBorrowingsNoncurrent": "固負_長期借入金",
+    "LongtermBorrowings": "固負_長期借入金",
+    "OtherNoncurrentFinancialLiabilities": "固負_その他固定負債",
+    "OtherFinancialLiabilitiesNoncurrent": "固負_その他固定負債",
+
+    # === US GAAP 追加タグ ===
+    "CashAndCashEquivalentsAtCarryingValue": "流動_現金及び預金",
+    "AccountsReceivableNetCurrent": "流動_売掛金",
+    "ReceivablesNetCurrent": "流動_売掛金",
+    "InventoryNet": "流動_棚卸資産",
+    "OtherAssetsCurrent": "流動_その他流動資産",
+    "IntangibleAssetsNetExcludingGoodwill": "無形_その他無形固定資産",
+    "OtherAssetsNoncurrent": "投資_その他固定資産",
+    "EquityMethodInvestments": "投資_関係会社株式",
+    "AccountsPayableCurrent": "流負_支払手形・買掛金",
+    "ShortTermBorrowings": "流負_短期借入金",
+    "OtherLiabilitiesCurrent": "流負_その他流動負債",
+    "LongTermDebtNoncurrent": "固負_長期借入金",
+    "OtherLiabilitiesNoncurrent": "固負_その他固定負債"
 }
 
 DISPLAY_ORDER = [
@@ -236,7 +275,9 @@ def analyze_bs_xbrl(doc_id):
             try: soup = BeautifulSoup(f, 'lxml-xml')
             except: soup = BeautifulSoup(f, 'html.parser')
 
-            if soup.find(re.compile("ifrs", re.IGNORECASE)): return "IFRS"
+            doc_type = "J-GAAP"
+            if soup.find(re.compile("ifrs", re.IGNORECASE)): doc_type = "IFRS"
+            elif soup.find(re.compile("us-gaap", re.IGNORECASE)): doc_type = "US GAAP"
             
             dei = soup.find(re.compile(r'.*CurrentPeriodEndDate'))
             end_date = dei.text.strip() if dei else None
@@ -288,6 +329,15 @@ def analyze_bs_xbrl(doc_id):
                     # 後に出現した値を優先（または同一コンテキストなら同じ値）
                     raw_tags[tag] = val
                     if tag in temp_totals: temp_totals[tag] = val
+                    
+                    # Totals mapping logic for IFRS / US GAAP compatibility
+                    if tag in ["Assets", "TotalAssets"]: temp_totals["Assets"] = val
+                    elif tag in ["CurrentAssets", "AssetsCurrent"]: temp_totals["CurrentAssets"] = val
+                    elif tag in ["NoncurrentAssets", "AssetsNoncurrent"]: temp_totals["NonCurrentAssets"] = val
+                    elif tag in ["Liabilities", "TotalLiabilities"]: temp_totals["Liabilities"] = val
+                    elif tag in ["CurrentLiabilities", "LiabilitiesCurrent"]: temp_totals["CurrentLiabilities"] = val
+                    elif tag in ["NoncurrentLiabilities", "LiabilitiesNoncurrent"]: temp_totals["NonCurrentLiabilities"] = val
+                    elif tag in ["NetAssets", "Equity", "StockholdersEquity", "TotalEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "EquityAttributableToOwnersOfParent"]: temp_totals["NetAssets"] = val
                 
                 for tag, val in raw_tags.items():
                     if tag in TAG_MAPPING:
@@ -336,7 +386,7 @@ def analyze_bs_xbrl(doc_id):
     sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
     summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
     
-    return summary, totals
+    return summary, totals, doc_type
 
 
 # --- 解析用ヘルパー関数群 ---
@@ -990,11 +1040,14 @@ def main():
             bs_doc_id, bs_desc, _ = searcher.find_best_bs_doc(code)
             if bs_doc_id:
                 ret = analyze_bs_xbrl(bs_doc_id)
-                if ret == "IFRS":
-                    combined_data["B/S_取得書類"] = f"{bs_desc} (IFRS)"
-                elif ret:
-                    summary, totals = ret
-                    combined_data["B/S_取得書類"] = bs_desc
+                if ret:
+                    if len(ret) == 3: # To handle new signature safely
+                        summary, totals, doc_type = ret
+                        combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
+                    else:
+                        summary, totals = ret
+                        combined_data["B/S_取得書類"] = bs_desc
+                        
                     for k in DISPLAY_ORDER:
                         combined_data[k] = round(summary[k] / 100000000, 3)
                     combined_data["★資産合計"] = round(totals['Assets'] / 100000000, 3)
