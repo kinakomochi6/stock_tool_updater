@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 # ==========================================
 # ★設定エリア
 # ==========================================
-EDINET_API_KEY = os.environ.get('EDINET_API_KEY', '4fa7200f623d43b0b9fd815cc4a2c0bf')
+EDINET_API_KEY = os.environ.get('EDINET_API_KEY')
 # Firebase認証キーのパスは環境変数またはデフォルトで固定
 FIREBASE_KEY = os.environ.get('FIREBASE_KEY_PATH', 'firebase_key.json') 
 
