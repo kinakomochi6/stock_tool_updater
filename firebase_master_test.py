@@ -125,6 +125,27 @@ TAG_MAPPING = {
     "OtherNoncurrentFinancialLiabilities": "固負_その他固定負債",
     "OtherFinancialLiabilitiesNoncurrent": "固負_その他固定負債",
 
+    # === IFRS 固有/四半期 (jpigp_cor, jpcrp_cor) 追加タグ ===
+    "CashAndCashEquivalentsIFRS": "流動_現金及び預金",
+    "TradeAndOtherCurrentReceivablesIFRS": "流動_売掛金",
+    "OtherCurrentFinancialAssetsCAIFRS": "流動_その他流動資産",
+    "OtherCurrentAssetsCAIFRS": "流動_その他流動資産",
+    "InventoriesIFRS": "流動_棚卸資産",
+    "IntangibleAssetsIFRS": "無形_その他無形固定資産",
+    "InvestmentsAccountedForUsingEquityMethodIFRS": "投資_関係会社株式",
+    "OtherFinancialAssetsNCAIFRS": "投資_その他固定資産",
+    "OtherNonCurrentAssetsNCAIFRS": "投資_その他固定資産",
+    "InvestmentPropertyIFRS": "投資_投資不動産",
+    "TradeAndOtherCurrentPayablesIFRS": "流負_支払手形・買掛金",
+    "TradeAndOtherCurrentPayablesCLIFRS": "流負_支払手形・買掛金",
+    "InterestBearingLiabilitiesCLIFRS": "流負_短期借入金",
+    "OtherFinancialLiabilitiesCLIFRS": "流負_その他流動負債",
+    "OtherCurrentLiabilitiesCLIFRS": "流負_その他流動負債",
+    "InterestBearingLiabilitiesNCLIFRS": "固負_長期借入金",
+    "OtherFinancialLiabilitiesNCLIFRS": "固負_その他固定負債",
+    "OtherNonCurrentLiabilitiesNCLIFRS": "固負_その他固定負債",
+    "DeferredTaxLiabilitiesIFRS": "固負_繰延税金負債",
+
     # === US GAAP 追加タグ ===
     "CashAndCashEquivalentsAtCarryingValue": "流動_現金及び預金",
     "AccountsReceivableNetCurrent": "流動_売掛金",
@@ -276,8 +297,11 @@ def analyze_bs_xbrl(doc_id):
             except: soup = BeautifulSoup(f, 'html.parser')
 
             doc_type = "J-GAAP"
-            if soup.find(re.compile("ifrs", re.IGNORECASE)): doc_type = "IFRS"
-            elif soup.find(re.compile("us-gaap", re.IGNORECASE)): doc_type = "US GAAP"
+            # Fast check using raw string
+            f.seek(0)
+            raw_text = f.read().decode('utf-8').lower()
+            if 'ifrs-full:' in raw_text or 'ifrs:' in raw_text or 'jpigp_cor:' in raw_text: doc_type = "IFRS"
+            elif 'us-gaap:' in raw_text: doc_type = "US GAAP"
             
             dei = soup.find(re.compile(r'.*CurrentPeriodEndDate'))
             end_date = dei.text.strip() if dei else None
@@ -310,7 +334,7 @@ def analyze_bs_xbrl(doc_id):
                     elements_by_ctx.setdefault(ctx_ref, []).append(el)
 
             max_hits = -1
-            best_res = (summary, totals)
+            best_res = (summary, totals, {})
             best_cid = None
             
             for cid in valid_ctx_candidates:
@@ -331,39 +355,48 @@ def analyze_bs_xbrl(doc_id):
                     if tag in temp_totals: temp_totals[tag] = val
                     
                     # Totals mapping logic for IFRS / US GAAP compatibility
-                    if tag in ["Assets", "TotalAssets"]: temp_totals["Assets"] = val
-                    elif tag in ["CurrentAssets", "AssetsCurrent"]: temp_totals["CurrentAssets"] = val
-                    elif tag in ["NoncurrentAssets", "AssetsNoncurrent"]: temp_totals["NonCurrentAssets"] = val
-                    elif tag in ["Liabilities", "TotalLiabilities"]: temp_totals["Liabilities"] = val
-                    elif tag in ["CurrentLiabilities", "LiabilitiesCurrent"]: temp_totals["CurrentLiabilities"] = val
-                    elif tag in ["NoncurrentLiabilities", "LiabilitiesNoncurrent"]: temp_totals["NonCurrentLiabilities"] = val
-                    elif tag in ["NetAssets", "Equity", "StockholdersEquity", "TotalEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "EquityAttributableToOwnersOfParent"]: temp_totals["NetAssets"] = val
+                    if tag in ["Assets", "TotalAssets", "AssetsIFRS", "TotalAssetsIFRSSummaryOfBusinessResults", "TotalAssetsUSGAAPSummaryOfBusinessResults"]: temp_totals["Assets"] = val
+                    elif tag in ["CurrentAssets", "AssetsCurrent", "CurrentAssetsIFRS", "TotalCurrentAssetsIFRS"]: temp_totals["CurrentAssets"] = val
+                    elif tag in ["NoncurrentAssets", "AssetsNoncurrent", "NonCurrentAssetsIFRS", "TotalNonCurrentAssetsIFRS"]: temp_totals["NonCurrentAssets"] = val
+                    elif tag in ["Liabilities", "TotalLiabilities", "LiabilitiesIFRS", "TotalLiabilitiesIFRSSummaryOfBusinessResults", "TotalLiabilitiesUSGAAPSummaryOfBusinessResults"]: temp_totals["Liabilities"] = val
+                    elif tag in ["CurrentLiabilities", "LiabilitiesCurrent", "CurrentLiabilitiesIFRS", "TotalCurrentLiabilitiesIFRS"]: temp_totals["CurrentLiabilities"] = val
+                    elif tag in ["NoncurrentLiabilities", "LiabilitiesNoncurrent", "NonCurrentLiabilitiesIFRS", "TotalNonCurrentLiabilitiesIFRS"]: temp_totals["NonCurrentLiabilities"] = val
+                    elif tag in ["NetAssets", "Equity", "StockholdersEquity", "TotalEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "EquityAttributableToOwnersOfParent", "EquityIFRS", "TotalEquityIFRSSummaryOfBusinessResults", "EquityAttributableToOwnersOfParentIFRS", "EquityAttributableToOwnersOfParentIFRSSummaryOfBusinessResults", "NetAssetsUSGAAPSummaryOfBusinessResults", "TotalEquityUSGAAPSummaryOfBusinessResults", "StockholdersEquityUSGAAPSummaryOfBusinessResults"]: temp_totals["NetAssets"] = val
                 
                 for tag, val in raw_tags.items():
                     if tag in TAG_MAPPING:
                         # 棚卸資産の内訳と合計の二重計上防止
                         if tag in ["MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies", "RealEstateForSale", "RealEstateForSaleInProcess", "CostsOnRealEstateBusiness", "CostsOnUncompletedConstructionContracts"]:
-                            if "Inventories" in raw_tags:
+                            if any(k in raw_tags for k in ["Inventories", "InventoriesIFRS", "InventoryNet"]):
                                 continue # 合計タグであるInventoriesが存在する場合は内訳を加算しない
                         
                         # 固定資産のGross/Net二重計上防止
                         if not tag.endswith("Net") and (tag + "Net") in raw_tags:
                             continue # Netタグが存在する場合はGross金額を加算しない
                             
-                        temp_summary[TAG_MAPPING[tag]] += val
+                        # 棚卸資産、その他系は合算、それ以外は同じ意味のタグが存在する(預金など)ので最大値を取る
+                        cat = TAG_MAPPING[tag]
+                        if cat not in temp_summary:
+                            temp_summary[cat] = 0
+                        
+                        if "その他" in cat or cat == "流動_棚卸資産":
+                            temp_summary[cat] += val
+                        else:
+                            temp_summary[cat] = max(temp_summary[cat], val)
+                            
                         hits += 1
                 
                 if hits > max_hits:
                     max_hits = hits
                     best_cid = cid
-                    best_res = (temp_summary, temp_totals)
+                    best_res = (temp_summary, temp_totals, raw_tags)
                 elif hits == max_hits and max_hits > 0:
                     # 同じヒット数なら、NonConsolidated という文字が入っていないほう（連結っぽいほう）を優先
                     if "NonConsolidated" not in cid and (best_cid and "NonConsolidated" in best_cid):
                          best_cid = cid
-                         best_res = (temp_summary, temp_totals)
+                         best_res = (temp_summary, temp_totals, raw_tags)
             
-            summary, totals = best_res
+            summary, totals, best_raw_tags = best_res
             valid_ctx = {best_cid} if best_cid else set()
 
     if summary["流動_受取手形"] > 0 or summary["流動_売掛金"] > 0:
@@ -386,7 +419,7 @@ def analyze_bs_xbrl(doc_id):
     sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
     summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
     
-    return summary, totals, doc_type
+    return summary, totals, doc_type, best_raw_tags
 
 
 # --- 解析用ヘルパー関数群 ---
@@ -1041,7 +1074,10 @@ def main():
             if bs_doc_id:
                 ret = analyze_bs_xbrl(bs_doc_id)
                 if ret:
-                    if len(ret) == 3: # To handle new signature safely
+                    if len(ret) == 4: # To handle new signature safely
+                        summary, totals, doc_type, _ = ret
+                        combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
+                    elif len(ret) == 3:
                         summary, totals, doc_type = ret
                         combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
                     else:
