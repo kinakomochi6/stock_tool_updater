@@ -97,9 +97,11 @@ TAG_MAPPING = {
     "LeaseObligationsNonCurrent": "固負_リース債務", "AssetRetirementObligations": "固負_資産除去債務", "AssetRetirementObligationsNCL": "固負_資産除去債務",
     "LongTermDepositsReceived": "固負_長期預り金", "LongTermGuaranteeDeposited": "固負_長期預り金", "OtherNonCurrentLiabilities": "固負_その他固定負債", "OtherNCL": "固負_その他固定負債",
     "CapitalStock": "純資_資本金", "CapitalSurplus": "純資_資本剰余金",
-    "RetainedEarnings": "純資_利益剰余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
+    "RetainedEarnings": "純資_利益屉余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
     "ValuationAndTranslationAdjustments": "純資_評価換算差額金",
     "NonControllingInterests": "純資_非支配株主持分", "SubscriptionRightsToShares": "純資_新株予約権",
+    # J-GAAP 短期有価非(流動資産に記載)
+    "ShortTermInvestmentSecurities": "流動_有価証券",
     
     # === IFRS 追加タグ ===
     "CashAndCashEquivalents": "流動_現金及び預金",
@@ -128,39 +130,75 @@ TAG_MAPPING = {
     # === IFRS 固有/四半期 (jpigp_cor, jpcrp_cor) 追加タグ ===
     "CashAndCashEquivalentsIFRS": "流動_現金及び預金",
     "TradeAndOtherCurrentReceivablesIFRS": "流動_売掛金",
+    "TradeAndOtherReceivablesCAIFRS": "流動_売掛金",
+    "TradeReceivablesOtherReceivablesAndContractAssetsCAIFRS": "流動_売掛金",
+    "InventoriesIFRS": "流動_棚卸資産",
+    "InventoriesCAIFRS": "流動_棚卸資産",
     "OtherCurrentFinancialAssetsCAIFRS": "流動_その他流動資産",
     "OtherCurrentAssetsCAIFRS": "流動_その他流動資産",
-    "InventoriesIFRS": "流動_棚卸資産",
+    "IncomeTaxesReceivableCAIFRS": "流動_その他流動資産",
+    # IFRS 有形固定資産
+    "PropertyPlantAndEquipmentIFRS": "有形_その他有形固定資産",
+    "RightOfUseAssetsIFRS": "有形_リース資産",
+    # IFRS 無形固定資産
     "IntangibleAssetsIFRS": "無形_その他無形固定資産",
+    "GoodwillIFRS": "無形_のれん",
+    "OtherIntangibleAssetsIFRS": "無形_その他無形固定資産",
+    # IFRS 投資その他
     "InvestmentsAccountedForUsingEquityMethodIFRS": "投資_関係会社株式",
+    "InvestmentsInSecuritiesAndOtherFinancialAssetsNCAIFRS": "投資_投資有価証券",
+    "InvestmentsInSecuritiesAndOtherFinancialAssetsCAIFRS": "流動_有価証券",
     "OtherFinancialAssetsNCAIFRS": "投資_その他固定資産",
     "OtherNonCurrentAssetsNCAIFRS": "投資_その他固定資産",
     "InvestmentPropertyIFRS": "投資_投資不動産",
+    "DeferredTaxAssetsIFRS": "投資_繰延税金資産",
+    # IFRS 流動負債
     "TradeAndOtherCurrentPayablesIFRS": "流負_支払手形・買掛金",
     "TradeAndOtherCurrentPayablesCLIFRS": "流負_支払手形・買掛金",
+    "TradeAndOtherPayablesCLIFRS": "流負_支払手形・買掛金",
     "InterestBearingLiabilitiesCLIFRS": "流負_短期借入金",
+    "BorrowingsCLIFRS": "流負_短期借入金",
+    "CurrentPortionOfLongTermDebtCLIFRS": "流負_1年内返済長期借入金",
+    "IncomeTaxesPayableCLIFRS": "流負_未払法人税等",
+    "AccruedExpensesCLIFRS": "流負_未払費用",
     "OtherFinancialLiabilitiesCLIFRS": "流負_その他流動負債",
     "OtherCurrentLiabilitiesCLIFRS": "流負_その他流動負債",
+    # IFRS 固定負債
     "InterestBearingLiabilitiesNCLIFRS": "固負_長期借入金",
+    "LongTermDebtNCLIFRS": "固負_長期借入金",
+    "LongTermDebt2NCLIFRS": "固負_長期借入金",
+    "RetirementBenefitLiabilityNCLIFRS": "固負_退職給付引当金",
     "OtherFinancialLiabilitiesNCLIFRS": "固負_その他固定負債",
     "OtherNonCurrentLiabilitiesNCLIFRS": "固負_その他固定負債",
     "DeferredTaxLiabilitiesIFRS": "固負_繰延税金負債",
+    # IFRS 純資産
+    "ShareCapitalIFRS": "純資_資本金",
+    "CapitalSurplusIFRS": "純資_資本屉余金",
+    "RetainedEarningsIFRS": "純資_利益屉余金",
+    "TreasurySharesIFRS": "純資_自己株式",
+    "AccumulatedOtherComprehensiveIncomeIFRS": "純資_評価換算差額金",
+    "OtherComponentsOfEquityIFRS": "純資_評価換算差額金",
+    "NonControllingInterestsIFRS": "純資_非支配株主持分",
 
     # === US GAAP 追加タグ ===
     "CashAndCashEquivalentsAtCarryingValue": "流動_現金及び預金",
+    "CashAndCashEquivalentsUSGAAPSummaryOfBusinessResults": "流動_現金及び預金",
     "AccountsReceivableNetCurrent": "流動_売掛金",
     "ReceivablesNetCurrent": "流動_売掛金",
     "InventoryNet": "流動_棚卸資産",
     "OtherAssetsCurrent": "流動_その他流動資産",
     "IntangibleAssetsNetExcludingGoodwill": "無形_その他無形固定資産",
+    "GoodwillUSGAAP": "無形_のれん",
     "OtherAssetsNoncurrent": "投資_その他固定資産",
     "EquityMethodInvestments": "投資_関係会社株式",
     "AccountsPayableCurrent": "流負_支払手形・買掛金",
     "ShortTermBorrowings": "流負_短期借入金",
     "OtherLiabilitiesCurrent": "流負_その他流動負債",
     "LongTermDebtNoncurrent": "固負_長期借入金",
-    "OtherLiabilitiesNoncurrent": "固負_その他固定負債"
+    "OtherLiabilitiesNoncurrent": "固負_その他固定負債",
+    "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults": "純資_利益屉余金",
 }
+
 
 DISPLAY_ORDER = [
     "流動_現金及び預金", "流動_受取手形", "流動_売掛金", "流動_契約資産", "流動_電子記録債権", "流動_受取手形・売掛金(合算)", 
@@ -365,21 +403,45 @@ def analyze_bs_xbrl(doc_id):
                 
                 for tag, val in raw_tags.items():
                     if tag in TAG_MAPPING:
+                        # 合計タグは個別項目に追加しないタグリスト
+                        EXCLUDE_FROM_ITEMS = {
+                            # US GAAP Summary タグ：純資産Totalには使うが個別記載には不要
+                            "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults",
+                            "CashAndCashEquivalentsUSGAAPSummaryOfBusinessResults",
+                            # 売却目的保有グループ関連の特殊調整項目（スピンオフ等）→純資産の差引に使わない
+                            "AccumulatedOtherComprehensiveIncomeDirectlyRelatedToTheDisposalGroupClassifiedAsHeldForDistributionToOwnersEquityIFRS",
+                        }
+                        if tag in EXCLUDE_FROM_ITEMS:
+                            continue
+
                         # 棚卸資産の内訳と合計の二重計上防止
                         if tag in ["MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies", "RealEstateForSale", "RealEstateForSaleInProcess", "CostsOnRealEstateBusiness", "CostsOnUncompletedConstructionContracts"]:
-                            if any(k in raw_tags for k in ["Inventories", "InventoriesIFRS", "InventoryNet"]):
-                                continue # 合計タグであるInventoriesが存在する場合は内訳を加算しない
+                            if any(k in raw_tags for k in ["Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"]):
+                                continue
+                        # IFRS 棚卸資産: InventoriesIFRSとInventoriesCAIFRSの二重計上防止
+                        if tag == "InventoriesCAIFRS" and "InventoriesIFRS" in raw_tags:
+                            continue
+                        # 純資産: 具体的な内訳タグがあればサマリータグを除外
+                        if tag in ["EquityIFRS"] and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
+                            continue
                         
                         # 固定資産のGross/Net二重計上防止
                         if not tag.endswith("Net") and (tag + "Net") in raw_tags:
-                            continue # Netタグが存在する場合はGross金額を加算しない
+                            continue
                             
-                        # 棚卸資産、その他系は合算、それ以外は同じ意味のタグが存在する(預金など)ので最大値を取る
+                        # 同じ意味の複数タグが混在する際の扱い:
+                        # - 自己株式・貸倒引当金はXBRL上でマイナス値のため加算
+                        # - 棚卸資産の内訳・その他系カテゴリは各タグを加算
+                        # - その他の資産・負債は同一概念の重複タグがあるためmax()で最大値採用
                         cat = TAG_MAPPING[tag]
                         if cat not in temp_summary:
                             temp_summary[cat] = 0
-                        
-                        if "その他" in cat or cat == "流動_棚卸資産":
+
+                        ADDITIVE_CATS = {
+                            "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
+                            "純資_自己株式",  # XBRLではマイナス値で格納されているため加算
+                        }
+                        if "その他" in cat or cat in ADDITIVE_CATS:
                             temp_summary[cat] += val
                         else:
                             temp_summary[cat] = max(temp_summary[cat], val)
@@ -408,16 +470,25 @@ def analyze_bs_xbrl(doc_id):
         totals["NonCurrentLiabilities"] = totals["Liabilities"] - totals["CurrentLiabilities"]
 
     def calc_gap(p, t, o):
+        # Totals=0ならサマリに詳細タグが取れているとしても差引計算をしない(歪みを防ぐ)
+        if totals[t] == 0:
+            summary[o] = 0
+            return
         s = sum(summary[k] for k in summary if k.startswith(p) and k != o)
         summary[o] = (totals[t] - s)
     
     calc_gap("流動_", "CurrentAssets", "流動_その他流動資産")
-    sum_fixed = sum(summary[k] for k in summary if (k.startswith("有形_") or k.startswith("無形_") or k.startswith("投資_")) and k != "投資_その他固定資産")
-    summary["投資_その他固定資産"] = (totals["NonCurrentAssets"] - sum_fixed)
+    # 非流動資産の「その他」も同様
+    if totals["NonCurrentAssets"] != 0:
+        sum_fixed = sum(summary[k] for k in summary if (k.startswith("有形_") or k.startswith("無形_") or k.startswith("投資_")) and k != "投資_その他固定資産")
+        summary["投資_その他固定資産"] = (totals["NonCurrentAssets"] - sum_fixed)
     calc_gap("流負_", "CurrentLiabilities", "流負_その他流動負債")
     calc_gap("固負_", "NonCurrentLiabilities", "固負_その他固定負債")
-    sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
-    summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
+    if totals["NetAssets"] != 0:
+        sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
+        summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
+    else:
+        summary["純資_その他純資産"] = 0
     
     return summary, totals, doc_type, best_raw_tags
 
