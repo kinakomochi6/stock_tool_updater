@@ -64,12 +64,19 @@ B/S抽出の診断JSONを出力する:
 python firebase_master_test.py --codes 7203 --debug-bs --debug-dir diagnostics
 ```
 
+Firestoreへ保存せずに診断だけ実行する:
+
+```bash
+python firebase_master_test.py --codes 9366,3123 --debug-bs --debug-dir diagnostics --dry-run
+```
+
 診断JSONには、採用されたcontext、contextごとのスコア、重複タグ、採用タグ、除外タグ、合計との差額、B/S警告が出力されます。
 
 ## GitHub Actions
 
 `.github/workflows/update_stock_data.yml` が毎日 15:00 UTC、日本時間の深夜0時に8分割で実行します。
-手動実行も可能です。
+手動実行も可能です。`codes` を空にすると通常の8分割更新、`9366,3123` のように指定すると指定銘柄だけを実行します。
+精度確認では `debug_bs=true`、`dry_run=true` にするとFirestoreへ保存せず、B/S診断JSONをartifactからダウンロードできます。
 
 GitHub Secretsには以下を設定してください。
 

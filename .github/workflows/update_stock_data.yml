@@ -4,10 +4,30 @@ on:
   schedule:
     # 毎日深夜0時(JST) = 15:00 UTC に自動実行
     - cron: '0 15 * * *'
-  workflow_dispatch: # 手動実行用ボタンを追加
+  workflow_dispatch:
+    inputs:
+      codes:
+        description: '診断・単体更新する銘柄コード。例: 9366,3123。空なら通常の8分割更新'
+        required: false
+        default: ''
+      days_back:
+        description: 'EDINETを遡って検索する日数'
+        required: false
+        default: '365'
+      debug_bs:
+        description: 'B/S診断JSONを出力する'
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Firestoreへ保存しない'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   scrape:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.codes == '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # 1つのShardが失敗しても他のShardを止めない
@@ -36,3 +56,47 @@ jobs:
         run: |
           # 8分割したうちの、自分のShard Indexを担当するバッチを実行
           python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
+
+  diagnose:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes != '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Selected Codes
+        env:
+          EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          ARGS=(firebase_master_test.py --codes "${{ github.event.inputs.codes }}" --days-back "${{ github.event.inputs.days_back }}")
+          if [ "${{ github.event.inputs.debug_bs }}" = "true" ]; then
+            ARGS+=(--debug-bs --debug-dir diagnostics)
+          fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          printf 'python'
+          printf ' %q' "${ARGS[@]}"
+          printf '\n'
+          python "${ARGS[@]}"
+
+      - name: Upload B/S diagnostics
+        if: ${{ always() && github.event.inputs.debug_bs == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bs-diagnostics
+          path: diagnostics/*.json
+          if-no-files-found: ignore

@@ -1174,6 +1174,7 @@ def main():
     parser.add_argument("--days-back", type=int, default=365, help="How many days of EDINET documents to scan")
     parser.add_argument("--debug-bs", action="store_true", help="Write B/S extraction diagnostics JSON for each processed code")
     parser.add_argument("--debug-dir", type=str, default=".", help="Directory for --debug-bs output files")
+    parser.add_argument("--dry-run", action="store_true", help="Run without writing results to Firestore")
     args = parser.parse_args()
 
     if not EDINET_API_KEY:
@@ -1186,8 +1187,12 @@ def main():
     requested_codes = parse_codes_arg(args.codes)
     
     # Firebase接続
-    db = initialize_firebase()
-    collection_ref = db.collection('companies')
+    collection_ref = None
+    if args.dry_run:
+        print("DRY RUN: Firestoreへの保存をスキップします。")
+    else:
+        db = initialize_firebase()
+        collection_ref = db.collection('companies')
 
     companies_list = get_all_listed_codes()
     
@@ -1346,8 +1351,11 @@ def main():
                     combined_data["不動産_取得書類"] = "有価証券報告書等より取得"
 
             # Firebaseへ保存
-            combined_data["データ最終更新日"] = firestore.SERVER_TIMESTAMP 
-            collection_ref.document(str(code)).set(combined_data, merge=True)
+            if args.dry_run:
+                print(" -> [DRY RUN] Firestore保存をスキップしました。")
+            else:
+                combined_data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
+                collection_ref.document(str(code)).set(combined_data, merge=True)
             
             print(f" -> [{company_name}] 財務 ROE: {combined_data['ROE_pct']}% / 時価総額: {combined_data['時価総額_億']}億円 / 4年平均自社株買い: {combined_data['4年平均自社株買い_億']}億円")
             print(f" -> [ B/S] 資産合計: {combined_data['★資産合計']}億円 ({combined_data['B/S_取得書類']})")
