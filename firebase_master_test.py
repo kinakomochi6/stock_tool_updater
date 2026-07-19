@@ -73,6 +73,7 @@ TAG_MAPPING = {
     "Land": "有形_土地",
     "ConstructionInProgress": "有形_建設仮勘定",
     "LeaseAssets": "有形_リース資産", "LeaseAssetsNet": "有形_リース資産",
+    "LeaseAssetsPPE": "有形_リース資産", "LeaseAssetsNetPPE": "有形_リース資産",
     "AssetsForOperatingLeases": "有形_賃貸用資産", "AssetsForOperatingLeasesNet": "有形_賃貸用資産",
     "ToolsFurnitureAndFixtures": "有形_工具器具備品", "ToolsFurnitureAndFixturesNet": "有形_工具器具備品",
     "OtherPropertyPlantAndEquipment": "有形_その他有形固定資産", "OtherPropertyPlantAndEquipmentNet": "有形_その他有形固定資産", "OtherNetPPE": "有形_その他有形固定資産",
@@ -92,12 +93,13 @@ TAG_MAPPING = {
     "IncomeTaxesPayable": "流負_未払法人税等", "AdvancesReceived": "流負_前受金",
     "AdvancesReceivedOnUncompletedConstructionContracts": "流負_前受金", "ContractLiabilities": "流負_前受金",
     "AdvancesReceivedOnUncompletedConstructionContractsCNS": "流負_前受金", "DepositsReceived": "流負_預り金",
-    "LeaseObligationsCurrent": "流負_リース債務", "ProvisionForBonuses": "流負_賞与引当金",
+    "LeaseObligationsCurrent": "流負_リース債務", "LeaseObligationsCL": "流負_リース債務", "ProvisionForBonuses": "流負_賞与引当金",
     "OtherCurrentLiabilities": "流負_その他流動負債", "OtherCL": "流負_その他流動負債",
     "BondsPayable": "固負_社債", "ConvertibleBondTypeBondsWithSubscriptionRightsToShares": "固負_社債",
     "LongTermLoansPayable": "固負_長期借入金", "DeferredTaxLiabilities": "固負_繰延税金負債", "DeferredTaxLiabilitiesForLandRevaluation": "固負_繰延税金負債",
     "RetirementBenefitLiability": "固負_退職給付引当金", "NetDefinedBenefitLiability": "固負_退職給付引当金",
-    "LeaseObligationsNonCurrent": "固負_リース債務", "AssetRetirementObligations": "固負_資産除去債務", "AssetRetirementObligationsNCL": "固負_資産除去債務",
+    "LeaseObligationsNonCurrent": "固負_リース債務", "LeaseObligationsNCL": "固負_リース債務", "AssetRetirementObligations": "固負_資産除去債務", "AssetRetirementObligationsNCL": "固負_資産除去債務",
+    "ProvisionForDirectorsRetirementBenefits": "固負_その他固定負債",
     "LongTermDepositsReceived": "固負_長期預り金", "LongTermGuaranteeDeposited": "固負_長期預り金", "OtherNonCurrentLiabilities": "固負_その他固定負債", "OtherNCL": "固負_その他固定負債",
     "CapitalStock": "純資_資本金", "CapitalSurplus": "純資_資本剰余金",
     "RetainedEarnings": "純資_利益剰余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
@@ -410,6 +412,8 @@ def should_skip_item_tag(tag, raw_tags):
         return "duplicate_ifrs_inventory_total"
     if tag == "EquityIFRS" and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
         return "equity_summary_skipped_because_details_exist"
+    if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:
+        return "gross_lease_assets_skipped_because_net_exists"
     if not tag.endswith("Net") and (tag + "Net") in raw_tags:
         return "gross_value_skipped_because_net_exists"
     return None
