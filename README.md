@@ -78,6 +78,15 @@ python firebase_master_test.py --codes 9366,3123 --debug-bs --debug-dir diagnost
 手動実行も可能です。`codes` を空にすると通常の8分割更新、`9366,3123` のように指定すると指定銘柄だけを実行します。
 精度確認では `debug_bs=true`、`dry_run=true` にするとFirestoreへ保存せず、B/S診断JSONをartifactからダウンロードできます。
 
+Actions画面で9366/3123を診断する場合は、各入力欄に以下のように入れてください。
+
+```text
+codes      9366,3123
+days_back  365
+debug_bs   true
+dry_run    true
+```
+
 GitHub Secretsには以下を設定してください。
 
 - `EDINET_API_KEY`

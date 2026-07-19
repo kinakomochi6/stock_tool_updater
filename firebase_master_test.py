@@ -1154,14 +1154,9 @@ def initialize_firebase():
 def parse_codes_arg(codes_arg):
     if not codes_arg:
         return None
-    codes = []
-    for raw in re.split(r'[,、\s]+', codes_arg):
-        code = raw.strip()
-        if not code:
-            continue
-        if not re.fullmatch(r'\d{4}', code):
-            raise ValueError(f"銘柄コードは4桁で指定してください: {raw}")
-        codes.append(code)
+    codes = re.findall(r'(?<!\d)\d{4}(?!\d)', str(codes_arg))
+    if not codes:
+        raise ValueError(f"銘柄コードを4桁で指定してください: {codes_arg}")
     return sorted(set(codes))
 
 def validate_tag_mapping():
