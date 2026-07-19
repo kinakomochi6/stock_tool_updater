@@ -4,6 +4,8 @@ firebase_key.json
 *.txt
 !requirements.txt
 debug_*.py
+debug_bs_*.json
+diagnostics/
 *バックアップ*.txt
 __pycache__/
 .venv/

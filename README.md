@@ -58,6 +58,14 @@ EDINETの検索日数を短くする:
 python firebase_master_test.py --codes 7203 --days-back 90
 ```
 
+B/S抽出の診断JSONを出力する:
+
+```bash
+python firebase_master_test.py --codes 7203 --debug-bs --debug-dir diagnostics
+```
+
+診断JSONには、採用されたcontext、contextごとのスコア、重複タグ、採用タグ、除外タグ、合計との差額、B/S警告が出力されます。
+
 ## GitHub Actions
 
 `.github/workflows/update_stock_data.yml` が毎日 15:00 UTC、日本時間の深夜0時に8分割で実行します。
@@ -72,4 +80,3 @@ GitHub Secretsには以下を設定してください。
 
 `firebase_key.json`、`.env`、ログ、デバッグファイルはGitに入れないでください。
 Vercel版アプリは、このバッチが保存したFirestoreデータを読み込んで表示します。
-

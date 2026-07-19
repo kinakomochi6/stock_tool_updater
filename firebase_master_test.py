@@ -314,9 +314,136 @@ class EdinetSearcher:
         return candidates.iloc[0]['docID']
 
 # ==========================================
-# 3. 解析機能 (B/S) ※6396対応の「確実に動いていたベース」を復元
+# 3. 解析機能 (B/S)
 # ==========================================
-def analyze_bs_xbrl(doc_id):
+TOTAL_TAG_MAP = {
+    "Assets": ["Assets", "TotalAssets", "AssetsIFRS", "TotalAssetsIFRSSummaryOfBusinessResults", "TotalAssetsUSGAAPSummaryOfBusinessResults"],
+    "CurrentAssets": ["CurrentAssets", "AssetsCurrent", "CurrentAssetsIFRS", "TotalCurrentAssetsIFRS"],
+    "NonCurrentAssets": ["NoncurrentAssets", "AssetsNoncurrent", "NonCurrentAssetsIFRS", "TotalNonCurrentAssetsIFRS"],
+    "Liabilities": ["Liabilities", "TotalLiabilities", "LiabilitiesIFRS", "TotalLiabilitiesIFRSSummaryOfBusinessResults", "TotalLiabilitiesUSGAAPSummaryOfBusinessResults"],
+    "CurrentLiabilities": ["CurrentLiabilities", "LiabilitiesCurrent", "CurrentLiabilitiesIFRS", "TotalCurrentLiabilitiesIFRS"],
+    "NonCurrentLiabilities": ["NoncurrentLiabilities", "LiabilitiesNoncurrent", "NonCurrentLiabilitiesIFRS", "TotalNonCurrentLiabilitiesIFRS"],
+    "NetAssets": [
+        "NetAssets", "Equity", "StockholdersEquity", "TotalEquity",
+        "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        "EquityAttributableToOwnersOfParent", "EquityIFRS",
+        "TotalEquityIFRSSummaryOfBusinessResults",
+        "EquityAttributableToOwnersOfParentIFRS",
+        "EquityAttributableToOwnersOfParentIFRSSummaryOfBusinessResults",
+        "NetAssetsUSGAAPSummaryOfBusinessResults",
+        "TotalEquityUSGAAPSummaryOfBusinessResults",
+        "StockholdersEquityUSGAAPSummaryOfBusinessResults",
+    ],
+}
+TOTAL_TAG_LOOKUP = {tag: total for total, tags in TOTAL_TAG_MAP.items() for tag in tags}
+
+EXCLUDE_FROM_ITEMS = {
+    "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults",
+    "CashAndCashEquivalentsUSGAAPSummaryOfBusinessResults",
+    "AccumulatedOtherComprehensiveIncomeDirectlyRelatedToTheDisposalGroupClassifiedAsHeldForDistributionToOwnersEquityIFRS",
+}
+INVENTORY_DETAIL_TAGS = {
+    "MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies",
+    "RealEstateForSale", "RealEstateForSaleInProcess", "CostsOnRealEstateBusiness",
+    "CostsOnUncompletedConstructionContracts",
+}
+INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
+ADDITIVE_CATS = {
+    "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
+    "純資_自己株式",
+}
+
+def get_tag_name(el):
+    return el.name.split(':')[-1]
+
+def parse_xbrl_number(text):
+    text_str = text.strip()
+    if not re.match(r'^-?[\d\.]+$', text_str):
+        return None
+    try:
+        return int(float(text_str))
+    except Exception:
+        return None
+
+def get_context_score(cid, ctx):
+    score = 0
+    cid_text = cid or ""
+    members = [m.text for m in ctx.find_all(re.compile(r'.*explicitMember'))]
+    if "CurrentYear" in cid_text or "Current" in cid_text:
+        score += 200
+    if "Prior" in cid_text:
+        score -= 500
+    if "NonConsolidated" in cid_text:
+        score -= 120
+    if "Consolidated" in cid_text and "NonConsolidated" not in cid_text:
+        score += 120
+    if any("NonConsolidatedMember" in m for m in members):
+        score -= 120
+    if any("ConsolidatedMember" in m for m in members):
+        score += 120
+    if any("Axis" in m or "Member" in m for m in members):
+        score -= 20 * len(members)
+    return score
+
+def is_main_bs_context(ctx, end_date):
+    cid = ctx.get('id')
+    instant = ctx.find(re.compile(r'.*instant'))
+    if not cid or not instant:
+        return False
+    if end_date and instant.text.strip() != end_date:
+        return False
+
+    members = ctx.find_all(re.compile(r'.*explicitMember'))
+    for member in members:
+        text = member.text
+        if "ConsolidatedMember" not in text and "NonConsolidatedMember" not in text:
+            return False
+    return True
+
+def should_skip_item_tag(tag, raw_tags):
+    if tag in EXCLUDE_FROM_ITEMS:
+        return "excluded_summary_or_special_tag"
+    if tag in INVENTORY_DETAIL_TAGS and any(k in raw_tags for k in INVENTORY_TOTAL_TAGS):
+        return "inventory_detail_skipped_because_total_exists"
+    if tag == "InventoriesCAIFRS" and "InventoriesIFRS" in raw_tags:
+        return "duplicate_ifrs_inventory_total"
+    if tag == "EquityIFRS" and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
+        return "equity_summary_skipped_because_details_exist"
+    if not tag.endswith("Net") and (tag + "Net") in raw_tags:
+        return "gross_value_skipped_because_net_exists"
+    return None
+
+def apply_mapped_tag(summary, tag, val):
+    cat = TAG_MAPPING[tag]
+    if cat not in summary:
+        summary[cat] = 0
+    if "その他" in cat or cat in ADDITIVE_CATS:
+        summary[cat] += val
+        return "add"
+    previous = summary[cat]
+    summary[cat] = max(previous, val)
+    return "max"
+
+def build_bs_warnings(summary, totals, gap_diagnostics=None):
+    warnings_list = []
+
+    if gap_diagnostics:
+        for key, info in gap_diagnostics.items():
+            total = info.get("total", 0)
+            gap = info.get("gap", 0)
+            threshold = max(abs(total) * 0.03, 1_000_000_000)
+            if total and abs(gap) > threshold:
+                warnings_list.append(f"{key}: 合計との差額補完が大きいです ({gap / 1e8:,.1f}億円)")
+
+    for key in ["流動_その他流動資産", "投資_その他固定資産", "流負_その他流動負債", "固負_その他固定負債", "純資_その他純資産"]:
+        val = summary.get(key, 0)
+        basis = totals.get("Assets", 0) or 1
+        if val < 0 and abs(val) > abs(basis) * 0.03:
+            warnings_list.append(f"{key}: その他項目が大きなマイナスです ({val / 1e8:,.1f}億円)")
+
+    return warnings_list
+
+def analyze_bs_xbrl(doc_id, debug=False):
     url = f"https://disclosure.edinet-fsa.go.jp/api/v2/documents/{doc_id}"
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     try: 
@@ -346,24 +473,15 @@ def analyze_bs_xbrl(doc_id):
             dei = soup.find(re.compile(r'.*CurrentPeriodEndDate'))
             end_date = dei.text.strip() if dei else None
             
-            # ★ここが6396問題を解決した、確実に動いていたコードです
-            valid_ctx_candidates = []
+            valid_contexts = []
             for ctx in soup.find_all(re.compile(r'.*context')):
                 cid = ctx.get('id')
-                instant = ctx.find(re.compile(r'.*instant'))
-                if not instant: continue
-                if end_date and instant.text.strip() != end_date: continue
-                
-                members = ctx.find_all(re.compile(r'.*explicitMember'))
-                is_valid_main_ctx = True
-                if len(members) > 0:
-                    for m in members:
-                        m_text = m.text
-                        if "ConsolidatedMember" not in m_text and "NonConsolidatedMember" not in m_text:
-                            is_valid_main_ctx = False
-                            break
-                if is_valid_main_ctx:
-                    valid_ctx_candidates.append(cid)
+                if is_main_bs_context(ctx, end_date):
+                    valid_contexts.append({
+                        "id": cid,
+                        "score": get_context_score(cid, ctx),
+                        "members": [m.text for m in ctx.find_all(re.compile(r'.*explicitMember'))],
+                    })
             
             # 各候補で実際に何個タグが取れるか試してみて、最もヒット数が多いものを採用する
             # ※高速化のため、すべての要素を一度だけ探索して contextRef ごとにまとめる
@@ -373,95 +491,79 @@ def analyze_bs_xbrl(doc_id):
                 if ctx_ref:
                     elements_by_ctx.setdefault(ctx_ref, []).append(el)
 
-            max_hits = -1
-            best_res = (summary, totals, {})
+            best_rank = (-1, -1)
+            best_res = (summary, totals, {}, {})
             best_cid = None
+            debug_contexts = []
             
-            for cid in valid_ctx_candidates:
+            for ctx_info in valid_contexts:
+                cid = ctx_info["id"]
                 temp_summary = {k: 0 for k in DISPLAY_ORDER}
                 temp_totals = {k: 0 for k in totals}
                 hits = 0
                 
                 raw_tags = {}
+                raw_tag_candidates = {}
+                applied_tags = []
+                skipped_tags = []
                 elements = elements_by_ctx.get(cid, [])
                 for el in elements:
-                    text_str = el.text.strip()
-                    if not re.match(r'^-?[\d\.]+$', text_str): continue
-                    try: val = int(float(text_str))
-                    except: continue
-                    tag = el.name.split(':')[-1]
-                    # 後に出現した値を優先（または同一コンテキストなら同じ値）
+                    val = parse_xbrl_number(el.text)
+                    if val is None:
+                        continue
+                    tag = get_tag_name(el)
+                    raw_tag_candidates.setdefault(tag, []).append({
+                        "value": val,
+                        "unitRef": el.get("unitRef"),
+                        "decimals": el.get("decimals"),
+                    })
                     raw_tags[tag] = val
-                    if tag in temp_totals: temp_totals[tag] = val
                     
-                    # Totals mapping logic for IFRS / US GAAP compatibility
-                    if tag in ["Assets", "TotalAssets", "AssetsIFRS", "TotalAssetsIFRSSummaryOfBusinessResults", "TotalAssetsUSGAAPSummaryOfBusinessResults"]: temp_totals["Assets"] = val
-                    elif tag in ["CurrentAssets", "AssetsCurrent", "CurrentAssetsIFRS", "TotalCurrentAssetsIFRS"]: temp_totals["CurrentAssets"] = val
-                    elif tag in ["NoncurrentAssets", "AssetsNoncurrent", "NonCurrentAssetsIFRS", "TotalNonCurrentAssetsIFRS"]: temp_totals["NonCurrentAssets"] = val
-                    elif tag in ["Liabilities", "TotalLiabilities", "LiabilitiesIFRS", "TotalLiabilitiesIFRSSummaryOfBusinessResults", "TotalLiabilitiesUSGAAPSummaryOfBusinessResults"]: temp_totals["Liabilities"] = val
-                    elif tag in ["CurrentLiabilities", "LiabilitiesCurrent", "CurrentLiabilitiesIFRS", "TotalCurrentLiabilitiesIFRS"]: temp_totals["CurrentLiabilities"] = val
-                    elif tag in ["NoncurrentLiabilities", "LiabilitiesNoncurrent", "NonCurrentLiabilitiesIFRS", "TotalNonCurrentLiabilitiesIFRS"]: temp_totals["NonCurrentLiabilities"] = val
-                    elif tag in ["NetAssets", "Equity", "StockholdersEquity", "TotalEquity", "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest", "EquityAttributableToOwnersOfParent", "EquityIFRS", "TotalEquityIFRSSummaryOfBusinessResults", "EquityAttributableToOwnersOfParentIFRS", "EquityAttributableToOwnersOfParentIFRSSummaryOfBusinessResults", "NetAssetsUSGAAPSummaryOfBusinessResults", "TotalEquityUSGAAPSummaryOfBusinessResults", "StockholdersEquityUSGAAPSummaryOfBusinessResults"]: temp_totals["NetAssets"] = val
+                    total_key = TOTAL_TAG_LOOKUP.get(tag)
+                    if total_key:
+                        temp_totals[total_key] = max(temp_totals[total_key], val)
                 
                 for tag, val in raw_tags.items():
                     if tag in TAG_MAPPING:
-                        # 合計タグは個別項目に追加しないタグリスト
-                        EXCLUDE_FROM_ITEMS = {
-                            # US GAAP Summary タグ：純資産Totalには使うが個別記載には不要
-                            "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults",
-                            "CashAndCashEquivalentsUSGAAPSummaryOfBusinessResults",
-                            # 売却目的保有グループ関連の特殊調整項目（スピンオフ等）→純資産の差引に使わない
-                            "AccumulatedOtherComprehensiveIncomeDirectlyRelatedToTheDisposalGroupClassifiedAsHeldForDistributionToOwnersEquityIFRS",
-                        }
-                        if tag in EXCLUDE_FROM_ITEMS:
+                        skip_reason = should_skip_item_tag(tag, raw_tags)
+                        if skip_reason:
+                            skipped_tags.append({"tag": tag, "value": val, "reason": skip_reason})
                             continue
-
-                        # 棚卸資産の内訳と合計の二重計上防止
-                        if tag in ["MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies", "RealEstateForSale", "RealEstateForSaleInProcess", "CostsOnRealEstateBusiness", "CostsOnUncompletedConstructionContracts"]:
-                            if any(k in raw_tags for k in ["Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"]):
-                                continue
-                        # IFRS 棚卸資産: InventoriesIFRSとInventoriesCAIFRSの二重計上防止
-                        if tag == "InventoriesCAIFRS" and "InventoriesIFRS" in raw_tags:
-                            continue
-                        # 純資産: 具体的な内訳タグがあればサマリータグを除外
-                        if tag in ["EquityIFRS"] and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
-                            continue
-                        
-                        # 固定資産のGross/Net二重計上防止
-                        if not tag.endswith("Net") and (tag + "Net") in raw_tags:
-                            continue
-                            
-                        # 同じ意味の複数タグが混在する際の扱い:
-                        # - 自己株式・貸倒引当金はXBRL上でマイナス値のため加算
-                        # - 棚卸資産の内訳・その他系カテゴリは各タグを加算
-                        # - その他の資産・負債は同一概念の重複タグがあるためmax()で最大値採用
-                        cat = TAG_MAPPING[tag]
-                        if cat not in temp_summary:
-                            temp_summary[cat] = 0
-
-                        ADDITIVE_CATS = {
-                            "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
-                            "純資_自己株式",  # XBRLではマイナス値で格納されているため加算
-                        }
-                        if "その他" in cat or cat in ADDITIVE_CATS:
-                            temp_summary[cat] += val
-                        else:
-                            temp_summary[cat] = max(temp_summary[cat], val)
+                        action = apply_mapped_tag(temp_summary, tag, val)
+                        applied_tags.append({"tag": tag, "category": TAG_MAPPING[tag], "value": val, "action": action})
                             
                         hits += 1
                 
-                if hits > max_hits:
-                    max_hits = hits
+                total_completeness = sum(1 for v in temp_totals.values() if v != 0)
+                rank = (ctx_info["score"] + total_completeness * 80, hits)
+                debug_contexts.append({
+                    "id": cid,
+                    "context_score": ctx_info["score"],
+                    "rank": rank,
+                    "hits": hits,
+                    "total_completeness": total_completeness,
+                    "members": ctx_info["members"],
+                    "totals": temp_totals,
+                    "duplicate_tags": {k: v for k, v in raw_tag_candidates.items() if len(v) > 1},
+                    "applied_tags": applied_tags if debug else [],
+                    "skipped_tags": skipped_tags if debug else [],
+                })
+                
+                if rank > best_rank:
+                    best_rank = rank
                     best_cid = cid
-                    best_res = (temp_summary, temp_totals, raw_tags)
-                elif hits == max_hits and max_hits > 0:
-                    # 同じヒット数なら、NonConsolidated という文字が入っていないほう（連結っぽいほう）を優先
-                    if "NonConsolidated" not in cid and (best_cid and "NonConsolidated" in best_cid):
-                         best_cid = cid
-                         best_res = (temp_summary, temp_totals, raw_tags)
+                    best_res = (temp_summary, temp_totals, raw_tags, raw_tag_candidates)
             
-            summary, totals, best_raw_tags = best_res
-            valid_ctx = {best_cid} if best_cid else set()
+            summary, totals, best_raw_tags, best_raw_tag_candidates = best_res
+            diagnostics = {
+                "doc_id": doc_id,
+                "doc_type": doc_type,
+                "end_date": end_date,
+                "selected_context": best_cid,
+                "selected_rank": best_rank,
+                "contexts": debug_contexts,
+                "duplicate_tags_in_selected_context": {k: v for k, v in best_raw_tag_candidates.items() if len(v) > 1},
+            }
 
     if summary["流動_受取手形"] > 0 or summary["流動_売掛金"] > 0:
         summary["流動_受取手形・売掛金(合算)"] = 0
@@ -471,26 +573,41 @@ def analyze_bs_xbrl(doc_id):
     if totals["NonCurrentLiabilities"] == 0 and totals["Liabilities"] != 0:
         totals["NonCurrentLiabilities"] = totals["Liabilities"] - totals["CurrentLiabilities"]
 
+    gap_diagnostics = {}
+
     def calc_gap(p, t, o):
         # Totals=0ならサマリに詳細タグが取れているとしても差引計算をしない(歪みを防ぐ)
         if totals[t] == 0:
             summary[o] = 0
+            gap_diagnostics[o] = {"total_key": t, "total": 0, "subtotal": 0, "gap": 0, "reason": "total_missing"}
             return
         s = sum(summary[k] for k in summary if k.startswith(p) and k != o)
         summary[o] = (totals[t] - s)
+        gap_diagnostics[o] = {"total_key": t, "total": totals[t], "subtotal": s, "gap": summary[o]}
     
     calc_gap("流動_", "CurrentAssets", "流動_その他流動資産")
     # 非流動資産の「その他」も同様
     if totals["NonCurrentAssets"] != 0:
         sum_fixed = sum(summary[k] for k in summary if (k.startswith("有形_") or k.startswith("無形_") or k.startswith("投資_")) and k != "投資_その他固定資産")
         summary["投資_その他固定資産"] = (totals["NonCurrentAssets"] - sum_fixed)
+        gap_diagnostics["投資_その他固定資産"] = {"total_key": "NonCurrentAssets", "total": totals["NonCurrentAssets"], "subtotal": sum_fixed, "gap": summary["投資_その他固定資産"]}
     calc_gap("流負_", "CurrentLiabilities", "流負_その他流動負債")
     calc_gap("固負_", "NonCurrentLiabilities", "固負_その他固定負債")
     if totals["NetAssets"] != 0:
         sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
         summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
+        gap_diagnostics["純資_その他純資産"] = {"total_key": "NetAssets", "total": totals["NetAssets"], "subtotal": sum_net, "gap": summary["純資_その他純資産"]}
     else:
         summary["純資_その他純資産"] = 0
+        gap_diagnostics["純資_その他純資産"] = {"total_key": "NetAssets", "total": 0, "subtotal": 0, "gap": 0, "reason": "total_missing"}
+
+    bs_warnings = build_bs_warnings(summary, totals, gap_diagnostics)
+    if debug:
+        diagnostics["gap_diagnostics"] = gap_diagnostics
+        diagnostics["warnings"] = bs_warnings
+        diagnostics["summary_nonzero_oku"] = {k: round(v / 100000000, 3) for k, v in summary.items() if v != 0}
+        diagnostics["totals_oku"] = {k: round(v / 100000000, 3) for k, v in totals.items()}
+        return summary, totals, doc_type, best_raw_tags, diagnostics
     
     return summary, totals, doc_type, best_raw_tags
 
@@ -1055,6 +1172,8 @@ def main():
     parser.add_argument("--shard-index", type=int, default=0, help="Index of this shard (0 to total-shards-1)")
     parser.add_argument("--codes", type=str, default="", help="Comma or space separated stock codes. Example: --codes 7203,6758")
     parser.add_argument("--days-back", type=int, default=365, help="How many days of EDINET documents to scan")
+    parser.add_argument("--debug-bs", action="store_true", help="Write B/S extraction diagnostics JSON for each processed code")
+    parser.add_argument("--debug-dir", type=str, default=".", help="Directory for --debug-bs output files")
     args = parser.parse_args()
 
     if not EDINET_API_KEY:
@@ -1185,9 +1304,13 @@ def main():
             # B/S データの取得
             bs_doc_id, bs_desc, _ = searcher.find_best_bs_doc(code)
             if bs_doc_id:
-                ret = analyze_bs_xbrl(bs_doc_id)
+                ret = analyze_bs_xbrl(bs_doc_id, debug=args.debug_bs)
                 if ret:
-                    if len(ret) == 4: # To handle new signature safely
+                    bs_diagnostics = None
+                    if len(ret) == 5:
+                        summary, totals, doc_type, _, bs_diagnostics = ret
+                        combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
+                    elif len(ret) == 4: # To handle new signature safely
                         summary, totals, doc_type, _ = ret
                         combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
                     elif len(ret) == 3:
@@ -1202,6 +1325,15 @@ def main():
                     combined_data["★資産合計"] = round(totals['Assets'] / 100000000, 3)
                     combined_data["★負債合計"] = round(totals['Liabilities'] / 100000000, 3)
                     combined_data["★純資産合計"] = round(totals['NetAssets'] / 100000000, 3)
+
+                    if bs_diagnostics:
+                        warnings_text = bs_diagnostics.get("warnings", [])
+                        combined_data["B/S_警告"] = warnings_text
+                        os.makedirs(args.debug_dir, exist_ok=True)
+                        debug_path = os.path.join(args.debug_dir, f"debug_bs_{code}.json")
+                        with open(debug_path, "w", encoding="utf-8") as f:
+                            json.dump(bs_diagnostics, f, ensure_ascii=False, indent=2)
+                        print(f" -> [B/S診断] {debug_path} に出力しました。警告: {len(warnings_text)}件")
             
             time.sleep(2)  # API制限対策・待機
             
