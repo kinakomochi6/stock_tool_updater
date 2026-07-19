@@ -84,6 +84,7 @@ TAG_MAPPING = {
     "LeaseDeposits": "投資_差入保証金", "OtherInvestmentsAndOtherAssets": "投資_その他固定資産", "OtherIOA": "投資_その他固定資産", "ClaimsProvableInBankruptcyClaimsProvableInRehabilitationAndOther": "投資_その他固定資産",
     "AllowanceForDoubtfulAccountsNonCurrent": "投資_貸倒引当金", "AllowanceForDoubtfulAccountsIOAByGroup": "投資_貸倒引当金",
     "NotesAndAccountsPayableTrade": "流負_支払手形・買掛金",
+    "AccountsPayableTrade": "流負_支払手形・買掛金",
     "ElectronicallyRecordedObligationsOperating": "流負_支払手形・買掛金", 
     "OperatingAccountsPayable": "流負_支払手形・買掛金",
     "NotesPayableAccountsPayableForConstructionContractsAndOtherCNS": "流負_支払手形・買掛金",
