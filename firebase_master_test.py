@@ -352,6 +352,7 @@ INVENTORY_DETAIL_TAGS = {
     "CostsOnUncompletedConstructionContracts",
 }
 INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
+INTANGIBLE_DETAIL_TAGS = {"Software", "Goodwill", "LeaseholdRight", "OtherIntangibleAssets", "OtherIA"}
 ADDITIVE_CATS = {
     "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
     "純資_自己株式",
@@ -413,6 +414,8 @@ def should_skip_item_tag(tag, raw_tags):
         return "duplicate_ifrs_inventory_total"
     if tag == "EquityIFRS" and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
         return "equity_summary_skipped_because_details_exist"
+    if tag == "IntangibleAssets" and any(k in raw_tags for k in INTANGIBLE_DETAIL_TAGS):
+        return "intangible_summary_skipped_because_details_exist"
     if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:
         return "gross_lease_assets_skipped_because_net_exists"
     if not tag.endswith("Net") and (tag + "Net") in raw_tags:
