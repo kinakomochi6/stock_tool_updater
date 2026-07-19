@@ -1,10 +1,16 @@
 import os
+import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 
 def check_db():
     if not firebase_admin._apps:
-        cred = credentials.Certificate('firebase_key.json')
+        firebase_credentials = os.environ.get('FIREBASE_CREDENTIALS')
+        firebase_key = os.environ.get('FIREBASE_KEY_PATH', 'firebase_key.json')
+        if firebase_credentials:
+            cred = credentials.Certificate(json.loads(firebase_credentials))
+        else:
+            cred = credentials.Certificate(firebase_key)
         firebase_admin.initialize_app(cred)
     db = firestore.client()
     

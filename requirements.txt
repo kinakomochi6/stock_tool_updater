@@ -1,0 +1,12 @@
+firebase-admin
+yfinance
+requests
+beautifulsoup4
+lxml
+pandas
+numpy
+openpyxl
+xlrd
+streamlit
+plotly
+

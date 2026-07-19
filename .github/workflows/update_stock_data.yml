@@ -1,9 +1,6 @@
 name: Update Stock Data
 
 on:
-  push:
-    branches:
-      - main
   schedule:
     # 毎日深夜0時(JST) = 15:00 UTC に自動実行
     - cron: '0 15 * * *'
@@ -28,11 +25,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # 必要なライブラリ群をインストール
-          pip install firebase-admin yfinance requests beautifulsoup4 lxml pandas numpy openpyxl xlrd
-          
-          # もしrequirements.txtが必要な場合は以下のようにもできます（今回は明記）
-          # pip install -r webapp/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run Scraper
         env:
@@ -40,11 +34,5 @@ jobs:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           PYTHONUNBUFFERED: "1"
         run: |
-          # webappディレクトリに移動（不要）
-          # cd webapp（不要）
-          
-          # SecretsからFirebaseの認証キーJSONを生成
-          echo "$FIREBASE_CREDENTIALS" > firebase_key.json
-          
           # 8分割したうちの、自分のShard Indexを担当するバッチを実行
           python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}

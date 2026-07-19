@@ -15,6 +15,7 @@ import unicodedata
 import warnings
 import os
 import argparse
+import json
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -22,6 +23,7 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 # ★設定エリア
 # ==========================================
 EDINET_API_KEY = os.environ.get('EDINET_API_KEY')
+FIREBASE_CREDENTIALS = os.environ.get('FIREBASE_CREDENTIALS')
 # Firebase認証キーのパスは環境変数またはデフォルトで固定
 FIREBASE_KEY = os.environ.get('FIREBASE_KEY_PATH', 'firebase_key.json') 
 
@@ -1000,9 +1002,25 @@ def get_financial_data(code):
 # ==========================================
 def initialize_firebase():
     if not firebase_admin._apps:
-        cred = credentials.Certificate(FIREBASE_KEY)
+        if FIREBASE_CREDENTIALS:
+            cred = credentials.Certificate(json.loads(FIREBASE_CREDENTIALS))
+        else:
+            cred = credentials.Certificate(FIREBASE_KEY)
         firebase_admin.initialize_app(cred)
     return firestore.client()
+
+def parse_codes_arg(codes_arg):
+    if not codes_arg:
+        return None
+    codes = []
+    for raw in re.split(r'[,、\s]+', codes_arg):
+        code = raw.strip()
+        if not code:
+            continue
+        if not re.fullmatch(r'\d{4}', code):
+            raise ValueError(f"銘柄コードは4桁で指定してください: {raw}")
+        codes.append(code)
+    return sorted(set(codes))
 
 def get_all_listed_codes():
     url = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
@@ -1035,7 +1053,18 @@ def main():
     parser = argparse.ArgumentParser(description="Stock Data Scraper")
     parser.add_argument("--total-shards", type=int, default=1, help="Total number of shards")
     parser.add_argument("--shard-index", type=int, default=0, help="Index of this shard (0 to total-shards-1)")
+    parser.add_argument("--codes", type=str, default="", help="Comma or space separated stock codes. Example: --codes 7203,6758")
+    parser.add_argument("--days-back", type=int, default=365, help="How many days of EDINET documents to scan")
     args = parser.parse_args()
+
+    if not EDINET_API_KEY:
+        raise RuntimeError("EDINET_API_KEY が未設定です。環境変数またはGitHub Secretsに設定してください。")
+    if args.total_shards < 1:
+        raise ValueError("--total-shards は1以上で指定してください。")
+    if args.shard_index < 0 or args.shard_index >= args.total_shards:
+        raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
+
+    requested_codes = parse_codes_arg(args.codes)
     
     # Firebase接続
     db = initialize_firebase()
@@ -1047,30 +1076,40 @@ def main():
         print("エラー: 銘柄リストが取得できなかったため、処理を終了します。")
         return
 
-    # 先にEdinetSearcherで過去書類をスキャンし、東証以外の銘柄を洗い出す
     jpx_codes = {c["code"]: c for c in companies_list}
-    target_codes_for_scan = list(jpx_codes.keys()) + ["0000"] # 確実に365日スキャンさせるためのダミーコード
+
+    if requested_codes:
+        companies_list = [
+            jpx_codes.get(code, {"code": code, "name": "名称不明(指定銘柄)", "market": "不明", "sector": "不明"})
+            for code in requested_codes
+        ]
+        target_codes_for_scan = requested_codes
+        print(f"\n単体更新モード: {', '.join(requested_codes)} のみ更新します。")
+    else:
+        # 先にEdinetSearcherで過去書類をスキャンし、東証以外の銘柄を洗い出す
+        target_codes_for_scan = list(jpx_codes.keys()) + ["0000"] # 確実に365日スキャンさせるためのダミーコード
     
     searcher = EdinetSearcher()
-    searcher.fetch_list(target_codes_for_scan, days_back=365)
+    searcher.fetch_list(target_codes_for_scan, days_back=args.days_back)
     
-    # EDINETで見つかった全証券コードを抽出
-    edinet_sec_codes = set()
-    if not searcher.df_docs.empty:
-        for sec in searcher.df_docs['secCode'].dropna().unique():
-            sec_str = str(sec).strip()
-            # 一般事業会社の証券コードは5桁で末尾が0
-            if len(sec_str) == 5 and sec_str.endswith('0'):
-                edinet_sec_codes.add(sec_str[:4])
+    if not requested_codes:
+        # EDINETで見つかった全証券コードを抽出
+        edinet_sec_codes = set()
+        if not searcher.df_docs.empty:
+            for sec in searcher.df_docs['secCode'].dropna().unique():
+                sec_str = str(sec).strip()
+                # 一般事業会社の証券コードは5桁で末尾が0
+                if len(sec_str) == 5 and sec_str.endswith('0'):
+                    edinet_sec_codes.add(sec_str[:4])
+                    
+        # JPXリストにないEDINET提出企業（主に地方単独上場）を追加
+        added_count = 0
+        for code in edinet_sec_codes:
+            if code not in jpx_codes:
+                companies_list.append({"code": code, "name": "名称不明(東証以外)", "market": "その他市場", "sector": "その他"})
+                added_count += 1
                 
-    # JPXリストにないEDINET提出企業（主に地方単独上場）を追加
-    added_count = 0
-    for code in edinet_sec_codes:
-        if code not in jpx_codes:
-            companies_list.append({"code": code, "name": "名称不明(東証以外)", "market": "その他市場", "sector": "その他"})
-            added_count += 1
-            
-    print(f"\nJPXリストにない地方上場企業などを {added_count} 社追加しました。")
+        print(f"\nJPXリストにない地方上場企業などを {added_count} 社追加しました。")
 
     target_codes = [c["code"] for c in companies_list]
     info_dict = {c["code"]: c for c in companies_list}
@@ -1079,7 +1118,7 @@ def main():
     target_codes = sorted(target_codes)  # 順序を固定するためソート
     total_len = len(target_codes)
     
-    if args.total_shards > 1:
+    if args.total_shards > 1 and not requested_codes:
         start_idx = total_len * args.shard_index // args.total_shards
         end_idx = total_len * (args.shard_index + 1) // args.total_shards
         target_codes = target_codes[start_idx:end_idx]
@@ -1088,7 +1127,10 @@ def main():
         
     total_count = len(target_codes)
     print(f"\n取得対象銘柄数 (本Shard): {total_count}社")
-    print("※分散処理のため、各Shardごとに並行して処理が行われます。")
+    if requested_codes:
+        print("※単体更新モードのため、Shard指定は無視します。")
+    else:
+        print("※分散処理のため、各Shardごとに並行して処理が行われます。")
 
     for i, code in enumerate(target_codes, 1):
         print(f"\n[{i}/{total_count}] {code} 処理中...")
