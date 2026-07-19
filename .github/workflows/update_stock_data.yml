@@ -27,7 +27,7 @@ on:
 
 jobs:
   scrape:
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.codes == '' }}
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false  # 1つのShardが失敗しても他のShardを止めない
@@ -52,10 +52,21 @@ jobs:
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          ALLOW_FULL_FIRESTORE_WRITE: "1"
           PYTHONUNBUFFERED: "1"
         run: |
           # 8分割したうちの、自分のShard Indexを担当するバッチを実行
           python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
+
+  manual_guard:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes == '' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Stop unsafe manual full update
+        run: |
+          echo "手動実行では全件更新を行いません。codes に 9366,3123 のように対象銘柄を指定してください。"
+          exit 1
 
   diagnose:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes != '' }}
