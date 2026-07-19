@@ -99,7 +99,7 @@ TAG_MAPPING = {
     "LeaseObligationsNonCurrent": "固負_リース債務", "AssetRetirementObligations": "固負_資産除去債務", "AssetRetirementObligationsNCL": "固負_資産除去債務",
     "LongTermDepositsReceived": "固負_長期預り金", "LongTermGuaranteeDeposited": "固負_長期預り金", "OtherNonCurrentLiabilities": "固負_その他固定負債", "OtherNCL": "固負_その他固定負債",
     "CapitalStock": "純資_資本金", "CapitalSurplus": "純資_資本剰余金",
-    "RetainedEarnings": "純資_利益屉余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
+    "RetainedEarnings": "純資_利益剰余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
     "ValuationAndTranslationAdjustments": "純資_評価換算差額金",
     "NonControllingInterests": "純資_非支配株主持分", "SubscriptionRightsToShares": "純資_新株予約権",
     # J-GAAP 短期有価非(流動資産に記載)
@@ -175,8 +175,8 @@ TAG_MAPPING = {
     "DeferredTaxLiabilitiesIFRS": "固負_繰延税金負債",
     # IFRS 純資産
     "ShareCapitalIFRS": "純資_資本金",
-    "CapitalSurplusIFRS": "純資_資本屉余金",
-    "RetainedEarningsIFRS": "純資_利益屉余金",
+    "CapitalSurplusIFRS": "純資_資本剰余金",
+    "RetainedEarningsIFRS": "純資_利益剰余金",
     "TreasurySharesIFRS": "純資_自己株式",
     "AccumulatedOtherComprehensiveIncomeIFRS": "純資_評価換算差額金",
     "OtherComponentsOfEquityIFRS": "純資_評価換算差額金",
@@ -198,7 +198,7 @@ TAG_MAPPING = {
     "OtherLiabilitiesCurrent": "流負_その他流動負債",
     "LongTermDebtNoncurrent": "固負_長期借入金",
     "OtherLiabilitiesNoncurrent": "固負_その他固定負債",
-    "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults": "純資_利益屉余金",
+    "EquityAttributableToOwnersOfParentUSGAAPSummaryOfBusinessResults": "純資_利益剰余金",
 }
 
 
@@ -417,7 +417,7 @@ def apply_mapped_tag(summary, tag, val):
     cat = TAG_MAPPING[tag]
     if cat not in summary:
         summary[cat] = 0
-    if "その他" in cat or cat in ADDITIVE_CATS:
+    if cat in ADDITIVE_CATS:
         summary[cat] += val
         return "add"
     previous = summary[cat]
@@ -426,6 +426,30 @@ def apply_mapped_tag(summary, tag, val):
 
 def build_bs_warnings(summary, totals, gap_diagnostics=None):
     warnings_list = []
+
+    def add_total_warning(label, total, subtotal):
+        if not total or not subtotal:
+            return
+        diff = total - subtotal
+        threshold = max(abs(total) * 0.01, 1_000_000_000)
+        if abs(diff) > threshold:
+            warnings_list.append(f"{label}: 合計整合性に差があります ({diff / 1e8:,.1f}億円)")
+
+    add_total_warning(
+        "資産合計 vs 流動資産+固定資産",
+        totals.get("Assets", 0),
+        totals.get("CurrentAssets", 0) + totals.get("NonCurrentAssets", 0),
+    )
+    add_total_warning(
+        "負債合計 vs 流動負債+固定負債",
+        totals.get("Liabilities", 0),
+        totals.get("CurrentLiabilities", 0) + totals.get("NonCurrentLiabilities", 0),
+    )
+    add_total_warning(
+        "資産合計 vs 負債合計+純資産合計",
+        totals.get("Assets", 0),
+        totals.get("Liabilities", 0) + totals.get("NetAssets", 0),
+    )
 
     if gap_diagnostics:
         for key, info in gap_diagnostics.items():
@@ -1139,6 +1163,12 @@ def parse_codes_arg(codes_arg):
         codes.append(code)
     return sorted(set(codes))
 
+def validate_tag_mapping():
+    unknown_categories = sorted(set(TAG_MAPPING.values()) - set(DISPLAY_ORDER))
+    if unknown_categories:
+        joined = ", ".join(unknown_categories)
+        raise ValueError(f"TAG_MAPPINGにDISPLAY_ORDER未定義のカテゴリがあります: {joined}")
+
 def get_all_listed_codes():
     url = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
     print("JPXから上場銘柄リストを取得中...")
@@ -1184,6 +1214,7 @@ def main():
     if args.shard_index < 0 or args.shard_index >= args.total_shards:
         raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
 
+    validate_tag_mapping()
     requested_codes = parse_codes_arg(args.codes)
     
     # Firebase接続
