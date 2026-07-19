@@ -425,7 +425,15 @@ def apply_mapped_tag(summary, tag, val):
     summary[cat] = max(previous, val)
     return "max"
 
-def build_bs_warnings(summary, totals, gap_diagnostics=None):
+OTHER_CATEGORIES = [
+    "流動_その他流動資産",
+    "投資_その他固定資産",
+    "流負_その他流動負債",
+    "固負_その他固定負債",
+    "純資_その他純資産",
+]
+
+def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_values=None):
     warnings_list = []
 
     def add_total_warning(label, total, subtotal):
@@ -456,11 +464,16 @@ def build_bs_warnings(summary, totals, gap_diagnostics=None):
         for key, info in gap_diagnostics.items():
             total = info.get("total", 0)
             gap = info.get("gap", 0)
+            reported = (reported_other_values or {}).get(key)
             threshold = max(abs(total) * 0.03, 1_000_000_000)
-            if total and abs(gap) > threshold:
+            if reported not in (None, 0):
+                delta = gap - reported
+                if total and abs(delta) > threshold:
+                    warnings_list.append(f"{key}: XBRLのその他タグとの差額が大きいです ({delta / 1e8:,.1f}億円)")
+            elif total and abs(gap) > threshold:
                 warnings_list.append(f"{key}: 合計との差額補完が大きいです ({gap / 1e8:,.1f}億円)")
 
-    for key in ["流動_その他流動資産", "投資_その他固定資産", "流負_その他流動負債", "固負_その他固定負債", "純資_その他純資産"]:
+    for key in OTHER_CATEGORIES:
         val = summary.get(key, 0)
         basis = totals.get("Assets", 0) or 1
         if val < 0 and abs(val) > abs(basis) * 0.03:
@@ -598,6 +611,7 @@ def analyze_bs_xbrl(doc_id, debug=False):
     if totals["NonCurrentLiabilities"] == 0 and totals["Liabilities"] != 0:
         totals["NonCurrentLiabilities"] = totals["Liabilities"] - totals["CurrentLiabilities"]
 
+    reported_other_values = {key: summary.get(key, 0) for key in OTHER_CATEGORIES}
     gap_diagnostics = {}
 
     def calc_gap(p, t, o):
@@ -626,10 +640,25 @@ def analyze_bs_xbrl(doc_id, debug=False):
         summary["純資_その他純資産"] = 0
         gap_diagnostics["純資_その他純資産"] = {"total_key": "NetAssets", "total": 0, "subtotal": 0, "gap": 0, "reason": "total_missing"}
 
-    bs_warnings = build_bs_warnings(summary, totals, gap_diagnostics)
+    bs_warnings = build_bs_warnings(summary, totals, gap_diagnostics, reported_other_values)
     if debug:
+        known_numeric_tags = set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP)
+        unmapped_numeric_tags = [
+            {"tag": tag, "value_oku": round(val / 100000000, 3)}
+            for tag, val in sorted(best_raw_tags.items(), key=lambda item: abs(item[1]), reverse=True)
+            if tag not in known_numeric_tags and abs(val) >= 100000000
+        ]
         diagnostics["gap_diagnostics"] = gap_diagnostics
         diagnostics["warnings"] = bs_warnings
+        diagnostics["reported_other_values_oku"] = {
+            k: round(v / 100000000, 3) for k, v in reported_other_values.items() if v != 0
+        }
+        diagnostics["other_gap_delta_oku"] = {
+            k: round((summary.get(k, 0) - reported_other_values.get(k, 0)) / 100000000, 3)
+            for k in OTHER_CATEGORIES
+            if summary.get(k, 0) != reported_other_values.get(k, 0)
+        }
+        diagnostics["unmapped_numeric_tags_over_1oku"] = unmapped_numeric_tags[:100]
         diagnostics["summary_nonzero_oku"] = {k: round(v / 100000000, 3) for k, v in summary.items() if v != 0}
         diagnostics["totals_oku"] = {k: round(v / 100000000, 3) for k, v in totals.items()}
         return summary, totals, doc_type, best_raw_tags, diagnostics

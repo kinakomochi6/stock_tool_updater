@@ -70,7 +70,7 @@ Firestoreへ保存せずに診断だけ実行する:
 python firebase_master_test.py --codes 9366,3123 --debug-bs --debug-dir diagnostics --dry-run
 ```
 
-診断JSONには、採用されたcontext、contextごとのスコア、重複タグ、採用タグ、除外タグ、合計との差額、B/S警告が出力されます。
+診断JSONには、採用されたcontext、contextごとのスコア、重複タグ、採用タグ、除外タグ、合計との差額、その他タグとの差額、1億円以上の未マッピング数値タグ、B/S警告が出力されます。
 
 ## GitHub Actions
 
