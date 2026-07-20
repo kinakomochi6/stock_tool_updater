@@ -158,6 +158,8 @@ TAG_MAPPING = {
     "WorkInProcessCAIFRS": "流動_棚卸資産",
     "RawMaterialsCAIFRS": "流動_棚卸資産",
     "RawMaterialsWorkInProgressAndSuppliesCAIFRS": "流動_棚卸資産",
+    "RawMaterialsPurchasedComponentsAndSuppliesCAIFRS": "流動_棚卸資産",
+    "OtherInventoriesCAIFRS": "流動_棚卸資産",
     "BiologicalAssetsCAIFRS": "流動_生物資産",
     "AdvancePaymentsToSuppliersCAIFRS": "流動_前渡金",
     "OtherCurrentFinancialAssetsCAIFRS": "流動_その他金融資産",
@@ -180,6 +182,7 @@ TAG_MAPPING = {
     "LandIFRS": "有形_土地",
     "ConstructionInProgressIFRS": "有形_建設仮勘定",
     "RightOfUseAssetsIFRS": "有形_リース資産",
+    "FurnitureAndFixturesIFRS": "有形_工具器具備品",
     "OtherComponentsOfPropertyPlantAndEquipmentIFRS": "有形_その他有形固定資産",
     # IFRS 無形固定資産
     "IntangibleAssetsIFRS": "無形_その他無形固定資産",
@@ -201,7 +204,12 @@ TAG_MAPPING = {
     "FishFarmingLicenseAndSurfaceRightsIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsWithFiniteUsefulLivesIFRS": "無形_その他無形固定資産",
+    "OtherIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_その他無形固定資産",
     "SpectrumMigrationCostsIFRS": "無形_その他無形固定資産",
+    "ArtistContractsIFRS": "無形_その他無形固定資産",
+    "MusicDistributionRightsIFRS": "無形_その他無形固定資産",
+    "PatentRightsKnowHowAndLicenseAgreementsIFRS": "無形_その他無形固定資産",
+    "TelevisionCarriageContractsIFRS": "無形_その他無形固定資産",
     # IFRS 投資その他
     "InvestmentsAccountedForUsingEquityMethodIFRS": "投資_関係会社株式",
     "InvestmentsInSecuritiesAndOtherFinancialAssetsNCAIFRS": "投資_投資有価証券",
@@ -436,6 +444,7 @@ INVENTORY_DETAIL_TAGS = {
     "MerchandiseAndFinishedGoodsCAIFRS", "FinishedGoodsCAIFRS",
     "SemiFinishedGoodsAndWorkInProcessCAIFRS", "WorkInProcessCAIFRS",
     "RawMaterialsCAIFRS", "RawMaterialsWorkInProgressAndSuppliesCAIFRS",
+    "RawMaterialsPurchasedComponentsAndSuppliesCAIFRS",
     "OtherInventoriesCAIFRS",
 }
 INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
@@ -455,7 +464,9 @@ INTANGIBLE_DETAIL_TAGS = {
     "MusicCatalogsIFRS", "FilmCostIFRS", "ContentAssetsNCAIFRS",
     "BroadcastingRightsIFRS", "GameContentIFRS", "IntangibleAssetsAssociatedWithProductsIFRS",
     "OtherComponentsOfIntangibleAssetsIFRS", "FishFarmingLicenseAndSurfaceRightsIFRS",
-    "OtherIntangibleAssetsIFRS",
+    "OtherIntangibleAssetsIFRS", "OtherIntangibleAssetsWithIndefiniteUsefulLivesIFRS",
+    "ArtistContractsIFRS", "MusicDistributionRightsIFRS",
+    "PatentRightsKnowHowAndLicenseAgreementsIFRS", "TelevisionCarriageContractsIFRS",
 }
 ADDITIVE_CATS = {
     "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
@@ -472,6 +483,9 @@ NOTE_ONLY_TAG_PATTERNS = [
     "NumberOfShares",
     "NumberOfVotingRights",
     "SummaryOfBusinessResults",
+    "LiabilitiesAndEquity",
+    "LiabilitiesAndNetAssets",
+    "OtherEquityInstrumentsEquity",
 ]
 
 DERIVED_NET_TAG_PAIRS = [
