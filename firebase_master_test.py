@@ -427,13 +427,11 @@ EXCLUDE_FROM_ITEMS = {
 }
 INVENTORY_DETAIL_TAGS = {
     "MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies",
-    "RealEstateForSale", "RealEstateForSaleInProcess", "CostsOnRealEstateBusiness",
-    "CostsOnUncompletedConstructionContracts", "LandForDevelopment",
-    "ExpenditureOnContractsInProgress", "OtherInventories",
-    "EquityInvestmentsInPropertiesForSale",
+    "OtherInventories",
     "MerchandiseAndFinishedGoodsCAIFRS", "FinishedGoodsCAIFRS",
     "SemiFinishedGoodsAndWorkInProcessCAIFRS", "WorkInProcessCAIFRS",
     "RawMaterialsCAIFRS", "RawMaterialsWorkInProgressAndSuppliesCAIFRS",
+    "OtherInventoriesCAIFRS",
 }
 INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
 PPE_SUMMARY_TAGS = {"PropertyPlantAndEquipmentIFRS"}
@@ -458,6 +456,27 @@ ADDITIVE_CATS = {
     "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
     "純資_自己株式",
 }
+
+DERIVED_NET_TAG_PAIRS = [
+    ("BuildingsAcquisitionCostIFRS", "BuildingsAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsIFRS"]),
+    ("BuildingsAndStructuresAcquisitionCostIFRS", "BuildingsAndStructuresAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsAndStructuresIFRS"]),
+    ("MachineryAndEquipmentAcquisitionCostIFRS", "MachineryAndEquipmentAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_機械・運搬具", ["MachineryAndEquipmentIFRS"]),
+    ("MachineryandequipmentAcquisitionCostIFRS", "MachineryandequipmentAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_機械・運搬具", ["MachineryandequipmentIFRS"]),
+    ("MachineryVesselsAndToolsAcquisitionCostIFRS", "MachineryVesselsAndToolsAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_機械・運搬具", ["MachineryVesselsAndToolsIFRS"]),
+    ("TelecommunicationsEquipmentAcquisitionCostIFRS", "TelecommunicationsEquipmentAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_機械・運搬具", ["TelecommunicationsEquipmentIFRS"]),
+    ("VehiclesAndEquipmentOnOperatingLeasesAcquisitionCostIFRS", "VehiclesAndEquipmentOnOperatingLeasesAccumulatedDepreciationAndImpairmentIFRS", "有形_賃貸用資産", ["VehiclesAndEquipmentOnOperatingLeasesIFRS"]),
+    ("ConstructionInProgressAcquisitionCostIFRS", "ConstructionInProgressAccumulatedImpairmentLossesIFRS", "有形_建設仮勘定", ["ConstructionInProgressIFRS"]),
+    ("LandAcquisitionCostIFRS", "LandAccumulatedImpairmentLossesIFRS", "有形_土地", ["LandIFRS"]),
+    ("FurnitureAndFixturesAcquisitionCostIFRS", "FurnitureAndFixturesAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_工具器具備品", ["FurnitureAndFixturesIFRS"]),
+    ("OtherComponentsOfPropertyPlantAndEquipmentAcquisitionCostIFRS", "OtherComponentsOfPropertyPlantAndEquipmentAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_その他有形固定資産", ["OtherComponentsOfPropertyPlantAndEquipmentIFRS"]),
+    ("SoftwareAcquisitionCostIFRS", "SoftwareAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_ソフトウエア", ["SoftwareIFRS"]),
+    ("CapitalizedDevelopmentCostsAcquisitionCostIFRS", "CapitalizedDevelopmentCostsAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["CapitalizedDevelopmentCostsIFRS"]),
+    ("CustomerRelationshipsAcquisitionCostIFRS", "CustomerRelationshipsAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["CustomerRelationshipsIFRS"]),
+    ("TechnologiesAcquisitionCostIFRS", "TechnologiesAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["TechnologiesIFRS"]),
+    ("SpectrumMigrationCostsAcquisitionCostIFRS", "SpectrumMigrationCostsAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["SpectrumMigrationCostsIFRS"]),
+    ("OtherIntangibleAssetsWithFiniteUsefulLivesAcquisitionCostIFRS", "OtherIntangibleAssetsWithFiniteUsefulLivesAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["OtherIntangibleAssetsWithFiniteUsefulLivesIFRS"]),
+    ("OtherComponentsOfIntangibleAssetsAcquisitionCostIFRS", "OtherComponentsOfIntangibleAssetsAccumulatedAmortizationAndImpairmentLossesIFRS", "無形_その他無形固定資産", ["OtherComponentsOfIntangibleAssetsIFRS"]),
+]
 
 def get_tag_name(el):
     return el.name.split(':')[-1]
@@ -535,6 +554,27 @@ def apply_mapped_tag(summary, tag, val):
     previous = summary[cat]
     summary[cat] = max(previous, val)
     return "max"
+
+def apply_derived_net_tag_pairs(summary, raw_tags, applied_tags):
+    for gross_tag, accumulated_tag, category, base_tags in DERIVED_NET_TAG_PAIRS:
+        if gross_tag not in raw_tags or accumulated_tag not in raw_tags:
+            continue
+        if any(base_tag in raw_tags and base_tag in TAG_MAPPING for base_tag in base_tags):
+            continue
+
+        net_value = raw_tags[gross_tag] + raw_tags[accumulated_tag]
+        if net_value <= 0:
+            continue
+
+        if category not in summary:
+            summary[category] = 0
+        summary[category] += net_value
+        applied_tags.append({
+            "tag": f"{gross_tag}+{accumulated_tag}",
+            "category": category,
+            "value": net_value,
+            "action": "derived_net_add",
+        })
 
 OTHER_CATEGORIES = [
     "流動_その他流動資産",
@@ -682,6 +722,8 @@ def analyze_bs_xbrl(doc_id, debug=False):
                         applied_tags.append({"tag": tag, "category": TAG_MAPPING[tag], "value": val, "action": action})
                             
                         hits += 1
+
+                apply_derived_net_tag_pairs(temp_summary, raw_tags, applied_tags)
                 
                 total_completeness = sum(1 for v in temp_totals.values() if v != 0)
                 rank = (ctx_info["score"] + total_completeness * 80, hits)
