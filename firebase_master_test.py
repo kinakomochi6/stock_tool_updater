@@ -137,23 +137,66 @@ TAG_MAPPING = {
     "CashAndCashEquivalentsIFRS": "流動_現金及び預金",
     "TradeAndOtherCurrentReceivablesIFRS": "流動_売掛金",
     "TradeAndOtherReceivablesCAIFRS": "流動_売掛金",
+    "TradeAndOtherReceivables2CAIFRS": "流動_売掛金",
     "TradeReceivablesOtherReceivablesAndContractAssetsCAIFRS": "流動_売掛金",
+    "TradeReceivablesAndContractAssetsCAIFRSIFRS": "流動_売掛金",
+    "TradeAndOtherReceivablesNCAIFRS": "投資_その他固定資産",
+    "ReceivablesRelatedToFinancialServicesCAIFRS": "流動_その他流動資産",
+    "ReceivablesRelatedToFinancialServicesNCAIFRS": "投資_その他固定資産",
     "InventoriesIFRS": "流動_棚卸資産",
     "InventoriesCAIFRS": "流動_棚卸資産",
+    "MerchandiseAndFinishedGoodsCAIFRS": "流動_棚卸資産",
+    "FinishedGoodsCAIFRS": "流動_棚卸資産",
+    "SemiFinishedGoodsAndWorkInProcessCAIFRS": "流動_棚卸資産",
+    "WorkInProcessCAIFRS": "流動_棚卸資産",
+    "RawMaterialsCAIFRS": "流動_棚卸資産",
+    "RawMaterialsWorkInProgressAndSuppliesCAIFRS": "流動_棚卸資産",
     "OtherCurrentFinancialAssetsCAIFRS": "流動_その他流動資産",
+    "OtherFinancialAssetsCAIFRS": "流動_その他流動資産",
     "OtherCurrentAssetsCAIFRS": "流動_その他流動資産",
     "IncomeTaxesReceivableCAIFRS": "流動_その他流動資産",
+    "AssetsHeldForSaleIFRS": "流動_その他流動資産",
     # IFRS 有形固定資産
     "PropertyPlantAndEquipmentIFRS": "有形_その他有形固定資産",
+    "BuildingsAndStructuresIFRS": "有形_建物・構築物",
+    "MachineryAndEquipmentIFRS": "有形_機械・運搬具",
+    "MachineryAndVehiclesIFRS": "有形_機械・運搬具",
+    "MachineryandequipmentIFRS": "有形_機械・運搬具",
+    "MachineryVesselsAndToolsIFRS": "有形_機械・運搬具",
+    "TelecommunicationsEquipmentIFRS": "有形_機械・運搬具",
+    "TelecommunicationsServiceLinesIFRS": "有形_その他有形固定資産",
+    "MineralResourcesRelatedPropertyIFRS": "有形_その他有形固定資産",
+    "LandIFRS": "有形_土地",
+    "ConstructionInProgressIFRS": "有形_建設仮勘定",
     "RightOfUseAssetsIFRS": "有形_リース資産",
     # IFRS 無形固定資産
     "IntangibleAssetsIFRS": "無形_その他無形固定資産",
     "GoodwillIFRS": "無形_のれん",
+    "GoodwillAndIntangibleAssetsIFRS": "無形_その他無形固定資産",
+    "SoftwareIFRS": "無形_ソフトウエア",
+    "CapitalizedDevelopmentCostsIFRS": "無形_その他無形固定資産",
+    "CustomerRelationshipsIFRS": "無形_その他無形固定資産",
+    "TechnologiesIFRS": "無形_その他無形固定資産",
+    "TrademarksIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_その他無形固定資産",
+    "TrademarksIFRS": "無形_その他無形固定資産",
+    "MusicCatalogsIFRS": "無形_その他無形固定資産",
+    "FilmCostIFRS": "無形_その他無形固定資産",
+    "ContentAssetsNCAIFRS": "無形_その他無形固定資産",
+    "BroadcastingRightsIFRS": "無形_その他無形固定資産",
+    "GameContentIFRS": "無形_その他無形固定資産",
+    "IntangibleAssetsAssociatedWithProductsIFRS": "無形_その他無形固定資産",
+    "OtherComponentsOfIntangibleAssetsIFRS": "無形_その他無形固定資産",
+    "FishFarmingLicenseAndSurfaceRightsIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsIFRS": "無形_その他無形固定資産",
     # IFRS 投資その他
     "InvestmentsAccountedForUsingEquityMethodIFRS": "投資_関係会社株式",
     "InvestmentsInSecuritiesAndOtherFinancialAssetsNCAIFRS": "投資_投資有価証券",
     "InvestmentsInSecuritiesAndOtherFinancialAssetsCAIFRS": "流動_有価証券",
+    "InvestmentSecuritiesNCAIFRS": "投資_投資有価証券",
+    "InvestmentsFromSVFFVTPLNCAIFRS": "投資_投資有価証券",
+    "OtherInvestmentsIFRS": "投資_投資有価証券",
+    "FinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeEquityIFRS": "投資_投資有価証券",
+    "LongTermLoansForBankingNCAIFRS": "投資_その他固定資産",
     "OtherFinancialAssetsNCAIFRS": "投資_その他固定資産",
     "OtherNonCurrentAssetsNCAIFRS": "投資_その他固定資産",
     "InvestmentPropertyIFRS": "投資_投資不動産",
@@ -162,18 +205,35 @@ TAG_MAPPING = {
     "TradeAndOtherCurrentPayablesIFRS": "流負_支払手形・買掛金",
     "TradeAndOtherCurrentPayablesCLIFRS": "流負_支払手形・買掛金",
     "TradeAndOtherPayablesCLIFRS": "流負_支払手形・買掛金",
+    "TradeAndOtherPayables2CLIFRS": "流負_支払手形・買掛金",
+    "TradePayables3CLIFRS": "流負_支払手形・買掛金",
     "InterestBearingLiabilitiesCLIFRS": "流負_短期借入金",
     "BorrowingsCLIFRS": "流負_短期借入金",
+    "BondsAndBorrowingsCLIFRS": "流負_短期借入金",
+    "ShortTermDebtCLIFRS": "流負_短期借入金",
     "CurrentPortionOfLongTermDebtCLIFRS": "流負_1年内返済長期借入金",
     "IncomeTaxesPayableCLIFRS": "流負_未払法人税等",
     "AccruedExpensesCLIFRS": "流負_未払費用",
+    "ContractLiabilitiesCLIFRS": "流負_前受金",
+    "AdvancesReceivedCLIFRS": "流負_前受金",
+    "DepositsForBankingBusinessCLIFRS": "流負_預り金",
+    "ShortTermDepositsForBankingCLIFRS": "流負_預り金",
+    "LeaseLiabilitiesCLIFRS": "流負_リース債務",
+    "ProvisionsCLIFRS": "流負_その他流動負債",
+    "LiabilitiesForQualityAssuranceCLIFRS": "流負_その他流動負債",
     "OtherFinancialLiabilitiesCLIFRS": "流負_その他流動負債",
     "OtherCurrentLiabilitiesCLIFRS": "流負_その他流動負債",
     # IFRS 固定負債
     "InterestBearingLiabilitiesNCLIFRS": "固負_長期借入金",
+    "BondsAndBorrowingsNCLIFRS": "固負_長期借入金",
     "LongTermDebtNCLIFRS": "固負_長期借入金",
     "LongTermDebt2NCLIFRS": "固負_長期借入金",
+    "LongTermDebtIFRSNCLIFRS": "固負_長期借入金",
     "RetirementBenefitLiabilityNCLIFRS": "固負_退職給付引当金",
+    "LeaseLiabilitiesNCLIFRS": "固負_リース債務",
+    "ProvisionsNCLIFRS": "固負_その他固定負債",
+    "ThirdPartyInterestsInSVFNCLIFRS": "固負_その他固定負債",
+    "DerivativeLiabilitiesNCLIFRS": "固負_その他固定負債",
     "OtherFinancialLiabilitiesNCLIFRS": "固負_その他固定負債",
     "OtherNonCurrentLiabilitiesNCLIFRS": "固負_その他固定負債",
     "DeferredTaxLiabilitiesIFRS": "固負_繰延税金負債",
@@ -322,11 +382,11 @@ class EdinetSearcher:
 # ==========================================
 TOTAL_TAG_MAP = {
     "Assets": ["Assets", "TotalAssets", "AssetsIFRS", "TotalAssetsIFRSSummaryOfBusinessResults", "TotalAssetsUSGAAPSummaryOfBusinessResults"],
-    "CurrentAssets": ["CurrentAssets", "AssetsCurrent", "CurrentAssetsIFRS", "TotalCurrentAssetsIFRS"],
+    "CurrentAssets": ["CurrentAssets", "AssetsCurrent", "CurrentAssetsIFRS", "TotalCurrentAssetsIFRS", "CurrentAssetsOtherThanAssetsHeldForSaleCAIFRS"],
     "NonCurrentAssets": ["NoncurrentAssets", "AssetsNoncurrent", "NonCurrentAssetsIFRS", "TotalNonCurrentAssetsIFRS"],
     "Liabilities": ["Liabilities", "TotalLiabilities", "LiabilitiesIFRS", "TotalLiabilitiesIFRSSummaryOfBusinessResults", "TotalLiabilitiesUSGAAPSummaryOfBusinessResults"],
     "CurrentLiabilities": ["CurrentLiabilities", "LiabilitiesCurrent", "CurrentLiabilitiesIFRS", "TotalCurrentLiabilitiesIFRS"],
-    "NonCurrentLiabilities": ["NoncurrentLiabilities", "LiabilitiesNoncurrent", "NonCurrentLiabilitiesIFRS", "TotalNonCurrentLiabilitiesIFRS"],
+    "NonCurrentLiabilities": ["NoncurrentLiabilities", "LiabilitiesNoncurrent", "NonCurrentLiabilitiesIFRS", "NonCurrentLabilitiesIFRS", "TotalNonCurrentLiabilitiesIFRS"],
     "NetAssets": [
         "NetAssets", "Equity", "StockholdersEquity", "TotalEquity",
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
@@ -352,7 +412,24 @@ INVENTORY_DETAIL_TAGS = {
     "CostsOnUncompletedConstructionContracts",
 }
 INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
-INTANGIBLE_DETAIL_TAGS = {"Software", "Goodwill", "LeaseholdRight", "OtherIntangibleAssets", "OtherIA"}
+PPE_SUMMARY_TAGS = {"PropertyPlantAndEquipmentIFRS"}
+PPE_DETAIL_TAGS = {
+    "BuildingsAndStructuresIFRS", "MachineryAndEquipmentIFRS", "MachineryAndVehiclesIFRS",
+    "MachineryandequipmentIFRS", "MachineryVesselsAndToolsIFRS", "TelecommunicationsEquipmentIFRS",
+    "TelecommunicationsServiceLinesIFRS", "MineralResourcesRelatedPropertyIFRS", "LandIFRS",
+    "ConstructionInProgressIFRS", "RightOfUseAssetsIFRS",
+}
+INTANGIBLE_SUMMARY_TAGS = {"IntangibleAssets", "IntangibleAssetsIFRS", "GoodwillAndIntangibleAssetsIFRS"}
+INTANGIBLE_DETAIL_TAGS = {
+    "Software", "Goodwill", "LeaseholdRight", "OtherIntangibleAssets", "OtherIA",
+    "GoodwillIFRS", "SoftwareIFRS", "CapitalizedDevelopmentCostsIFRS",
+    "CustomerRelationshipsIFRS", "TechnologiesIFRS",
+    "TrademarksIntangibleAssetsWithIndefiniteUsefulLivesIFRS", "TrademarksIFRS",
+    "MusicCatalogsIFRS", "FilmCostIFRS", "ContentAssetsNCAIFRS",
+    "BroadcastingRightsIFRS", "GameContentIFRS", "IntangibleAssetsAssociatedWithProductsIFRS",
+    "OtherComponentsOfIntangibleAssetsIFRS", "FishFarmingLicenseAndSurfaceRightsIFRS",
+    "OtherIntangibleAssetsIFRS",
+}
 ADDITIVE_CATS = {
     "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
     "純資_自己株式",
@@ -414,7 +491,9 @@ def should_skip_item_tag(tag, raw_tags):
         return "duplicate_ifrs_inventory_total"
     if tag == "EquityIFRS" and any(k in raw_tags for k in ["ShareCapitalIFRS", "RetainedEarningsIFRS"]):
         return "equity_summary_skipped_because_details_exist"
-    if tag == "IntangibleAssets" and any(k in raw_tags for k in INTANGIBLE_DETAIL_TAGS):
+    if tag in PPE_SUMMARY_TAGS and any(k in raw_tags for k in PPE_DETAIL_TAGS):
+        return "ppe_summary_skipped_because_details_exist"
+    if tag in INTANGIBLE_SUMMARY_TAGS and any(k in raw_tags for k in INTANGIBLE_DETAIL_TAGS):
         return "intangible_summary_skipped_because_details_exist"
     if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:
         return "gross_lease_assets_skipped_because_net_exists"
