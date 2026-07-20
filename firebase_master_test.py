@@ -767,9 +767,9 @@ def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_valu
             reported = (reported_other_values or {}).get(key)
             threshold = max(abs(total) * 0.03, 1_000_000_000)
             if reported not in (None, 0):
-                delta = gap - reported
+                delta = info.get("delta_from_reported", gap - reported)
                 if total and abs(delta) > threshold:
-                    warnings_list.append(f"{key}: XBRLのその他タグとの差額が大きいです ({delta / 1e8:,.1f}億円)")
+                    warnings_list.append(f"{key}: 内訳の未分類差額が大きいです ({delta / 1e8:,.1f}億円)")
             elif total and abs(gap) > threshold:
                 warnings_list.append(f"{key}: 合計との差額補完が大きいです ({gap / 1e8:,.1f}億円)")
 
@@ -923,21 +923,69 @@ def analyze_bs_xbrl(doc_id, debug=False):
             gap_diagnostics[o] = {"total_key": t, "total": 0, "subtotal": 0, "gap": 0, "reason": "total_missing"}
             return
         s = sum(summary[k] for k in summary if k.startswith(p) and k != o)
-        summary[o] = (totals[t] - s)
-        gap_diagnostics[o] = {"total_key": t, "total": totals[t], "subtotal": s, "gap": summary[o]}
+        gap = totals[t] - s
+        reported = reported_other_values.get(o, 0)
+        if reported != 0:
+            summary[o] = reported
+            source = "reported_other_tag"
+        else:
+            summary[o] = gap
+            source = "computed_gap"
+        gap_diagnostics[o] = {
+            "total_key": t,
+            "total": totals[t],
+            "subtotal": s,
+            "gap": gap,
+            "reported": reported,
+            "selected": summary[o],
+            "selected_source": source,
+            "delta_from_reported": gap - reported if reported != 0 else gap,
+        }
     
     calc_gap("流動_", "CurrentAssets", "流動_その他流動資産")
     # 非流動資産の「その他」も同様
     if totals["NonCurrentAssets"] != 0:
         sum_fixed = sum(summary[k] for k in summary if (k.startswith("有形_") or k.startswith("無形_") or k.startswith("投資_")) and k != "投資_その他固定資産")
-        summary["投資_その他固定資産"] = (totals["NonCurrentAssets"] - sum_fixed)
-        gap_diagnostics["投資_その他固定資産"] = {"total_key": "NonCurrentAssets", "total": totals["NonCurrentAssets"], "subtotal": sum_fixed, "gap": summary["投資_その他固定資産"]}
+        gap = totals["NonCurrentAssets"] - sum_fixed
+        reported = reported_other_values.get("投資_その他固定資産", 0)
+        if reported != 0:
+            summary["投資_その他固定資産"] = reported
+            source = "reported_other_tag"
+        else:
+            summary["投資_その他固定資産"] = gap
+            source = "computed_gap"
+        gap_diagnostics["投資_その他固定資産"] = {
+            "total_key": "NonCurrentAssets",
+            "total": totals["NonCurrentAssets"],
+            "subtotal": sum_fixed,
+            "gap": gap,
+            "reported": reported,
+            "selected": summary["投資_その他固定資産"],
+            "selected_source": source,
+            "delta_from_reported": gap - reported if reported != 0 else gap,
+        }
     calc_gap("流負_", "CurrentLiabilities", "流負_その他流動負債")
     calc_gap("固負_", "NonCurrentLiabilities", "固負_その他固定負債")
     if totals["NetAssets"] != 0:
         sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
-        summary["純資_その他純資産"] = (totals["NetAssets"] - sum_net)
-        gap_diagnostics["純資_その他純資産"] = {"total_key": "NetAssets", "total": totals["NetAssets"], "subtotal": sum_net, "gap": summary["純資_その他純資産"]}
+        gap = totals["NetAssets"] - sum_net
+        reported = reported_other_values.get("純資_その他純資産", 0)
+        if reported != 0:
+            summary["純資_その他純資産"] = reported
+            source = "reported_other_tag"
+        else:
+            summary["純資_その他純資産"] = gap
+            source = "computed_gap"
+        gap_diagnostics["純資_その他純資産"] = {
+            "total_key": "NetAssets",
+            "total": totals["NetAssets"],
+            "subtotal": sum_net,
+            "gap": gap,
+            "reported": reported,
+            "selected": summary["純資_その他純資産"],
+            "selected_source": source,
+            "delta_from_reported": gap - reported if reported != 0 else gap,
+        }
     else:
         summary["純資_その他純資産"] = 0
         gap_diagnostics["純資_その他純資産"] = {"total_key": "NetAssets", "total": 0, "subtotal": 0, "gap": 0, "reason": "total_missing"}
@@ -964,9 +1012,10 @@ def analyze_bs_xbrl(doc_id, debug=False):
             k: round(v / 100000000, 3) for k, v in reported_other_values.items() if v != 0
         }
         diagnostics["other_gap_delta_oku"] = {
-            k: round((summary.get(k, 0) - reported_other_values.get(k, 0)) / 100000000, 3)
+            k: round(info.get("delta_from_reported", 0) / 100000000, 3)
             for k in OTHER_CATEGORIES
-            if summary.get(k, 0) != reported_other_values.get(k, 0)
+            for info in [gap_diagnostics.get(k, {})]
+            if info.get("delta_from_reported", 0) != 0
         }
         diagnostics["unmapped_numeric_tags_over_1oku"] = unmapped_numeric_tags[:100]
         diagnostics["note_only_unmapped_tags_over_1oku"] = note_only_unmapped_tags[:100]
