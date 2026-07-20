@@ -462,6 +462,18 @@ ADDITIVE_CATS = {
     "純資_自己株式",
 }
 
+NOTE_ONLY_TAG_PATTERNS = [
+    "AcquisitionCost",
+    "AccumulatedAmortization",
+    "AccumulatedDepreciation",
+    "AccumulatedImpairment",
+    "BookValueEquitySecurities",
+    "CarryingAmountShares",
+    "NumberOfShares",
+    "NumberOfVotingRights",
+    "SummaryOfBusinessResults",
+]
+
 DERIVED_NET_TAG_PAIRS = [
     ("BuildingsAcquisitionCostIFRS", "BuildingsAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsIFRS"]),
     ("BuildingsAndStructuresAcquisitionCostIFRS", "BuildingsAndStructuresAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsAndStructuresIFRS"]),
@@ -545,6 +557,8 @@ def should_skip_item_tag(tag, raw_tags):
         return "intangible_summary_skipped_because_details_exist"
     if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:
         return "gross_lease_assets_skipped_because_net_exists"
+    if tag == "OtherPPE" and "OtherNetPPE" in raw_tags:
+        return "gross_other_ppe_skipped_because_net_exists"
     if not tag.endswith("Net") and (tag + "Net") in raw_tags:
         return "gross_value_skipped_because_net_exists"
     return None
@@ -806,6 +820,14 @@ def analyze_bs_xbrl(doc_id, debug=False):
             for tag, val in sorted(best_raw_tags.items(), key=lambda item: abs(item[1]), reverse=True)
             if tag not in known_numeric_tags and abs(val) >= 100000000
         ]
+        note_only_unmapped_tags = [
+            item for item in unmapped_numeric_tags
+            if any(pattern in item["tag"] for pattern in NOTE_ONLY_TAG_PATTERNS)
+        ]
+        mapping_candidate_unmapped_tags = [
+            item for item in unmapped_numeric_tags
+            if item not in note_only_unmapped_tags
+        ]
         diagnostics["gap_diagnostics"] = gap_diagnostics
         diagnostics["warnings"] = bs_warnings
         diagnostics["reported_other_values_oku"] = {
@@ -817,6 +839,8 @@ def analyze_bs_xbrl(doc_id, debug=False):
             if summary.get(k, 0) != reported_other_values.get(k, 0)
         }
         diagnostics["unmapped_numeric_tags_over_1oku"] = unmapped_numeric_tags[:100]
+        diagnostics["note_only_unmapped_tags_over_1oku"] = note_only_unmapped_tags[:100]
+        diagnostics["mapping_candidate_unmapped_tags_over_1oku"] = mapping_candidate_unmapped_tags[:100]
         diagnostics["summary_nonzero_oku"] = {k: round(v / 100000000, 3) for k, v in summary.items() if v != 0}
         diagnostics["totals_oku"] = {k: round(v / 100000000, 3) for k, v in totals.items()}
         return summary, totals, doc_type, best_raw_tags, diagnostics
