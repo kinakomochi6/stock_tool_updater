@@ -2,25 +2,35 @@ name: Update Stock Data
 
 on:
   schedule:
-    # 毎日深夜0時(JST) = 15:00 UTC に自動実行
+    # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
   workflow_dispatch:
     inputs:
       codes:
-        description: '診断・単体更新する銘柄コード。例: 9366,3123。空なら通常の8分割更新'
+        description: 'Optional comma-separated stock codes'
         required: false
         default: ''
+      test_set:
+        description: 'Curated B/S diagnostic set'
+        required: true
+        type: choice
+        default: 'none'
+        options:
+          - none
+          - regression-40
+          - expansion-60
+          - market-100
       days_back:
-        description: 'EDINETを遡って検索する日数'
+        description: 'Days of EDINET documents to scan'
         required: false
         default: '365'
       debug_bs:
-        description: 'B/S診断JSONを出力する'
+        description: 'Generate B/S diagnostic JSON files'
         required: false
         type: boolean
         default: false
       dry_run:
-        description: 'Firestoreへ保存しない'
+        description: 'Skip Firestore writes'
         required: false
         type: boolean
         default: true
@@ -30,69 +40,75 @@ jobs:
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false  # 1つのShardが失敗しても他のShardを止めない
+      fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7] # 8分割して並行実行
-    
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Scraper
+      - name: Run scraper shard
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           ALLOW_FULL_FIRESTORE_WRITE: "1"
           PYTHONUNBUFFERED: "1"
-        run: |
-          # 8分割したうちの、自分のShard Indexを担当するバッチを実行
-          python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
+        run: python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
 
   manual_guard:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes == '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes == '' && github.event.inputs.test_set == 'none' }}
     runs-on: ubuntu-latest
-
     steps:
       - name: Stop unsafe manual full update
         run: |
-          echo "手動実行では全件更新を行いません。codes に 9366,3123 のように対象銘柄を指定してください。"
+          echo "Manual full updates are disabled. Enter codes or choose a test_set."
           exit 1
 
   diagnose:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes != '' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.codes != '' || github.event.inputs.test_set != 'none') }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Selected Codes
+      - name: Run B/S unit tests
+        run: python -m unittest test_bs_unit.py
+
+      - name: Run selected codes
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           PYTHONUNBUFFERED: "1"
         run: |
-          ARGS=(firebase_master_test.py --codes "${{ github.event.inputs.codes }}" --days-back "${{ github.event.inputs.days_back }}")
+          ARGS=(firebase_master_test.py --days-back "${{ github.event.inputs.days_back }}")
+          if [ -n "${{ github.event.inputs.codes }}" ]; then
+            ARGS+=(--codes "${{ github.event.inputs.codes }}")
+          fi
+          if [ "${{ github.event.inputs.test_set }}" != "none" ]; then
+            ARGS+=(--test-set "${{ github.event.inputs.test_set }}")
+          fi
           if [ "${{ github.event.inputs.debug_bs }}" = "true" ]; then
             ARGS+=(--debug-bs --debug-dir diagnostics)
           fi
@@ -104,10 +120,23 @@ jobs:
           printf '\n'
           python "${ARGS[@]}"
 
+      - name: Build B/S diagnostics report
+        if: ${{ always() && github.event.inputs.debug_bs == 'true' }}
+        continue-on-error: true
+        run: |
+          python bs_diagnostics_report.py diagnostics \
+            --json-output reports/bs_diagnostics_summary.json \
+            --markdown-output reports/bs_diagnostics_summary.md
+          cat reports/bs_diagnostics_summary.md >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload B/S diagnostics
         if: ${{ always() && github.event.inputs.debug_bs == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: bs-diagnostics
-          path: diagnostics/*.json
+          path: |
+            diagnostics/debug_bs_*.json
+            reports/bs_diagnostics_summary.json
+            reports/bs_diagnostics_summary.md
           if-no-files-found: ignore
+          retention-days: 30

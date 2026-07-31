@@ -16,6 +16,7 @@ import warnings
 import os
 import argparse
 import json
+from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -143,7 +144,7 @@ TAG_MAPPING = {
     "NetDefinedBenefitAsset": "投資_退職給付資産",
     "InvestmentProperty": "投資_投資不動産", "LongTermLoansReceivable": "投資_長期貸付金",
     "LongTermLoansReceivableFromSubsidiariesAndAffiliates": "投資_長期貸付金",
-    "LeaseDeposits": "投資_差入保証金", "LeaseAndGuaranteeDeposits": "投資_差入保証金", "LongTermLeaseholdDeposits": "投資_差入保証金", "PrepaidPensionCostIOA": "投資_退職給付資産", "DeferredAssets": "投資_その他固定資産", "BondIssuanceCostDA": "投資_その他固定資産", "LongTermPrepaidExpenses": "投資_長期前払費用", "MoneyHeldInTrustIOA": "投資_その他金融資産", "LongTermInvestmentsELE": "投資_投資有価証券", "ReserveFundForNuclearReactorDecommissioningIOAELE": "投資_原子力廃炉積立金", "NuclearFuelNCAELE": "投資_核燃料", "NuclearFuelInProcessingNCAELE": "投資_核燃料", "LoadedNuclearFuelNCAELE": "投資_核燃料", "SpecialAccountRelatedToReprocessingOfSpentNuclearFuelELE": "投資_使用済燃料再処理関連資産", "GrantsInAidReceivableFromNuclearDamageCompensationFacilitationCorporationIOAELE": "投資_原賠機構未収金", "OtherNoncurrentAssetsELE": "投資_電気事業その他固定資産", "OtherInvestmentsAndOtherAssets": "投資_その他固定資産", "OtherIOA": "投資_その他固定資産", "ClaimsProvableInBankruptcyClaimsProvableInRehabilitationAndOther": "投資_その他固定資産",
+    "LeaseDeposits": "投資_差入保証金", "LeaseAndGuaranteeDeposits": "投資_差入保証金", "LongTermLeaseholdDeposits": "投資_差入保証金", "PrepaidPensionCostIOA": "投資_退職給付資産", "DeferredAssets": "投資_その他固定資産", "BondIssuanceCostDA": "投資_その他固定資産", "LongTermPrepaidExpenses": "投資_長期前払費用", "MoneyHeldInTrustIOA": "投資_その他金融資産", "LongTermInvestmentsELE": "投資_投資有価証券", "ReserveFundForNuclearReactorDecommissioningIOAELE": "投資_原子力廃炉積立金", "NuclearFuelNCAELE": "投資_核燃料", "NuclearFuelInProcessingNCAELE": "投資_核燃料", "LoadedNuclearFuelNCAELE": "投資_核燃料", "SpecialAccountRelatedToReprocessingOfSpentNuclearFuelELE": "投資_使用済燃料再処理関連資産", "GrantsInAidReceivableFromNuclearDamageCompensationFacilitationCorporationIOAELE": "投資_原賠機構未収金", "OtherNoncurrentAssetsELE": "投資_電気事業その他固定資産", "OtherInvestmentsAndOtherAssets": "投資_その他固定資産", "OtherIOA": "投資_その他固定資産", "ClaimsProvableInBankruptcyClaimsProvableInRehabilitationAndOther": "投資_破産更生債権等", "BadDebts": "投資_破産更生債権等",
     "AllowanceForDoubtfulAccountsNonCurrent": "投資_貸倒引当金", "AllowanceForDoubtfulAccountsIOAByGroup": "投資_貸倒引当金",
     "NotesAndAccountsPayableTrade": "流負_支払手形・買掛金",
     "NotesAndOperatingAccountsPayableTrade": "流負_支払手形・買掛金",
@@ -168,7 +169,7 @@ TAG_MAPPING = {
     "ProvisionForLossOnGuaranteesCL": "流負_債務保証損失引当金",
     "ProvisionForLossOnContractsCL": "流負_契約損失引当金",
     "ProvisionForLossOnContractCL": "流負_契約損失引当金",
-    "ProvisionForDirectorsBonuses": "流負_賞与引当金",
+    "ProvisionForDirectorsBonuses": "流負_役員賞与引当金",
     "ProvisionForWarrantiesForCompletedConstruction": "流負_完成工事補償引当金",
     "ProvisionForLossOnRelatedBusinessOfSubsidiariesAndAssociatesCL": "流負_関係会社事業損失引当金",
     "ProvisionForSalesPromotionExpenses": "流負_販売促進引当金",
@@ -459,9 +460,9 @@ DISPLAY_ORDER = [
     "流動_貸倒引当金", "流動_金融債権", "流動_営業投資", "流動_リース投資資産", "流動_その他金融資産", "流動_デリバティブ資産", "流動_定期預金", "流動_コールローン", "流動_集配金業務預け金", "流動_売却目的保有資産", "流動_未収法人税等", "流動_その他流動資産",
     "有形_建物・構築物", "有形_構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_警備機器・管制局", "有形_鉱業権資産", "有形_石油・天然ガス資産", "有形_土地", "有形_信託土地", "有形_建設仮勘定", "有形_リース資産", "有形_施設利用権", "有形_賃貸用資産", "有形_賃貸資産購入前渡金", "有形_船舶", "有形_航空機", "有形_航空関連設備", "有形_航空機・船舶", "有形_工具器具備品", "有形_その他有形固定資産",
     "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_電話加入権", "無形_採掘権", "無形_商標権", "無形_養殖権・水面利用権", "無形_製品関連無形資産", "無形_耐用年数確定その他無形資産", "無形_耐用年数非確定その他無形資産", "無形_顧客関連資産", "無形_技術関連資産", "無形_コンテンツ資産", "無形_周波数移行費用", "無形_その他無形固定資産",
-    "投資_投資有価証券", "投資_出資金", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_関係会社出資金", "投資_関係会社その他有価証券", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_公正価値測定金融資産", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_長期前払費用", "投資_退職給付資産", "投資_繰延税金資産", "投資_土地再評価繰延税金資産", "投資_契約獲得コスト", "投資_契約関連資産", "投資_持続可能エネルギー補助金", "投資_核燃料", "投資_原子力廃炉積立金", "投資_使用済燃料再処理関連資産", "投資_原賠機構未収金", "投資_電気事業その他固定資産", "投資_貸倒引当金", "投資_その他固定資産",
+    "投資_投資有価証券", "投資_出資金", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_関係会社出資金", "投資_関係会社その他有価証券", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_公正価値測定金融資産", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_長期前払費用", "投資_退職給付資産", "投資_繰延税金資産", "投資_土地再評価繰延税金資産", "投資_契約獲得コスト", "投資_契約関連資産", "投資_持続可能エネルギー補助金", "投資_核燃料", "投資_原子力廃炉積立金", "投資_使用済燃料再処理関連資産", "投資_原賠機構未収金", "投資_電気事業その他固定資産", "投資_破産更生債権等", "投資_貸倒引当金", "投資_その他固定資産",
     "流負_支払手形・買掛金", "流負_加盟店買掛金", "流負_短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
-    "流負_未払金", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払法人税等", "流負_前受金", "流負_契約負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_株式報酬引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_完成工事補償引当金", "流負_変動報酬引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
+    "流負_未払金", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払法人税等", "流負_前受金", "流負_契約負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_役員賞与引当金", "流負_株式報酬引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_完成工事補償引当金", "流負_変動報酬引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
     "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_株式給付引当金", "固負_債務保証損失引当金", "固負_契約損失引当金", "固負_特別修繕引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
     "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_その他純資産"
 ]
@@ -728,7 +729,6 @@ NOTE_ONLY_TAG_PATTERNS = [
     "ForeignCurrencyTranslationAdjustment",
     "ValuationDifferenceOnAvailableForSaleSecurities",
     "DeferredGainsOrLossesOnHedges",
-    "BadDebts",
     "OtherEquityInstrumentsEquity",
     "BeforeOffsetting",
     "SegmentInformation",
@@ -1924,6 +1924,12 @@ def main():
     parser.add_argument("--total-shards", type=int, default=1, help="Total number of shards")
     parser.add_argument("--shard-index", type=int, default=0, help="Index of this shard (0 to total-shards-1)")
     parser.add_argument("--codes", type=str, default="", help="Comma or space separated stock codes. Example: --codes 7203,6758")
+    parser.add_argument(
+        "--test-set",
+        choices=sorted(BS_TEST_SETS),
+        default="none",
+        help="Curated B/S diagnostic set. Explicit --codes are combined with this set.",
+    )
     parser.add_argument("--days-back", type=int, default=365, help="How many days of EDINET documents to scan")
     parser.add_argument("--debug-bs", action="store_true", help="Write B/S extraction diagnostics JSON for each processed code")
     parser.add_argument("--debug-dir", type=str, default=".", help="Directory for --debug-bs output files")
@@ -1938,7 +1944,7 @@ def main():
         raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
 
     validate_tag_mapping()
-    requested_codes = parse_codes_arg(args.codes)
+    requested_codes = sorted(set(parse_codes_arg(args.codes)) | set(get_test_set_codes(args.test_set)))
     if not args.dry_run and not requested_codes and not ALLOW_FULL_FIRESTORE_WRITE:
         raise RuntimeError(
             "全件Firestore更新は安全のためブロックされました。"
