@@ -86,7 +86,7 @@ TAG_MAPPING = {
     "DeferredAndPrepaidExpensesCAWAT": "流動_前払費用",
     "AdvancePaymentsTrade": "流動_前渡金",
     "ConsumptionTaxesReceivable": "流動_未収消費税等",
-    "IncomeTaxesReceivable": "流動_その他流動資産",
+    "IncomeTaxesReceivable": "流動_未収法人税等",
     "ShortTermLoansReceivable": "流動_短期貸付金",
     "OperatingLoansCA": "流動_金融債権",
     "CurrentPortionOfLongTermLoansReceivableFromSubsidiariesAndAffiliates": "流動_短期貸付金",
@@ -119,7 +119,7 @@ TAG_MAPPING = {
     "FurnitureAndFixturesNetPPE": "有形_工具器具備品",
     "OtherPropertyPlantAndEquipment": "有形_その他有形固定資産", "OtherPropertyPlantAndEquipmentNet": "有形_その他有形固定資産", "OtherNetPPE": "有形_その他有形固定資産",
     "BuildingsNet": "有形_建物・構築物",
-    "VesselsNet": "有形_その他有形固定資産", "AircraftNet": "有形_その他有形固定資産", "EquipmentNetPPEWAT": "有形_その他有形固定資産",
+    "VesselsNet": "有形_船舶", "AircraftNet": "有形_航空機", "EquipmentNetPPEWAT": "有形_航空関連設備",
     "ElectricUtilityPlantAndEquipmentAssetsELE": "有形_その他有形固定資産",
     "DistributionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
     "TransmissionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
@@ -156,7 +156,7 @@ TAG_MAPPING = {
     "CurrentPortionOfLongTermLoansPayableToSubsidiariesAndAffiliates": "流負_関係会社1年内返済長期借入金",
     "CurrentPortionOfBonds": "流負_1年内償還社債", "ShortTermBondsPayable": "流負_1年内償還社債", "NonRecourseBondsDueWithinOneYearCL": "流負_1年内償還ノンリコース社債", "CommercialPapersLiabilities": "流負_CP",
     "AccountsPayableOther": "流負_未払金", "AccruedExpenses": "流負_未払費用",
-    "AccruedConsumptionTaxes": "流負_未払費用",
+    "AccruedConsumptionTaxes": "流負_未払消費税等",
     "IncomeTaxesPayable": "流負_未払法人税等", "AdvancesReceived": "流負_前受金",
     "UnearnedRevenue": "流負_前受金",
     "AdvancesReceivedOnUncompletedConstructionContracts": "流負_前受金", "ContractLiabilities": "流負_契約負債",
@@ -207,7 +207,7 @@ TAG_MAPPING = {
     "LongTermIncomeTaxesPayable": "固負_その他固定負債",
     "FundForPriceFluctuationAllowance": "固負_価格変動準備金",
     "ReserveForVariableCompensation": "固負_その他固定負債",
-    "SustainableEnergySubsidyIFRS": "固負_その他固定負債",
+    "SustainableEnergySubsidyIFRS": "投資_持続可能エネルギー補助金",
     "LongTermDepositsReceived": "固負_長期預り金", "LongTermGuaranteeDeposited": "固負_長期預り金", "LeaseAndGuaranteeDepositsReceived": "固負_長期預り金", "LongTermAccountsPayableRailwayEquipmentNCLRWY": "固負_長期設備未払金", "OtherNonCurrentLiabilities": "固負_その他固定負債", "OtherNCL": "固負_その他固定負債",
     "NegativeGoodwill": "固負_負ののれん",
     "ReserveForContractOfInsurance": "固負_保険契約準備金",
@@ -313,6 +313,8 @@ TAG_MAPPING = {
     "VesselsAndAircraftsIFRS": "有形_航空機・船舶",
     "MiningRightsPropertyPlantAndEquipmentIFRS": "有形_鉱業権資産",
     "OilAndGasAssetsNCAIFRS": "有形_石油・天然ガス資産",
+    "OilAndGasAssetsIFRS": "有形_石油・天然ガス資産",
+    "BuildingsStructuresAndOilTanksIFRS": "有形_建物・構築物",
     # IFRS 無形固定資産
     "IntangibleAssetsIFRS": "無形_その他無形固定資産",
     "GoodwillIFRS": "無形_のれん",
@@ -335,7 +337,7 @@ TAG_MAPPING = {
     "GameContentIFRS": "無形_その他無形固定資産",
     "IntangibleAssetsAssociatedWithProductsIFRS": "無形_その他無形固定資産",
     "OtherComponentsOfIntangibleAssetsIFRS": "無形_その他無形固定資産",
-    "FishFarmingLicenseAndSurfaceRightsIFRS": "無形_その他無形固定資産",
+    "FishFarmingLicenseAndSurfaceRightsIFRS": "無形_養殖権・水面利用権",
     "OtherIntangibleAssetsIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsWithFiniteUsefulLivesIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_その他無形固定資産",
@@ -360,8 +362,9 @@ TAG_MAPPING = {
     "LongTermLoansForBankingNCAIFRS": "投資_金融債権",
     "OtherFinancialAssetsNCAIFRS": "投資_その他金融資産",
     "DerivativeAssetsNCAIFRS": "投資_デリバティブ資産",
-    "LongTermDepositsForBankingNCLIFRS": "投資_長期預け金",
+    "LongTermDepositsForBankingNCLIFRS": "固負_銀行長期預金",
     "CostsToObtainContractsNCAIFRS": "投資_契約獲得コスト",
+    "ContractRelatedAssetsIFRS": "投資_契約関連資産",
     "OtherNonCurrentAssetsNCAIFRS": "投資_その他固定資産",
     "LoansReceivableNCAIFRS": "投資_長期貸付金",
     "LoansReceivableCAIFRS": "流動_短期貸付金",
@@ -454,12 +457,12 @@ DISPLAY_ORDER = [
     "流動_現金及び預金", "流動_受取手形", "流動_売掛金", "流動_鉄道運賃未収金", "流動_契約者未収金", "流動_契約資産", "流動_電子記録債権", "流動_受取手形・売掛金(合算)",
     "流動_有価証券", "流動_棚卸資産", "流動_販売用不動産", "流動_未成工事支出金", "流動_生物資産", "流動_前払費用", "流動_前渡金", "流動_未収入金", "流動_未収消費税等", "流動_短期貸付金", "流動_リース債権",
     "流動_貸倒引当金", "流動_金融債権", "流動_営業投資", "流動_リース投資資産", "流動_その他金融資産", "流動_デリバティブ資産", "流動_定期預金", "流動_コールローン", "流動_集配金業務預け金", "流動_売却目的保有資産", "流動_未収法人税等", "流動_その他流動資産",
-    "有形_建物・構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_警備機器・管制局", "有形_鉱業権資産", "有形_石油・天然ガス資産", "有形_土地", "有形_信託土地", "有形_建設仮勘定", "有形_リース資産", "有形_施設利用権", "有形_賃貸用資産", "有形_航空機・船舶", "有形_工具器具備品", "有形_その他有形固定資産",
-    "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_採掘権", "無形_商標権", "無形_顧客関連資産", "無形_技術関連資産", "無形_コンテンツ資産", "無形_周波数移行費用", "無形_その他無形固定資産",
-    "投資_投資有価証券", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_関係会社出資金", "投資_関係会社その他有価証券", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_長期前払費用", "投資_退職給付資産", "投資_繰延税金資産", "投資_土地再評価繰延税金資産", "投資_契約獲得コスト", "投資_核燃料", "投資_原子力廃炉積立金", "投資_使用済燃料再処理関連資産", "投資_原賠機構未収金", "投資_貸倒引当金", "投資_その他固定資産",
+    "有形_建物・構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_警備機器・管制局", "有形_鉱業権資産", "有形_石油・天然ガス資産", "有形_土地", "有形_信託土地", "有形_建設仮勘定", "有形_リース資産", "有形_施設利用権", "有形_賃貸用資産", "有形_船舶", "有形_航空機", "有形_航空関連設備", "有形_航空機・船舶", "有形_工具器具備品", "有形_その他有形固定資産",
+    "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_採掘権", "無形_商標権", "無形_養殖権・水面利用権", "無形_顧客関連資産", "無形_技術関連資産", "無形_コンテンツ資産", "無形_周波数移行費用", "無形_その他無形固定資産",
+    "投資_投資有価証券", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_関係会社出資金", "投資_関係会社その他有価証券", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_長期前払費用", "投資_退職給付資産", "投資_繰延税金資産", "投資_土地再評価繰延税金資産", "投資_契約獲得コスト", "投資_契約関連資産", "投資_持続可能エネルギー補助金", "投資_核燃料", "投資_原子力廃炉積立金", "投資_使用済燃料再処理関連資産", "投資_原賠機構未収金", "投資_貸倒引当金", "投資_その他固定資産",
     "流負_支払手形・買掛金", "流負_加盟店買掛金", "流負_短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
-    "流負_未払金", "流負_未払費用", "流負_未払税金", "流負_未払法人税等", "流負_前受金", "流負_契約負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
-    "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
+    "流負_未払金", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払法人税等", "流負_前受金", "流負_契約負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
+    "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
     "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_その他純資産"
 ]
 
@@ -622,6 +625,7 @@ PPE_DETAIL_TAGS = {
     "ConstructionAndRetirementInProgressNCAInProcessELE", "NuclearPowerAbolitionInProgressELE",
     "LandBuildingsAndStructuresIFRS", "VesselsAndAircraftsIFRS",
     "MiningRightsPropertyPlantAndEquipmentIFRS", "OilAndGasAssetsNCAIFRS",
+    "OilAndGasAssetsIFRS", "BuildingsStructuresAndOilTanksIFRS",
 }
 INTANGIBLE_EX_GOODWILL_SUMMARY_TAGS = {"IntangibleAssets", "IntangibleAssetsIFRS"}
 GOODWILL_AND_INTANGIBLE_SUMMARY_TAGS = {"GoodwillAndIntangibleAssetsIFRS"}
@@ -888,7 +892,15 @@ OTHER_DELTA_WARNING_CAP = 100_000_000_000  # 1,000億円。大会社でも絶対
 OPTIONAL_DUPLICATE_CATEGORIES = [
     ("流負_契約負債", "流負_", "CurrentLiabilities", "流負_その他流動負債"),
     ("流動_販売用不動産", "流動_", "CurrentAssets", "流動_その他流動資産"),
+    ("固負_価格変動準備金", "固負_", "NonCurrentLiabilities", "固負_その他固定負債"),
+    ("固負_特別法上準備金", "固負_", "NonCurrentLiabilities", "固負_その他固定負債"),
 ]
+
+COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS = {
+    "NotesAndAccountsReceivableTradeAndContractAssets",
+    "NotesAndOperatingAccountsReceivableTradeAndContractAssetsCA",
+    "TradeNotesAccountsReceivableAndContractAssets",
+}
 
 def reconcile_optional_duplicate_categories(summary, totals):
     adjustments = []
@@ -961,21 +973,77 @@ def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_valu
 
     return warnings_list
 
-def analyze_bs_xbrl(doc_id, debug=False):
+
+class BsAnalysisError(RuntimeError):
+    def __init__(self, stage, message, details=None):
+        super().__init__(message)
+        self.stage = stage
+        self.details = details or {}
+
+
+def download_edinet_xbrl_package(doc_id, attempts=3, timeout=20):
     url = f"https://disclosure.edinet-fsa.go.jp/api/v2/documents/{doc_id}"
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
-    try: 
-        res = requests.get(url, params=params, timeout=10)
-        if res.status_code != 200: return None
-        z_data = io.BytesIO(res.content)
-    except: return None
+    failures = []
+    for attempt in range(1, attempts + 1):
+        try:
+            res = requests.get(url, params=params, timeout=timeout)
+            if res.status_code == 200 and res.content:
+                return io.BytesIO(res.content)
+            failures.append({
+                "attempt": attempt,
+                "status_code": res.status_code,
+                "content_length": len(res.content),
+            })
+            if 400 <= res.status_code < 500 and res.status_code not in {408, 429}:
+                break
+        except requests.RequestException as exc:
+            failures.append({"attempt": attempt, "error": repr(exc)})
+
+        if attempt < attempts:
+            time.sleep(attempt)
+
+    raise BsAnalysisError(
+        "download",
+        f"EDINET書類パッケージを取得できませんでした: {doc_id}",
+        {"attempts": failures},
+    )
+
+
+def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
+    try:
+        z_data = download_edinet_xbrl_package(doc_id)
+    except BsAnalysisError:
+        if raise_on_error:
+            raise
+        return None
     
     summary = {k: 0 for k in DISPLAY_ORDER}
     totals = {"Assets":0, "CurrentAssets":0, "NonCurrentAssets":0, "Liabilities":0, "CurrentLiabilities":0, "NonCurrentLiabilities":0, "NetAssets":0}
 
-    with zipfile.ZipFile(z_data) as z:
+    try:
+        archive = zipfile.ZipFile(z_data)
+    except zipfile.BadZipFile as exc:
+        error = BsAnalysisError(
+            "archive",
+            f"EDINET書類パッケージがZIP形式ではありません: {doc_id}",
+            {"error": repr(exc)},
+        )
+        if raise_on_error:
+            raise error from exc
+        return None
+
+    with archive as z:
         xbrl_file = next((n for n in z.namelist() if n.endswith(".xbrl") and "PublicDoc" in n), None)
-        if not xbrl_file: return None
+        if not xbrl_file:
+            error = BsAnalysisError(
+                "archive",
+                f"PublicDoc配下のXBRLファイルが見つかりません: {doc_id}",
+                {"file_count": len(z.namelist())},
+            )
+            if raise_on_error:
+                raise error
+            return None
         
         with z.open(xbrl_file) as f:
             try: soup = BeautifulSoup(f, 'lxml-xml')
@@ -1097,7 +1165,8 @@ def analyze_bs_xbrl(doc_id, debug=False):
             summary["流動_受取手形"] = 0
             summary["流動_売掛金"] = 0
             summary["流動_電子記録債権"] = 0
-            summary["流動_契約資産"] = 0
+            if any(tag in best_raw_tags for tag in COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS):
+                summary["流動_契約資産"] = 0
         else:
             summary["流動_受取手形・売掛金(合算)"] = 0
 
@@ -1941,7 +2010,16 @@ def main():
             # B/S データの取得
             bs_doc_id, bs_desc, _ = searcher.find_best_bs_doc(code)
             if bs_doc_id:
-                ret = analyze_bs_xbrl(bs_doc_id, debug=args.debug_bs)
+                bs_analysis_error = None
+                try:
+                    ret = analyze_bs_xbrl(
+                        bs_doc_id,
+                        debug=args.debug_bs,
+                        raise_on_error=args.debug_bs,
+                    )
+                except BsAnalysisError as exc:
+                    ret = None
+                    bs_analysis_error = exc
                 if ret:
                     bs_diagnostics = None
                     if len(ret) == 5:
@@ -1971,11 +2049,19 @@ def main():
                         debug_path = write_bs_diagnostics(args.debug_dir, code, bs_diagnostics)
                         print(f" -> [B/S診断] {debug_path} に出力しました。警告: {len(warnings_text)}件")
                 elif args.debug_bs:
+                    error_details = {}
+                    if bs_analysis_error:
+                        error_details = {
+                            "failure_stage": bs_analysis_error.stage,
+                            "error": str(bs_analysis_error),
+                            "details": bs_analysis_error.details,
+                        }
                     debug_path = write_bs_diagnostics(args.debug_dir, code, {
                         "status": "analysis_failed",
                         "code": code,
                         "doc_id": bs_doc_id,
                         "doc_description": bs_desc,
+                        **error_details,
                     })
                     print(f" -> [B/S診断] {debug_path} に解析失敗情報を出力しました。")
             elif args.debug_bs:
