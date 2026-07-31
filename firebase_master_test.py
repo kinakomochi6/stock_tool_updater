@@ -194,8 +194,8 @@ TAG_MAPPING = {
     "CapitalStock": "純資_資本金", "CapitalSurplus": "純資_資本剰余金",
     "RetainedEarnings": "純資_利益剰余金", "LegalRetainedEarnings": "純資_利益剰余金", "TreasuryShares": "純資_自己株式", "TreasuryStock": "純資_自己株式",
     "ValuationAndTranslationAdjustments": "純資_評価換算差額金",
-    "OtherComprehensiveIncomeRelatedToAssetsHeldForSaleIFRS": "純資_評価換算差額金",
-    "OtherComprehensiveIncomeRelatedToAssetsHeldForSaleEquityAttributableToOwnersOfParentIFRS": "純資_評価換算差額金",
+    "OtherComprehensiveIncomeRelatedToAssetsHeldForSaleIFRS": "純資_売却目的保有関連OCI",
+    "OtherComprehensiveIncomeRelatedToAssetsHeldForSaleEquityAttributableToOwnersOfParentIFRS": "純資_売却目的保有関連OCI",
     "ExchangeDifferencesOnTranslationOfForeignOperationsEquityIFRS": "純資_評価換算差額金",
     "EffectivePortionOfCashFlowHedgesEquityIFRS": "純資_評価換算差額金",
     "RemeasurementsOfDefinedBenefitPlans": "純資_評価換算差額金",
@@ -257,12 +257,12 @@ TAG_MAPPING = {
     "AdvancePaymentsToSuppliersCAIFRS": "流動_前渡金",
     "OtherCurrentFinancialAssetsCAIFRS": "流動_その他金融資産",
     "OtherFinancialAssetsCAIFRS": "流動_その他金融資産",
-    "DerivativeAssetsCAIFRS": "流動_その他金融資産",
-    "TimeDepositsCAIFRS": "流動_その他金融資産",
+    "DerivativeAssetsCAIFRS": "流動_デリバティブ資産",
+    "TimeDepositsCAIFRS": "流動_定期預金",
     "ShortTermLoansForBankingCAIFRS": "流動_金融債権",
     "AssetsHeldForSaleIFRS": "流動_売却目的保有資産",
     "OtherCurrentAssetsCAIFRS": "流動_その他流動資産",
-    "IncomeTaxesReceivableCAIFRS": "流動_その他流動資産",
+    "IncomeTaxesReceivableCAIFRS": "流動_未収法人税等",
     # IFRS 有形固定資産
     "PropertyPlantAndEquipmentIFRS": "有形_その他有形固定資産",
     "BuildingsAndAccompanyingFacilitiesIFRS": "有形_建物・構築物",
@@ -277,26 +277,26 @@ TAG_MAPPING = {
     "LandIFRS": "有形_土地",
     "ConstructionInProgressIFRS": "有形_建設仮勘定",
     "RightOfUseAssetsIFRS": "有形_リース資産",
-    "RightsToUseFacilitiesIFRS": "有形_リース資産",
+    "RightsToUseFacilitiesIFRS": "有形_施設利用権",
     "FurnitureAndFixturesIFRS": "有形_工具器具備品",
     "ToolsFurnitureAndFixturesIFRS": "有形_工具器具備品",
-    "AircraftAndShipsIFRS": "有形_その他有形固定資産",
+    "AircraftAndShipsIFRS": "有形_航空機・船舶",
     "OtherComponentsOfPropertyPlantAndEquipmentIFRS": "有形_その他有形固定資産",
     # IFRS 無形固定資産
     "IntangibleAssetsIFRS": "無形_その他無形固定資産",
     "GoodwillIFRS": "無形_のれん",
     "GoodwillAndIntangibleAssetsIFRS": "無形_その他無形固定資産",
-    "CustomerRelatedAssetsIFRS": "無形_その他無形固定資産",
-    "TechnologyBasedIntangibleAssetsIFRS": "無形_その他無形固定資産",
+    "CustomerRelatedAssetsIFRS": "無形_顧客関連資産",
+    "TechnologyBasedIntangibleAssetsIFRS": "無形_技術関連資産",
     "SoftwareIFRS": "無形_ソフトウエア",
     "SoftwareForInternalUseIFRS": "無形_ソフトウエア",
     "SoftwareForSaleIFRS": "無形_ソフトウエア",
     "CapitalizedDevelopmentCostsIFRS": "無形_その他無形固定資産",
     "CapitalizedDevelopmentCosts2IFRS": "無形_その他無形固定資産",
-    "CustomerRelationshipsIFRS": "無形_その他無形固定資産",
-    "TechnologiesIFRS": "無形_その他無形固定資産",
-    "TrademarksIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_その他無形固定資産",
-    "TrademarksIFRS": "無形_その他無形固定資産",
+    "CustomerRelationshipsIFRS": "無形_顧客関連資産",
+    "TechnologiesIFRS": "無形_技術関連資産",
+    "TrademarksIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_商標権",
+    "TrademarksIFRS": "無形_商標権",
     "MusicCatalogsIFRS": "無形_その他無形固定資産",
     "FilmCostIFRS": "無形_その他無形固定資産",
     "ContentAssetsNCAIFRS": "無形_その他無形固定資産",
@@ -308,7 +308,7 @@ TAG_MAPPING = {
     "OtherIntangibleAssetsIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsWithFiniteUsefulLivesIFRS": "無形_その他無形固定資産",
     "OtherIntangibleAssetsWithIndefiniteUsefulLivesIFRS": "無形_その他無形固定資産",
-    "SpectrumMigrationCostsIFRS": "無形_その他無形固定資産",
+    "SpectrumMigrationCostsIFRS": "無形_周波数移行費用",
     "ArtistContractsIFRS": "無形_その他無形固定資産",
     "MusicDistributionRightsIFRS": "無形_その他無形固定資産",
     "PatentRightsKnowHowAndLicenseAgreementsIFRS": "無形_その他無形固定資産",
@@ -322,11 +322,11 @@ TAG_MAPPING = {
     "OtherInvestmentsIFRS": "投資_投資有価証券",
     "FinancialAssetsMeasuredAtFairValueNCAIFRS": "投資_その他金融資産",
     "FinancialAssetsMeasuredAtFairValueThroughOtherComprehensiveIncomeEquityIFRS": "投資_投資有価証券",
-    "SecuritiesForBankingNCAIFRS": "投資_その他金融資産",
+    "SecuritiesForBankingNCAIFRS": "投資_銀行業有価証券",
     "LongTermLoansForBankingNCAIFRS": "投資_金融債権",
     "OtherFinancialAssetsNCAIFRS": "投資_その他金融資産",
-    "DerivativeAssetsNCAIFRS": "投資_その他金融資産",
-    "LongTermDepositsForBankingNCLIFRS": "投資_その他金融資産",
+    "DerivativeAssetsNCAIFRS": "投資_デリバティブ資産",
+    "LongTermDepositsForBankingNCLIFRS": "投資_長期預け金",
     "CostsToObtainContractsNCAIFRS": "投資_契約獲得コスト",
     "OtherNonCurrentAssetsNCAIFRS": "投資_その他固定資産",
     "InvestmentPropertyIFRS": "投資_投資不動産",
@@ -373,7 +373,7 @@ TAG_MAPPING = {
     "ProvisionsNCLIFRS": "固負_引当金",
     "ThirdPartyInterestsInSVFNCLIFRS": "固負_SVF外部持分",
     "DerivativeLiabilitiesNCLIFRS": "固負_デリバティブ負債",
-    "TradeAndOtherPayablesNCLIFRS": "固負_その他金融負債",
+    "TradeAndOtherPayablesNCLIFRS": "固負_長期営業債務",
     "OtherFinancialLiabilitiesNCLIFRS": "固負_その他金融負債",
     "OtherNonCurrentLiabilitiesNCLIFRS": "固負_その他固定負債",
     "ParticipationLiabilitiesInThePicturesSegmentNCLIFRS": "固負_映画分野参加負債",
@@ -410,14 +410,14 @@ TAG_MAPPING = {
 DISPLAY_ORDER = [
     "流動_現金及び預金", "流動_受取手形", "流動_売掛金", "流動_契約資産", "流動_電子記録債権", "流動_受取手形・売掛金(合算)", 
     "流動_有価証券", "流動_棚卸資産", "流動_生物資産", "流動_前払費用", "流動_前渡金", "流動_未収入金", "流動_未収消費税等", "流動_短期貸付金", "流動_リース債権",
-    "流動_貸倒引当金", "流動_金融債権", "流動_その他金融資産", "流動_売却目的保有資産", "流動_その他流動資産",
-    "有形_建物・構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_土地", "有形_建設仮勘定", "有形_リース資産", "有形_賃貸用資産", "有形_工具器具備品", "有形_その他有形固定資産",
-    "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_その他無形固定資産",
-    "投資_投資有価証券", "投資_SVF投資", "投資_関係会社株式", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_その他金融資産", "投資_長期貸付金", "投資_差入保証金", "投資_退職給付資産", "投資_繰延税金資産", "投資_契約獲得コスト", "投資_貸倒引当金", "投資_その他固定資産",
+    "流動_貸倒引当金", "流動_金融債権", "流動_その他金融資産", "流動_デリバティブ資産", "流動_定期預金", "流動_売却目的保有資産", "流動_未収法人税等", "流動_その他流動資産",
+    "有形_建物・構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_土地", "有形_建設仮勘定", "有形_リース資産", "有形_施設利用権", "有形_賃貸用資産", "有形_航空機・船舶", "有形_工具器具備品", "有形_その他有形固定資産",
+    "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_商標権", "無形_顧客関連資産", "無形_技術関連資産", "無形_周波数移行費用", "無形_その他無形固定資産",
+    "投資_投資有価証券", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_退職給付資産", "投資_繰延税金資産", "投資_契約獲得コスト", "投資_貸倒引当金", "投資_その他固定資産",
     "流負_支払手形・買掛金", "流負_短期借入金", "流負_1年内返済長期借入金", "流負_1年内償還社債", "流負_CP",
     "流負_未払金", "流負_未払費用", "流負_未払法人税等", "流負_前受金", "流負_預り金", "流負_銀行預金", "流負_リース債務", "流負_賞与引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
-    "固負_社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_繰延税金負債", "固負_引当金", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
-    "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_新株予約権", "純資_非支配株主持分", "純資_その他純資産"
+    "固負_社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_繰延税金負債", "固負_引当金", "固負_長期営業債務", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
+    "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_売却目的保有関連OCI", "純資_新株予約権", "純資_非支配株主持分", "純資_その他純資産"
 ]
 
 # ==========================================
@@ -593,6 +593,33 @@ INTANGIBLE_DETAIL_TAGS = {
     "ArtistContractsIFRS", "MusicDistributionRightsIFRS",
     "PatentRightsKnowHowAndLicenseAgreementsIFRS", "TelevisionCarriageContractsIFRS",
 }
+INTANGIBLE_OTHER_TOTAL_TAGS = {
+    "OtherIntangibleAssetsIFRS",
+    "OtherComponentsOfIntangibleAssetsIFRS",
+}
+INTANGIBLE_SOFTWARE_SUBDETAIL_TAGS = {
+    "SoftwareForInternalUseIFRS",
+    "SoftwareForSaleIFRS",
+}
+INTANGIBLE_COMPONENT_TAGS = {
+    "CustomerRelatedAssetsIFRS",
+    "TechnologyBasedIntangibleAssetsIFRS",
+    "CustomerRelationshipsIFRS",
+    "TechnologiesIFRS",
+    "TrademarksIntangibleAssetsWithIndefiniteUsefulLivesIFRS",
+    "TrademarksIFRS",
+    "SpectrumMigrationCostsIFRS",
+}
+CONTENT_ASSET_SUBDETAIL_TAGS = {
+    "MusicCatalogsIFRS",
+    "FilmCostIFRS",
+    "BroadcastingRightsIFRS",
+    "GameContentIFRS",
+    "ArtistContractsIFRS",
+    "MusicDistributionRightsIFRS",
+    "PatentRightsKnowHowAndLicenseAgreementsIFRS",
+    "TelevisionCarriageContractsIFRS",
+} | INTANGIBLE_COMPONENT_TAGS
 ADDITIVE_CATS = {
     "流動_棚卸資産", "流動_貸倒引当金", "投資_貸倒引当金",
     "純資_自己株式",
@@ -706,6 +733,12 @@ def should_skip_item_tag(tag, raw_tags):
         return "ppe_summary_skipped_because_details_exist"
     if tag in INTANGIBLE_SUMMARY_TAGS and any(k in raw_tags for k in INTANGIBLE_DETAIL_TAGS):
         return "intangible_summary_skipped_because_details_exist"
+    if tag in INTANGIBLE_SOFTWARE_SUBDETAIL_TAGS and any(k in raw_tags for k in INTANGIBLE_OTHER_TOTAL_TAGS):
+        return "intangible_software_subdetail_skipped_because_other_total_exists"
+    if tag in INTANGIBLE_COMPONENT_TAGS and "OtherIntangibleAssetsIFRS" in raw_tags:
+        return "intangible_component_skipped_because_other_intangible_total_exists"
+    if tag in CONTENT_ASSET_SUBDETAIL_TAGS and "ContentAssetsNCAIFRS" in raw_tags:
+        return "content_asset_subdetail_skipped_because_content_assets_total_exists"
     if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:
         return "gross_lease_assets_skipped_because_net_exists"
     if tag == "OtherPPE" and "OtherNetPPE" in raw_tags:
