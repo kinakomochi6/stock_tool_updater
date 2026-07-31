@@ -1944,7 +1944,7 @@ def main():
         raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
 
     validate_tag_mapping()
-    requested_codes = sorted(set(parse_codes_arg(args.codes)) | set(get_test_set_codes(args.test_set)))
+    requested_codes = sorted(set(parse_codes_arg(args.codes) or []) | set(get_test_set_codes(args.test_set)))
     if not args.dry_run and not requested_codes and not ALLOW_FULL_FIRESTORE_WRITE:
         raise RuntimeError(
             "全件Firestore更新は安全のためブロックされました。"

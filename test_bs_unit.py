@@ -2,7 +2,13 @@ import unittest
 
 from bs_diagnostics_report import summarize_diagnostics
 from bs_test_sets import BS_TEST_SETS, EXPANSION_60, MARKET_100, REGRESSION_40
-from firebase_master_test import DISPLAY_ORDER, TAG_MAPPING, apply_mapped_tag, validate_tag_mapping
+from firebase_master_test import (
+    DISPLAY_ORDER,
+    TAG_MAPPING,
+    apply_mapped_tag,
+    parse_codes_arg,
+    validate_tag_mapping,
+)
 
 
 class MappingTests(unittest.TestCase):
@@ -35,6 +41,11 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(REGRESSION_40) & set(EXPANSION_60))
         self.assertEqual(len(MARKET_100), 100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
+
+    def test_empty_explicit_codes_can_be_combined_with_test_set(self):
+        requested = sorted(set(parse_codes_arg("") or []) | set(EXPANSION_60))
+
+        self.assertEqual(requested, sorted(EXPANSION_60))
 
 
 class DiagnosticsReportTests(unittest.TestCase):
@@ -70,4 +81,3 @@ class DiagnosticsReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
