@@ -753,6 +753,7 @@ OTHER_CATEGORIES = [
     "固負_その他固定負債",
     "純資_その他純資産",
 ]
+OTHER_DELTA_WARNING_CAP = 100_000_000_000  # 1,000億円。大会社でも絶対額の大きなズレを見逃さない。
 
 def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_values=None):
     warnings_list = []
@@ -786,7 +787,7 @@ def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_valu
             total = info.get("total", 0)
             gap = info.get("gap", 0)
             reported = (reported_other_values or {}).get(key)
-            threshold = max(abs(total) * 0.03, 1_000_000_000)
+            threshold = min(max(abs(total) * 0.03, 1_000_000_000), OTHER_DELTA_WARNING_CAP)
             if reported not in (None, 0):
                 delta = info.get("delta_from_reported", gap - reported)
                 if total and abs(delta) > threshold:
