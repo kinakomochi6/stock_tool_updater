@@ -23,6 +23,9 @@ def summarize_diagnostics(records):
     rows = []
     standards = Counter()
     contexts = Counter()
+    failure_statuses = Counter()
+    worst_categories = Counter()
+    candidate_tags = {}
     warning_count = 0
     failed_codes = []
 
@@ -31,6 +34,7 @@ def summarize_diagnostics(records):
         status = record.get("status", "unknown")
         if status != "ok":
             failed_codes.append(code)
+            failure_statuses[status] += 1
             continue
 
         standards[record.get("doc_type", "unknown")] += 1
@@ -46,6 +50,26 @@ def summarize_diagnostics(records):
             max_abs_residual = abs(signed_value)
         else:
             worst_key, signed_value, max_abs_residual = "", 0, 0
+        if worst_key:
+            worst_categories[worst_key] += 1
+
+        for candidate in record.get("mapping_candidate_unmapped_tags_over_1oku") or []:
+            tag = candidate.get("tag")
+            if not tag:
+                continue
+            value = float(candidate.get("value_oku") or 0)
+            stats = candidate_tags.setdefault(tag, {
+                "tag": tag,
+                "company_count": 0,
+                "total_abs_value_oku": 0.0,
+                "max_abs_value_oku": 0.0,
+                "example_codes": [],
+            })
+            stats["company_count"] += 1
+            stats["total_abs_value_oku"] += abs(value)
+            stats["max_abs_value_oku"] = max(stats["max_abs_value_oku"], abs(value))
+            if len(stats["example_codes"]) < 5:
+                stats["example_codes"].append(code)
 
         rows.append({
             "code": code,
@@ -62,15 +86,25 @@ def summarize_diagnostics(records):
         f"over_{threshold}_oku": sum(row["max_abs_residual_oku"] > threshold for row in rows)
         for threshold in THRESHOLDS_OKU
     }
+    candidate_tag_rows = sorted(
+        candidate_tags.values(),
+        key=lambda item: (-item["company_count"], -item["total_abs_value_oku"], item["tag"]),
+    )
+    for item in candidate_tag_rows:
+        item["total_abs_value_oku"] = round(item["total_abs_value_oku"], 3)
+        item["max_abs_value_oku"] = round(item["max_abs_value_oku"], 3)
     return {
         "file_count": len(records),
         "ok_count": len(rows),
         "failed_codes": sorted(failed_codes),
+        "failure_statuses": dict(sorted(failure_statuses.items())),
         "warning_count": warning_count,
         "accounting_standards": dict(sorted(standards.items())),
         "context_types": dict(sorted(contexts.items())),
         "threshold_counts": threshold_counts,
         "max_abs_residual_oku": rows[0]["max_abs_residual_oku"] if rows else 0,
+        "worst_category_counts": dict(worst_categories.most_common()),
+        "candidate_unmapped_tags": candidate_tag_rows,
         "rows": rows,
     }
 
@@ -103,7 +137,27 @@ def render_markdown(summary, row_limit=25):
             f"{row['worst_category']} | {row['signed_residual_oku']:.3f} | {row['warning_count']} |"
         )
     if summary["failed_codes"]:
+        failure_text = ", ".join(
+            f"{status}: {count}" for status, count in summary["failure_statuses"].items()
+        )
         lines.extend(["", f"Failed codes: {', '.join(summary['failed_codes'])}"])
+        lines.append(f"Failure statuses: {failure_text}")
+
+    candidate_tags = summary.get("candidate_unmapped_tags") or []
+    if candidate_tags:
+        lines.extend([
+            "",
+            "## Repeated mapping candidates",
+            "",
+            "| Tag | Companies | Total absolute value (oku) | Maximum (oku) | Examples |",
+            "|---|---:|---:|---:|---|",
+        ])
+        for item in candidate_tags[:15]:
+            lines.append(
+                f"| {item['tag']} | {item['company_count']} | "
+                f"{item['total_abs_value_oku']:.3f} | {item['max_abs_value_oku']:.3f} | "
+                f"{', '.join(item['example_codes'])} |"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -140,4 +194,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

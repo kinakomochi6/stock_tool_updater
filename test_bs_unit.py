@@ -909,6 +909,9 @@ class DiagnosticsReportTests(unittest.TestCase):
                 "selected_context": "CurrentYearInstant",
                 "warnings": [],
                 "other_gap_delta_oku": {"流動_その他流動資産": -1400.0},
+                "mapping_candidate_unmapped_tags_over_1oku": [
+                    {"tag": "SpecialAsset", "value_oku": -120.0},
+                ],
             },
             {
                 "_path": "debug_bs_2222.json",
@@ -918,6 +921,9 @@ class DiagnosticsReportTests(unittest.TestCase):
                 "selected_context": "CurrentYearInstant_NonConsolidatedMember",
                 "warnings": ["warning"],
                 "other_gap_delta_oku": {"流負_その他流動負債": 10.0},
+                "mapping_candidate_unmapped_tags_over_1oku": [
+                    {"tag": "SpecialAsset", "value_oku": 80.0},
+                ],
             },
         ]
 
@@ -927,6 +933,9 @@ class DiagnosticsReportTests(unittest.TestCase):
         self.assertEqual(summary["rows"][0]["code"], "1111")
         self.assertEqual(summary["threshold_counts"]["over_1000_oku"], 1)
         self.assertEqual(summary["warning_count"], 1)
+        self.assertEqual(summary["candidate_unmapped_tags"][0]["tag"], "SpecialAsset")
+        self.assertEqual(summary["candidate_unmapped_tags"][0]["company_count"], 2)
+        self.assertEqual(summary["candidate_unmapped_tags"][0]["total_abs_value_oku"], 200.0)
 
 
 if __name__ == "__main__":
