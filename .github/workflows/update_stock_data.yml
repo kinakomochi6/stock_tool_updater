@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - bs-diagnostics
+      - bs-regression
   schedule:
     # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
@@ -106,8 +107,12 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
+            TEST_SET="expansion-60"
+            if [ "${{ github.ref_name }}" = "bs-regression" ]; then
+              TEST_SET="regression-40"
+            fi
             python firebase_master_test.py \
-              --test-set expansion-60 \
+              --test-set "$TEST_SET" \
               --days-back 365 \
               --debug-bs \
               --debug-dir diagnostics \
