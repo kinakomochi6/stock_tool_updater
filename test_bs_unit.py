@@ -14,7 +14,9 @@ from firebase_master_test import (
     TAG_MAPPING,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
+    empty_financial_data,
     parse_codes_arg,
+    reconcile_bank_presentation,
     reconcile_parent_component_overlaps,
     reconcile_receivable_presentation,
     reconcile_optional_duplicate_categories,
@@ -250,6 +252,78 @@ class MappingTests(unittest.TestCase):
         apply_mapped_tag(summary, "CurrentPortionOfNonrecourseLoansCL", 8_510_000_000)
 
         self.assertEqual(summary["流負_短期ノンリコース借入金"], 8_510_000_000)
+
+    def test_bank_statement_lines_close_without_current_noncurrent_split(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "CashAndDueFromBanksAssetsBNK": 28_188_180_000_000,
+            "LoansAndBillsDiscountedAssetsBNK": 67_119_350_000_000,
+            "SecuritiesAssetsBNK": 33_652_530_000_000,
+            "AllowanceForLoanLossesAssetsBNK": -535_920_000_000,
+            "DepositsLiabilitiesBNK": 95_520_500_000_000,
+            "BorrowedMoneyLiabilitiesBNK": 10_979_090_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+        summary["流動_リース債権"] = 105_308_000_000
+
+        adjustments = reconcile_bank_presentation(summary, values)
+
+        self.assertEqual(summary["流動_リース債権"], 0)
+        self.assertEqual(summary["投資_銀行リース債権"], 105_308_000_000)
+        self.assertEqual(summary["投資_銀行貸倒引当金"], -535_920_000_000)
+        self.assertEqual(adjustments[0]["reason"], "bank_statement_has_no_current_noncurrent_split")
+        self.assertEqual(
+            should_skip_item_tag("CashAndCashEquivalents", values),
+            "general_cash_skipped_because_bank_cash_exists",
+        )
+
+    def test_leasing_parent_aliases_are_skipped_for_preferred_totals(self):
+        raw_tags = {
+            "LeasedAssetsPPELEA": 839_102_000_000,
+            "PropertyForLeasePPELEA": 836_801_000_000,
+            "AdvancesForPurchasesAtLeasedAssetsPPELEA": 2_300_000_000,
+            "OtherOperatingAssetsPPE": 153_835_000_000,
+            "OtherOperatingAssetsTotalPPE": 153_835_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("LeasedAssetsPPELEA", raw_tags),
+            "leasing_parent_or_alias_skipped_because_preferred_total_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("OtherOperatingAssetsPPE", raw_tags),
+            "leasing_parent_or_alias_skipped_because_preferred_total_exists",
+        )
+
+    def test_broad_industry_residual_tags_have_distinct_categories(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LandAndBuildingsForSaleCARWY": 220_757_000_000,
+            "ProvisionForRepairsNCL": 104_409_000_000,
+            "EquityUnderwrittenCA": 76_363_000_000,
+            "AircraftAndOtherAssetsForSaleCA": 15_152_000_000,
+            "ShortTermGuaranteeDepositsCASEC": 85_489_000_000,
+            "ShortTermBondsPayable": 11_290_000_000,
+            "CurrentPortionOfBonds": 4_777_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_販売用不動産"], 220_757_000_000)
+        self.assertEqual(summary["固負_修繕引当金"], 104_409_000_000)
+        self.assertEqual(summary["流動_引受出資持分"], 76_363_000_000)
+        self.assertEqual(summary["流動_販売用航空機等"], 15_152_000_000)
+        self.assertEqual(summary["流動_短期差入保証金"], 85_489_000_000)
+        self.assertEqual(summary["流負_短期社債"], 11_290_000_000)
+        self.assertEqual(summary["流負_1年内償還社債"], 4_777_000_000)
+
+    def test_empty_financial_data_keeps_bs_batch_contract(self):
+        data = empty_financial_data()
+
+        self.assertEqual(data["株価"], 0)
+        self.assertEqual(data["ROE_pct"], 0)
+        self.assertEqual(data["時価総額_億"], 0)
 
     def test_section_total_selects_contract_detail_over_parent_total(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
