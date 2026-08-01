@@ -807,6 +807,8 @@ INTANGIBLE_SOFTWARE_SUBDETAIL_TAGS = {
     "SoftwareForSaleIFRS",
 }
 INTANGIBLE_COMPONENT_TAGS = {
+    "CapitalizedDevelopmentCostsIFRS",
+    "CapitalizedDevelopmentCosts2IFRS",
     "CustomerRelatedAssetsIFRS",
     "TechnologyBasedIntangibleAssetsIFRS",
     "CustomerRelationshipsIFRS",

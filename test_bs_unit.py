@@ -125,6 +125,24 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["純資_資本剰余金"], 15_899_000_000)
         self.assertEqual(summary["純資_その他資本剰余金"], -39_061_000_000)
 
+    def test_development_cost_is_skipped_only_when_other_intangible_total_exists(self):
+        with_other_total = {
+            "OtherIntangibleAssetsIFRS": 1_215_731_000_000,
+            "CapitalizedDevelopmentCosts2IFRS": 147_444_000_000,
+        }
+        independent_components = {
+            "OtherComponentsOfIntangibleAssetsIFRS": 58_343_000_000,
+            "CapitalizedDevelopmentCostsIFRS": 488_048_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("CapitalizedDevelopmentCosts2IFRS", with_other_total),
+            "intangible_component_skipped_because_other_intangible_total_exists",
+        )
+        self.assertIsNone(
+            should_skip_item_tag("CapitalizedDevelopmentCostsIFRS", independent_components)
+        )
+
     def test_negative_equity_component_is_not_replaced_with_zero(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "CapitalSurplusIFRS", -459_335_000_000)
