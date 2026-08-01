@@ -7,6 +7,8 @@ on:
       - bs-regression
       - bs-breadth
       - bs-stress
+      - bs-wave-a
+      - bs-wave-b
   schedule:
     # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
@@ -27,9 +29,12 @@ on:
           - expansion-60
           - breadth-100
           - stress-100
+          - wave-a-100
+          - wave-b-100
           - market-100
           - market-200
           - market-300
+          - market-500
       days_back:
         description: 'Days of EDINET documents to scan'
         required: false
@@ -120,6 +125,10 @@ jobs:
               TEST_SET="breadth-100"
             elif [ "${{ github.ref_name }}" = "bs-stress" ]; then
               TEST_SET="stress-100"
+            elif [ "${{ github.ref_name }}" = "bs-wave-a" ]; then
+              TEST_SET="wave-a-100"
+            elif [ "${{ github.ref_name }}" = "bs-wave-b" ]; then
+              TEST_SET="wave-b-100"
             fi
             python firebase_master_test.py \
               --test-set "$TEST_SET" \
