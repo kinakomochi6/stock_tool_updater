@@ -8,6 +8,7 @@ from firebase_master_test import (
     apply_mapped_tag,
     apply_summary_only_fallbacks,
     parse_codes_arg,
+    reconcile_parent_component_overlaps,
     reconcile_receivable_presentation,
     reconcile_optional_duplicate_categories,
     reconcile_skipped_section_summaries,
@@ -39,6 +40,7 @@ class MappingTests(unittest.TestCase):
         self.assertIn(TAG_MAPPING["BadDebts"], DISPLAY_ORDER)
         self.assertIn(TAG_MAPPING["MarketableSecuritiesCAIFRS"], DISPLAY_ORDER)
         self.assertIn(TAG_MAPPING["LongTermNonRecourseLoansPayableNCL"], DISPLAY_ORDER)
+        self.assertEqual(TAG_MAPPING["LongTermLeaseAndGuaranteeDeposited"], "固負_長期預り金")
 
     def test_independent_financial_loan_books_are_added(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
@@ -83,6 +85,30 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["有形_その他有形固定資産"], 39_477_000_000)
         self.assertEqual(adjustments, [])
 
+    def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 130_000_000_000
+        totals = {"NonCurrentAssets": 100_000_000_000}
+        raw_tags = {"AccumulatedDepreciationPPEByGroup": -30_000_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_減価償却累計額"], -30_000_000_000)
+        self.assertEqual(adjustments[0]["tag"], "AccumulatedDepreciationPPEByGroup")
+
+    def test_ppe_parent_total_removes_a_duplicated_component(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_航空機"] = 1_041_696_000_000
+        summary["有形_建設仮勘定"] = 115_612_000_000
+        summary["有形_その他有形固定資産"] = 102_221_000_000
+        summary["有形_建物・構築物"] = 35_585_000_000
+        raw_tags = {"PropertyPlantAndEquipmentIFRS": 1_259_530_000_000}
+
+        adjustments = reconcile_parent_component_overlaps(summary, raw_tags)
+
+        self.assertEqual(summary["有形_建物・構築物"], 0)
+        self.assertEqual(adjustments[0]["reason"], "parent_total_indicates_duplicate_component")
+
     def test_duplicate_contract_liability_alias_is_skipped(self):
         reason = should_skip_item_tag(
             "ContractLiabilitiesCL",
@@ -102,6 +128,20 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(summary["固負_契約負債"], 0)
         self.assertEqual(adjustments[0]["category"], "固負_契約負債")
+
+    def test_current_contract_liability_is_removed_when_advances_are_the_presentation(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 4_000_000_000
+        summary["流負_前受金"] = 3_000_000_000
+        summary["流負_契約負債"] = 2_000_000_000
+        summary["流負_その他流動負債"] = 1_000_000_000
+        totals = {"CurrentLiabilities": 8_000_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流負_前受金"], 3_000_000_000)
+        self.assertEqual(summary["流負_契約負債"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_契約負債")
 
     def test_clearing_liability_components_are_independent(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
