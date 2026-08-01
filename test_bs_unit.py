@@ -66,6 +66,65 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_工事関係支払手形・買掛金"], 594_367_000_000)
         self.assertEqual(summary["流負_電子記録債務"], 87_635_000_000)
 
+    def test_trade_notes_and_related_company_borrowings_are_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "NotesPayableTrade": 6_245_000_000,
+            "AccountsPayableTrade": 34_213_000_000,
+            "ShortTermLoansPayable": 69_038_000_000,
+            "ShortTermLoansPayableToSubsidiariesAndAffiliates": 181_699_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流負_支払手形"], 6_245_000_000)
+        self.assertEqual(summary["流負_支払手形・買掛金"], 34_213_000_000)
+        self.assertEqual(summary["流負_短期借入金"], 69_038_000_000)
+        self.assertEqual(summary["流負_関係会社短期借入金"], 181_699_000_000)
+
+    def test_trade_payable_details_are_skipped_when_combined_total_exists(self):
+        raw_tags = {
+            "NotesAndAccountsPayableTrade": 40_458_000_000,
+            "NotesPayableTrade": 6_245_000_000,
+            "AccountsPayableTrade": 34_213_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("NotesPayableTrade", raw_tags),
+            "trade_payable_detail_skipped_because_combined_total_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("AccountsPayableTrade", raw_tags),
+            "trade_payable_detail_skipped_because_combined_total_exists",
+        )
+        self.assertIsNone(should_skip_item_tag("OperatingAccountsPayable", raw_tags))
+
+    def test_ifrs_independent_asset_components_do_not_collide(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "CapitalizedDevelopmentCostsIFRS": 488_048_000_000,
+            "OtherComponentsOfIntangibleAssetsIFRS": 58_343_000_000,
+            "BiologicalAssetsNCAIFRS": 32_274_000_000,
+            "CallLoanAndBillsBoughtCAIFRS": 33_372_000_000,
+            "AccountsReceivableOperationCA": 43_732_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["無形_開発資産"], 488_048_000_000)
+        self.assertEqual(summary["無形_その他無形固定資産"], 58_343_000_000)
+        self.assertEqual(summary["投資_生物資産"], 32_274_000_000)
+        self.assertEqual(summary["流動_コールローン"], 33_372_000_000)
+        self.assertEqual(summary["流動_営業未収入金"], 43_732_000_000)
+
+    def test_negative_other_capital_reserve_is_preserved_separately(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "CapitalSurplusIFRS", 15_899_000_000)
+        apply_mapped_tag(summary, "OtherCapitalReservesEquityIFRS", -39_061_000_000)
+
+        self.assertEqual(summary["純資_資本剰余金"], 15_899_000_000)
+        self.assertEqual(summary["純資_その他資本剰余金"], -39_061_000_000)
+
     def test_negative_equity_component_is_not_replaced_with_zero(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "CapitalSurplusIFRS", -459_335_000_000)
