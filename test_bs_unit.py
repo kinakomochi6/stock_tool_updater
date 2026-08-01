@@ -174,6 +174,121 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_訴訟損失引当金"], 8_744_000_000)
         self.assertEqual(summary["流動_その他金融資産"], 15_722_000_000)
 
+    def test_fourth_wave_finance_and_industry_extensions_cover_large_residuals(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AccountsReceivableOperatingLoansCASPF": 1_277_559_000_000,
+            "PurchasedReceivablesCA": 10_623_000_000,
+            "MiningRightsIA": 615_444_000_000,
+            "SalesFinanceReceivablesCAIFRS": 403_581_000_000,
+            "SalesFinanceReceivablesNCAIFRS": 395_672_000_000,
+            "AccountsReceivableFromCompletedConstructionContractsAndContractAssetsCA": 94_535_000_000,
+            "MatureTimberPPE": 44_575_000_000,
+            "RestrictedDepositsCAIFRS": 62_721_000_000,
+            "NonCurrentFinancialAssetsNCAIFRS": 34_975_000_000,
+            "SoftwareInProgressIFRS": 2_333_000_000,
+            "LeaseReceivablesAndInvestmentAssetsBNK": 13_667_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_営業貸付金"], 1_277_559_000_000)
+        self.assertEqual(summary["流動_金融債権"], 414_204_000_000)
+        self.assertEqual(summary["投資_金融債権"], 395_672_000_000)
+        self.assertEqual(summary["流動_完成工事未収入金・契約資産"], 94_535_000_000)
+        self.assertEqual(summary["無形_採掘権"], 615_444_000_000)
+        self.assertEqual(summary["有形_立木"], 44_575_000_000)
+        self.assertEqual(summary["流動_その他金融資産"], 62_721_000_000)
+        self.assertEqual(summary["投資_その他金融資産"], 34_975_000_000)
+        self.assertEqual(summary["無形_ソフトウエア仮勘定"], 2_333_000_000)
+        self.assertEqual(summary["投資_銀行リース債権"], 13_667_000_000)
+
+    def test_fourth_wave_provisions_and_deferred_items_stay_separate(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LongTermDeferredContributionForConstruction": 76_307_000_000,
+            "ProvisionForCustomsDuties": 13_624_000_000,
+            "ProvisionForAllowanceForLossOnCollectionOfGiftCertificatesOutstndingCL": 4_486_000_000,
+            "ProvisionForEnvironmentalMeasuresCL": 343_000_000,
+            "AllowanceForCostForCountermeasuresAgainstPotentialFutureDefectsCL": 1_688_000_000,
+            "ProvisionForLossContractNCL": 1_273_000_000,
+            "ProvisionForApplianceWarrantiesNCL": 1_413_000_000,
+            "ProvisionForSafetyMeasuresGAS": 712_000_000,
+            "SubordinatedCapitalLoansNCL": 1_800_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["固負_長期繰延収益"], 76_307_000_000)
+        self.assertEqual(summary["流負_関税引当金"], 13_624_000_000)
+        self.assertEqual(summary["流負_商品券回収損失引当金"], 4_486_000_000)
+        self.assertEqual(summary["流負_環境対策引当金"], 343_000_000)
+        self.assertEqual(summary["流負_将来不具合対策費用引当金"], 1_688_000_000)
+        self.assertEqual(summary["固負_契約損失引当金"], 1_273_000_000)
+        self.assertEqual(summary["固負_製品保証引当金"], 1_413_000_000)
+        self.assertEqual(summary["固負_安全環境対策引当金"], 712_000_000)
+        self.assertEqual(summary["固負_劣後特約付借入金"], 1_800_000_000)
+
+    def test_combined_ifrs_debt_variants_replace_borrowing_and_lease_details(self):
+        raw_tags = {
+            "BondsBorrowingsAndLeaseLiabilitiesCLIFRS": 443_307_000_000,
+            "BorrowingsCLIFRS": 400_000_000_000,
+            "LeaseLiabilitiesCLIFRS": 43_307_000_000,
+            "OtherFinancialLiabilitiesCLIFRS": 131_952_000_000,
+            "BondsBorrowingsAndLeaseLiabilitiesNCLIFRS": 1_516_078_000_000,
+            "BorrowingsNCLIFRS": 1_400_000_000_000,
+            "LeaseLiabilitiesNCLIFRS": 116_078_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("BorrowingsCLIFRS", raw_tags),
+            "debt_detail_skipped_because_combined_current_total_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("LeaseLiabilitiesNCLIFRS", raw_tags),
+            "debt_detail_skipped_because_combined_noncurrent_total_exists",
+        )
+        self.assertIsNone(should_skip_item_tag("OtherFinancialLiabilitiesCLIFRS", raw_tags))
+
+    def test_special_finance_equipment_uses_net_value(self):
+        raw_tags = {
+            "EquipmentPPESPF": 11_124_000_000,
+            "EquipmentNetPPESPF": 3_032_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("EquipmentPPESPF", raw_tags),
+            "gross_special_finance_equipment_skipped_because_net_exists",
+        )
+
+    def test_current_asset_retirement_obligation_is_removed_only_when_it_worsens_fit(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+        summary["流負_資産除去債務"] = 10_000_000_000
+        summary["流負_その他流動負債"] = 100_000_000_000
+
+        adjustments = reconcile_optional_duplicate_categories(
+            summary,
+            {"CurrentLiabilities": 200_000_000_000},
+        )
+
+        self.assertEqual(summary["流負_資産除去債務"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_資産除去債務")
+
+    def test_current_asset_retirement_obligation_does_not_enlarge_a_large_residual(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 2_000_000_000_000
+        summary["流負_資産除去債務"] = 5_620_000_000
+        summary["流負_その他流動負債"] = 500_000_000_000
+
+        adjustments = reconcile_optional_duplicate_categories(
+            summary,
+            {"CurrentLiabilities": 2_325_174_000_000},
+        )
+
+        self.assertEqual(summary["流負_資産除去債務"], 0)
+        self.assertEqual(len(adjustments), 1)
+
     def test_director_bonus_is_separate_from_employee_bonus(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "ProvisionForBonuses", 1_739_000_000)
