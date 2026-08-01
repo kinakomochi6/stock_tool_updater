@@ -124,6 +124,75 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_製品保証引当金"], 8_870_000_000)
         self.assertEqual(summary["固負_従業員持株ESOP引当金"], 1_635_000_000)
 
+    def test_independent_detail_lines_do_not_collapse_into_max_categories(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AccountsReceivableOther": 16_841_000_000,
+            "OtherAccountsReceivable": 6_178_000_000,
+            "Software": 7_627_000_000,
+            "SoftwareInProgress": 68_133_000_000,
+            "LeaseAndGuaranteeDeposits": 426_906_000_000,
+            "DepositsForStoresInPreparation": 4_116_000_000,
+            "ProvisionForLossOnStoreClosing": 17_273_000_000,
+            "ProvisionForPointCardCertificatesCL": 7_967_000_000,
+            "ProvisionForLossOnStoreClosingNCL": 9_149_000_000,
+            "ProvisionForLossOnInterestRepaymentNCL": 698_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_未収入金"], 16_841_000_000)
+        self.assertEqual(summary["流動_その他未収入金"], 6_178_000_000)
+        self.assertEqual(summary["無形_ソフトウエア"], 7_627_000_000)
+        self.assertEqual(summary["無形_ソフトウエア仮勘定"], 68_133_000_000)
+        self.assertEqual(summary["投資_差入保証金"], 426_906_000_000)
+        self.assertEqual(summary["投資_店舗開設準備預け金"], 4_116_000_000)
+        self.assertEqual(summary["流負_引当金"], 17_273_000_000)
+        self.assertEqual(summary["流負_ポイント引当金"], 7_967_000_000)
+        self.assertEqual(summary["固負_引当金"], 9_149_000_000)
+        self.assertEqual(summary["固負_利息返還損失引当金"], 698_000_000)
+
+    def test_new_current_asset_and_amusement_tags_are_mapped(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "PrgramsAndWorkInProgress": 15_714_000_000,
+            "ShortTermLoansReceivableWithResaleAgreementCA": 14_985_000_000,
+            "ShortTermLoansReceivableToSubsidiariesAndAffiliates": 2_901_000_000,
+            "AmusementFacilitiesAndMachinesNet": 17_495_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_棚卸資産"], 15_714_000_000)
+        self.assertEqual(summary["流動_短期貸付金"], 14_985_000_000)
+        self.assertEqual(summary["流動_関係会社短期貸付金"], 2_901_000_000)
+        self.assertEqual(summary["有形_アミューズメント施設・機械"], 17_495_000_000)
+
+    def test_valuation_parent_total_replaces_its_components(self):
+        raw_tags = {
+            "ValuationAndTranslationAdjustments": -3_294_000_000,
+            "RevaluationReserveForLand": -4_342_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("RevaluationReserveForLand", raw_tags),
+            "valuation_adjustment_detail_skipped_because_parent_total_exists",
+        )
+        self.assertIsNone(
+            should_skip_item_tag("ValuationAndTranslationAdjustments", raw_tags)
+        )
+
+    def test_gross_amusement_assets_are_skipped_when_net_value_exists(self):
+        raw_tags = {
+            "AmusementFacilitiesAndMachines": 72_393_000_000,
+            "AmusementFacilitiesAndMachinesNet": 17_495_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("AmusementFacilitiesAndMachines", raw_tags),
+            "gross_value_skipped_because_net_exists",
+        )
+
     def test_machinery_vehicles_and_special_repairs_use_correct_sections(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "MachineryAndEquipmentNet", 17_659_000_000)
