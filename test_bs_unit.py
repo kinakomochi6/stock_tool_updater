@@ -107,6 +107,73 @@ class EdinetSearcherTests(unittest.TestCase):
 
 
 class MappingTests(unittest.TestCase):
+    def test_third_wave_banking_extensions_preserve_independent_assets(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "SecuritiesForBankingBusinessCA", 1_097_389_000_000)
+        apply_mapped_tag(summary, "MoneyHeldInTrustCA", 75_228_000_000)
+        apply_mapped_tag(summary, "ReceivablesUnderSecuritiesBorrowingTransactionsAssetsBNK", 570_538_000_000)
+        apply_mapped_tag(summary, "CallLoansAndBillsBoughtAssetsBNK", 55_000_000_000)
+        apply_mapped_tag(summary, "TangibleLeasedAssets", 40_123_000_000)
+
+        self.assertEqual(summary["流動_銀行業有価証券"], 1_097_389_000_000)
+        self.assertEqual(summary["流動_銀行金銭の信託"], 75_228_000_000)
+        self.assertEqual(summary["投資_金融債権"], 625_538_000_000)
+        self.assertEqual(summary["有形_賃貸用資産"], 40_123_000_000)
+
+    def test_third_wave_ifrs_investment_and_hybrid_capital_extensions(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "InvestmentsInSubsidiariesMeasuredAtFairValueNCAIFRS", 43_037_000_000)
+        apply_mapped_tag(summary, "InvestmentPortfolioNCAIFRS", 14_673_000_000)
+        apply_mapped_tag(summary, "LoansToSubsidiariesMeasuredAtFairValueNCAIFRS", 390_000_000)
+        apply_mapped_tag(summary, "LoansFromSubsidiariesMeasuredAtFairValueCLIFRS", 1_300_000_000)
+        apply_mapped_tag(summary, "ConsumptionTaxesPayableCLIFRS", 229_000_000)
+        apply_mapped_tag(summary, "HybridCapitalIFRS", 110_777_000_000)
+
+        self.assertEqual(summary["投資_関係会社株式"], 43_037_000_000)
+        self.assertEqual(summary["投資_投資有価証券"], 14_673_000_000)
+        self.assertEqual(summary["投資_長期貸付金"], 390_000_000)
+        self.assertEqual(summary["流負_関係会社短期借入金"], 1_300_000_000)
+        self.assertEqual(summary["流負_未払消費税等"], 229_000_000)
+        self.assertEqual(summary["純資_その他資本性金融商品"], 110_777_000_000)
+
+    def test_third_wave_railway_construction_and_utility_extensions(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "NewLineConstructionPromotionFundTrustCA", 183_769_000_000)
+        apply_mapped_tag(summary, "AccountsReceivableCARWY", 8_817_000_000)
+        apply_mapped_tag(summary, "NewLineConstructionPromotionLongTermLoansNCL", 192_120_000_000)
+        apply_mapped_tag(summary, "ProvisionForLossOnRemoveNCL", 2_054_000_000)
+        apply_mapped_tag(summary, "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndContractAssetsCA", 39_706_000_000)
+        apply_mapped_tag(summary, "CurrentPortionOfNoncurrentLiabilitiesCLGAS", 37_117_000_000)
+        apply_mapped_tag(summary, "ProvisionForGasHolderRepairsGAS", 479_000_000)
+
+        self.assertEqual(summary["流動_その他金融資産"], 183_769_000_000)
+        self.assertEqual(summary["流動_鉄道運賃未収金"], 8_817_000_000)
+        self.assertEqual(summary["固負_長期借入金"], 192_120_000_000)
+        self.assertEqual(summary["固負_引当金"], 2_054_000_000)
+        self.assertEqual(summary["流動_受取手形・売掛金(合算)"], 39_706_000_000)
+        self.assertEqual(summary["流負_1年内返済固定負債"], 37_117_000_000)
+        self.assertEqual(summary["固負_修繕引当金"], 479_000_000)
+
+    def test_third_wave_generic_extensions_cover_large_residuals(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "RealEstateForArrangementCA", 58_911_000_000)
+        apply_mapped_tag(summary, "OperatingLoansRealEstateBusinessCA", 39_743_000_000)
+        apply_mapped_tag(summary, "AccountsPayableForEquipmentCL", 17_985_000_000)
+        apply_mapped_tag(summary, "ProvisionForBusinessRestructuringNCL", 12_270_000_000)
+        apply_mapped_tag(summary, "BondsWithSubscriptionRightsToSharesNCL", 10_011_000_000)
+        apply_mapped_tag(summary, "SuspensePayments", 8_744_000_000)
+        apply_mapped_tag(summary, "ProvisionForLitigationLossCL", 8_744_000_000)
+        apply_mapped_tag(summary, "BeneficiaryRightsOnDepositCA", 15_722_000_000)
+
+        self.assertEqual(summary["流動_販売用不動産"], 58_911_000_000)
+        self.assertEqual(summary["流動_金融債権"], 39_743_000_000)
+        self.assertEqual(summary["流負_未払金"], 17_985_000_000)
+        self.assertEqual(summary["固負_引当金"], 12_270_000_000)
+        self.assertEqual(summary["固負_転換社債型新株予約権付社債"], 10_011_000_000)
+        self.assertEqual(summary["流動_その他未収入金"], 8_744_000_000)
+        self.assertEqual(summary["流負_訴訟損失引当金"], 8_744_000_000)
+        self.assertEqual(summary["流動_その他金融資産"], 15_722_000_000)
+
     def test_director_bonus_is_separate_from_employee_bonus(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "ProvisionForBonuses", 1_739_000_000)
