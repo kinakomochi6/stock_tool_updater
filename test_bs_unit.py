@@ -1,4 +1,7 @@
+import io
 import unittest
+import zipfile
+from unittest.mock import Mock, patch
 
 from bs_diagnostics_report import summarize_diagnostics
 from bs_test_sets import (
@@ -14,8 +17,10 @@ from bs_test_sets import (
 from firebase_master_test import (
     DISPLAY_ORDER,
     TAG_MAPPING,
+    BsAnalysisError,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
+    download_edinet_xbrl_package,
     empty_financial_data,
     parse_codes_arg,
     reconcile_bank_presentation,
@@ -27,6 +32,49 @@ from firebase_master_test import (
     should_skip_item_tag,
     validate_tag_mapping,
 )
+
+
+class EdinetDownloadTests(unittest.TestCase):
+    @staticmethod
+    def make_zip_bytes():
+        payload = io.BytesIO()
+        with zipfile.ZipFile(payload, "w") as archive:
+            archive.writestr("XBRL/PublicDoc/test.xbrl", "<xbrl />")
+        return payload.getvalue()
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_non_zip_success_response_is_retried(self, mock_get, mock_sleep):
+        mock_get.side_effect = [
+            Mock(status_code=200, content=b'{"message":"busy"}', headers={"Content-Type": "application/json"}),
+            Mock(status_code=200, content=self.make_zip_bytes(), headers={"Content-Type": "application/octet-stream"}),
+        ]
+
+        package = download_edinet_xbrl_package("S100TEST", attempts=2)
+
+        self.assertTrue(zipfile.is_zipfile(package))
+        self.assertEqual(mock_get.call_count, 2)
+        mock_sleep.assert_called_once_with(1)
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_repeated_non_zip_responses_raise_download_error(self, mock_get, mock_sleep):
+        mock_get.return_value = Mock(
+            status_code=200,
+            content=b"temporarily unavailable",
+            headers={"Content-Type": "text/plain"},
+        )
+
+        with self.assertRaises(BsAnalysisError) as caught:
+            download_edinet_xbrl_package("S100TEST", attempts=3)
+
+        self.assertEqual(caught.exception.stage, "download")
+        self.assertEqual(len(caught.exception.details["attempts"]), 3)
+        self.assertEqual(
+            caught.exception.details["attempts"][0]["error"],
+            "response_is_not_zip",
+        )
+        self.assertEqual([call.args[0] for call in mock_sleep.call_args_list], [1, 2])
 
 
 class MappingTests(unittest.TestCase):

@@ -1671,27 +1671,35 @@ class BsAnalysisError(RuntimeError):
         self.details = details or {}
 
 
-def download_edinet_xbrl_package(doc_id, attempts=3, timeout=20):
+def download_edinet_xbrl_package(doc_id, attempts=4, timeout=20):
     url = f"https://disclosure.edinet-fsa.go.jp/api/v2/documents/{doc_id}"
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     failures = []
     for attempt in range(1, attempts + 1):
         try:
             res = requests.get(url, params=params, timeout=timeout)
-            if res.status_code == 200 and res.content:
-                return io.BytesIO(res.content)
-            failures.append({
+            content = res.content or b""
+            if res.status_code == 200 and content:
+                package = io.BytesIO(content)
+                if zipfile.is_zipfile(package):
+                    package.seek(0)
+                    return package
+            failure = {
                 "attempt": attempt,
                 "status_code": res.status_code,
-                "content_length": len(res.content),
-            })
+                "content_length": len(content),
+                "content_type": res.headers.get("Content-Type", ""),
+            }
+            if res.status_code == 200 and content:
+                failure["error"] = "response_is_not_zip"
+            failures.append(failure)
             if 400 <= res.status_code < 500 and res.status_code not in {408, 429}:
                 break
         except requests.RequestException as exc:
             failures.append({"attempt": attempt, "error": repr(exc)})
 
         if attempt < attempts:
-            time.sleep(attempt)
+            time.sleep(min(2 ** (attempt - 1), 8))
 
     raise BsAnalysisError(
         "download",
