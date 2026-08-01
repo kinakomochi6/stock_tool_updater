@@ -659,6 +659,31 @@ TAG_MAPPING = {
     "PayablesUnderFluidityLeaseReceivablesCLLEA": "流負_リース債権流動化債務",
     "GuaranteeReceivedNCLLEA": "固負_長期預り保証金",
     "LongTermPayablesUnderFluidityLeaseReceivablesNCLLEA": "固負_リース債権流動化債務",
+    # Airline, shipping, digital-asset, real-estate and insurance presentations.
+    "AircraftPartsNetAircraftPartsPPE": "有形_航空機部品",
+    "AircraftPartsNetPPE": "有形_航空機部品",
+    "LongTermDeposits": "投資_長期預け金",
+    "ProvisionForReserveForScheduledMaintenanceCostsCL": "流負_定期整備引当金",
+    "ProvisionForReserveForScheduledMaintenanceCostsNCL": "固負_定期整備引当金",
+    "ReserveForScheduledMaintenanceCostsNCL": "固負_定期整備引当金",
+    "ProvisionForReserveForAircraftReturnNCL": "固負_航空機返却引当金",
+    "DerivativesCA": "流動_デリバティブ資産",
+    "DerivativesIOA": "投資_デリバティブ資産",
+    "ForwardExchangeContractsCA": "流動_為替予約資産",
+    "ForwardExchangeContractsIOA": "投資_為替予約資産",
+    "LongTermAccountsReceivableOther": "投資_長期営業債権",
+    "TradeReceivablesAndContractAssetsCA": "流動_受取手形・売掛金(合算)",
+    "DepositPaidInSubsidiariesAndAffiliates": "流動_関係会社預け金",
+    "LendingCryptoAssetsCA": "流動_貸借暗号資産",
+    "OwnedCryptoassetsCA": "流動_自己保有暗号資産",
+    "LongTermUnearnedRevenue": "固負_長期前受収益",
+    "RealEstateForInvestmentNet": "投資_投資不動産",
+    "AdvancesPaid": "流動_前渡金",
+    "ProvisionForLossOnGuaranteeCL": "流負_債務保証損失引当金",
+    "CurrentPortionOfOtherNoncurrentLiabilities": "流負_1年内返済固定負債",
+    "InsuranceFunds": "投資_保険積立資産",
+    "DepositsReceivedFromInvestmentsInSilentPartnershipsNCL": "固負_匿名組合出資預り金",
+    "RightToReimbursementCA": "流動_補填請求権",
 }
 
 
@@ -672,11 +697,12 @@ DISPLAY_ORDER = [
     "流負_支払手形・買掛金", "流負_支払手形", "流負_工事関係支払手形・買掛金", "流負_電子記録債務", "流負_設備関係支払手形", "流負_加盟店買掛金", "流負_短期借入金", "流負_関係会社短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
     "流負_未払金", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払法人税等", "流負_従業員給付未払金", "流負_前受金", "流負_契約負債", "流負_返品負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_清算業務金融負債", "流負_清算参加者預り金", "流負_取引参加者保証金", "流負_法定保証基金", "流負_有価証券担保借入金", "流負_証券業トレーディング商品", "流負_約定見越", "流負_証券業預り金", "流負_証券業受入保証金", "流負_信用取引負債", "流負_金融事業短期預金", "流負_有価証券貸借受入担保金", "流負_コールマネー", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_役員賞与引当金", "流負_株式報酬引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_完成工事補償引当金", "流負_製品保証引当金", "流負_変動報酬引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_ポイント引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
     "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_契約負債", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_利息返還損失引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_株式給付引当金", "固負_従業員持株ESOP引当金", "固負_債務保証損失引当金", "固負_契約損失引当金", "固負_特別修繕引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_内訳未分類", "固負_その他固定負債",
-    "流動_営業貸付金", "流動_顧客向けその他貸付金", "流動_引受出資持分", "流動_販売用航空機等", "流動_短期差入保証金",
-    "有形_その他営業資産", "有形_自社使用資産", "無形_賃貸資産",
-    "投資_銀行現金預け金", "投資_銀行貸出金", "投資_銀行買入金銭債権", "投資_銀行トレーディング資産", "投資_銀行金銭の信託", "投資_銀行外国為替", "投資_銀行支払承諾見返", "投資_銀行リース債権", "投資_銀行貸倒引当金", "投資_銀行その他資産",
-    "流負_短期社債", "流負_商品券交換損失引当金", "流負_リース債権流動化債務",
-    "固負_長期未払金", "固負_修繕引当金", "固負_長期預り保証金", "固負_リース債権流動化債務", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行偶発損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債",
+    "流動_営業貸付金", "流動_顧客向けその他貸付金", "流動_引受出資持分", "流動_販売用航空機等", "流動_短期差入保証金", "流動_関係会社預け金", "流動_貸借暗号資産", "流動_自己保有暗号資産", "流動_補填請求権", "流動_為替予約資産",
+    "有形_その他営業資産", "有形_自社使用資産", "有形_航空機部品", "無形_賃貸資産",
+    "流動_銀行現金預け金", "流動_銀行貸出金", "流動_銀行業有価証券", "流動_銀行買入金銭債権", "流動_銀行トレーディング資産", "流動_銀行金銭の信託", "流動_銀行外国為替", "流動_銀行支払承諾見返", "流動_銀行貸倒引当金", "流動_銀行その他資産",
+    "投資_銀行現金預け金", "投資_銀行貸出金", "投資_銀行買入金銭債権", "投資_銀行トレーディング資産", "投資_銀行金銭の信託", "投資_銀行外国為替", "投資_銀行支払承諾見返", "投資_銀行リース債権", "投資_銀行貸倒引当金", "投資_銀行その他資産", "投資_為替予約資産",
+    "流負_短期社債", "流負_商品券交換損失引当金", "流負_リース債権流動化債務", "流負_定期整備引当金", "流負_銀行譲渡性預金", "流負_銀行コールマネー", "流負_銀行売現先勘定", "流負_銀行債券貸借取引受入担保金", "流負_銀行借用金", "流負_銀行信託勘定借", "流負_銀行トレーディング負債", "流負_銀行外国為替", "流負_銀行支払承諾", "流負_銀行偶発損失引当金", "流負_銀行睡眠預金払戻損失引当金", "流負_銀行その他負債",
+    "固負_長期未払金", "固負_修繕引当金", "固負_長期預り保証金", "固負_リース債権流動化債務", "固負_定期整備引当金", "固負_航空機返却引当金", "固負_長期前受収益", "固負_匿名組合出資預り金", "投資_保険積立資産", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行偶発損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債",
     "純資_資本金", "純資_資本剰余金", "純資_その他資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_内訳未分類", "純資_その他純資産"
 ]
 
@@ -1103,6 +1129,10 @@ def should_skip_item_tag(tag, raw_tags):
         return "cash_equivalents_skipped_because_bs_cash_and_deposits_exists"
     if tag in {"CashAndCashEquivalents", "CashAndDeposits"} and "CashAndDueFromBanksAssetsBNK" in raw_tags:
         return "general_cash_skipped_because_bank_cash_exists"
+    if tag == "AircraftPartsPPE" and any(
+        k in raw_tags for k in {"AircraftPartsNetAircraftPartsPPE", "AircraftPartsNetPPE"}
+    ):
+        return "gross_aircraft_parts_skipped_because_net_exists"
     leasing_parent_pairs = {
         "LeasedAssetsPPELEA": {"PropertyForLeasePPELEA", "AdvancesForPurchasesAtLeasedAssetsPPELEA"},
         "OtherOperatingAssetsPPE": {"OtherOperatingAssetsTotalPPE"},
@@ -1175,22 +1205,73 @@ def apply_derived_net_tag_pairs(summary, raw_tags, applied_tags):
         })
 
 
-def reconcile_bank_presentation(summary, raw_tags):
-    if "CashAndDueFromBanksAssetsBNK" not in raw_tags:
+def reconcile_bank_presentation(summary, totals, raw_tags):
+    if not any(tag.endswith("BNK") for tag in raw_tags):
         return []
 
     adjustments = []
-    lease_receivables = summary.get("流動_リース債権", 0)
-    if lease_receivables:
-        summary["流動_リース債権"] = 0
-        summary["投資_銀行リース債権"] += lease_receivables
-        adjustments.append({
-            "category": "流動_リース債権",
-            "moved_to": "投資_銀行リース債権",
-            "value": lease_receivables,
-            "reason": "bank_statement_has_no_current_noncurrent_split",
-        })
+    if totals.get("CurrentAssets", 0):
+        current_asset_categories = {
+            "投資_銀行現金預け金": "流動_銀行現金預け金",
+            "投資_銀行貸出金": "流動_銀行貸出金",
+            "投資_銀行業有価証券": "流動_銀行業有価証券",
+            "投資_銀行買入金銭債権": "流動_銀行買入金銭債権",
+            "投資_銀行トレーディング資産": "流動_銀行トレーディング資産",
+            "投資_銀行金銭の信託": "流動_銀行金銭の信託",
+            "投資_銀行外国為替": "流動_銀行外国為替",
+            "投資_銀行支払承諾見返": "流動_銀行支払承諾見返",
+            "投資_銀行貸倒引当金": "流動_銀行貸倒引当金",
+            "投資_銀行その他資産": "流動_銀行その他資産",
+        }
+        for source, destination in current_asset_categories.items():
+            value = summary.get(source, 0)
+            if value:
+                summary[source] = 0
+                summary[destination] += value
+                adjustments.append({
+                    "category": source,
+                    "moved_to": destination,
+                    "value": value,
+                    "reason": "company_reports_current_assets",
+                })
+    else:
+        lease_receivables = summary.get("流動_リース債権", 0)
+        if lease_receivables:
+            summary["流動_リース債権"] = 0
+            summary["投資_銀行リース債権"] += lease_receivables
+            adjustments.append({
+                "category": "流動_リース債権",
+                "moved_to": "投資_銀行リース債権",
+                "value": lease_receivables,
+                "reason": "bank_statement_has_no_current_noncurrent_split",
+            })
+
+    if totals.get("CurrentLiabilities", 0):
+        for source in [key for key in summary if key.startswith("固負_銀行")]:
+            value = summary.get(source, 0)
+            if not value:
+                continue
+            destination = source.replace("固負_", "流負_", 1)
+            if destination not in summary:
+                continue
+            summary[source] = 0
+            summary[destination] += value
+            adjustments.append({
+                "category": source,
+                "moved_to": destination,
+                "value": value,
+                "reason": "company_reports_current_liabilities",
+            })
     return adjustments
+
+
+def serialize_reconciliation_adjustment(item):
+    return {
+        **item,
+        "value_oku": round(item["value"] / 100000000, 3),
+        "delta_before_oku": round(item.get("delta_before", 0) / 100000000, 3),
+        "delta_after_oku": round(item.get("delta_after", 0) / 100000000, 3),
+    }
 
 OTHER_CATEGORIES = [
     "流動_その他流動資産",
@@ -1221,6 +1302,7 @@ COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS = {
     "NotesAndOperatingAccountsReceivableTradeAndContractAssetsCA",
     "TradeNotesAccountsReceivableAndContractAssets",
     "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS",
+    "TradeReceivablesAndContractAssetsCA",
 }
 COMBINED_RECEIVABLE_TAGS_WITH_OTHER_CLAIMS = {
     "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS",
@@ -1710,7 +1792,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         summary, totals, best_raw_tags
     )
     reconciliation_adjustments.extend(
-        reconcile_bank_presentation(summary, best_raw_tags)
+        reconcile_bank_presentation(summary, totals, best_raw_tags)
     )
     reconciliation_adjustments.extend(
         reconcile_skipped_section_summaries(summary, totals, best_raw_tags)
@@ -1829,12 +1911,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         diagnostics["note_only_unmapped_tags_over_1oku"] = note_only_unmapped_tags[:100]
         diagnostics["mapping_candidate_unmapped_tags_over_1oku"] = mapping_candidate_unmapped_tags[:100]
         diagnostics["reconciliation_adjustments"] = [
-            {
-                **item,
-                "value_oku": round(item["value"] / 100000000, 3),
-                "delta_before_oku": round(item["delta_before"] / 100000000, 3),
-                "delta_after_oku": round(item["delta_after"] / 100000000, 3),
-            }
+            serialize_reconciliation_adjustment(item)
             for item in reconciliation_adjustments
         ]
         diagnostics["section_fallbacks"] = [

@@ -21,6 +21,7 @@ from firebase_master_test import (
     reconcile_receivable_presentation,
     reconcile_optional_duplicate_categories,
     reconcile_skipped_section_summaries,
+    serialize_reconciliation_adjustment,
     should_skip_item_tag,
     validate_tag_mapping,
 )
@@ -267,7 +268,11 @@ class MappingTests(unittest.TestCase):
             apply_mapped_tag(summary, tag, value)
         summary["流動_リース債権"] = 105_308_000_000
 
-        adjustments = reconcile_bank_presentation(summary, values)
+        adjustments = reconcile_bank_presentation(
+            summary,
+            {"CurrentAssets": 0, "CurrentLiabilities": 0},
+            values,
+        )
 
         self.assertEqual(summary["流動_リース債権"], 0)
         self.assertEqual(summary["投資_銀行リース債権"], 105_308_000_000)
@@ -324,6 +329,69 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(data["株価"], 0)
         self.assertEqual(data["ROE_pct"], 0)
         self.assertEqual(data["時価総額_億"], 0)
+
+    def test_bank_tags_follow_reported_current_sections_for_hybrid_company(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LoansAndBillsDiscountedAssetsBNK": 7_743_000_000,
+            "DepositsLiabilitiesBNK": 9_475_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        adjustments = reconcile_bank_presentation(
+            summary,
+            {"CurrentAssets": 20_000_000_000, "CurrentLiabilities": 15_000_000_000},
+            values,
+        )
+
+        self.assertEqual(summary["投資_銀行貸出金"], 0)
+        self.assertEqual(summary["流動_銀行貸出金"], 7_743_000_000)
+        self.assertEqual(summary["固負_銀行預金"], 0)
+        self.assertEqual(summary["流負_銀行預金"], 9_475_000_000)
+        self.assertEqual(len(adjustments), 2)
+
+    def test_category_move_adjustment_can_be_serialized_without_section_deltas(self):
+        result = serialize_reconciliation_adjustment({
+            "category": "流動_リース債権",
+            "moved_to": "投資_銀行リース債権",
+            "value": 105_308_000_000,
+            "reason": "bank_statement_has_no_current_noncurrent_split",
+        })
+
+        self.assertEqual(result["value_oku"], 1053.08)
+        self.assertEqual(result["delta_before_oku"], 0)
+        self.assertEqual(result["delta_after_oku"], 0)
+
+    def test_second_breadth_wave_maps_airline_shipping_and_crypto_lines(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AircraftPartsNetPPE": 10_016_000_000,
+            "ProvisionForReserveForScheduledMaintenanceCostsNCL": 19_260_000_000,
+            "DerivativesCA": 4_443_000_000,
+            "ForwardExchangeContractsCA": 1_823_000_000,
+            "DerivativesIOA": 1_295_000_000,
+            "ForwardExchangeContractsIOA": 724_000_000,
+            "TradeReceivablesAndContractAssetsCA": 32_132_000_000,
+            "LendingCryptoAssetsCA": 14_970_000_000,
+            "OwnedCryptoassetsCA": 771_000_000,
+            "LongTermUnearnedRevenue": 13_523_500_000,
+            "RightToReimbursementCA": 6_539_700_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["有形_航空機部品"], 10_016_000_000)
+        self.assertEqual(summary["固負_定期整備引当金"], 19_260_000_000)
+        self.assertEqual(summary["流動_デリバティブ資産"], 4_443_000_000)
+        self.assertEqual(summary["流動_為替予約資産"], 1_823_000_000)
+        self.assertEqual(summary["投資_デリバティブ資産"], 1_295_000_000)
+        self.assertEqual(summary["投資_為替予約資産"], 724_000_000)
+        self.assertEqual(summary["流動_受取手形・売掛金(合算)"], 32_132_000_000)
+        self.assertEqual(summary["流動_貸借暗号資産"], 14_970_000_000)
+        self.assertEqual(summary["流動_自己保有暗号資産"], 771_000_000)
+        self.assertEqual(summary["固負_長期前受収益"], 13_523_500_000)
+        self.assertEqual(summary["流動_補填請求権"], 6_539_700_000)
 
     def test_section_total_selects_contract_detail_over_parent_total(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
