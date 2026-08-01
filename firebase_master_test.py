@@ -15,6 +15,7 @@ import unicodedata
 import warnings
 import os
 import argparse
+from itertools import combinations
 import json
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from bs4 import XMLParsedAsHTMLWarning
@@ -1162,41 +1163,69 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
         summary["流動_売掛金"] = 0
         if includes_contract_assets:
             summary["流動_契約資産"] = 0
+        includes_other_claims = False
         if any(tag in raw_tags for tag in COMBINED_RECEIVABLE_TAGS_WITH_OTHER_CLAIMS):
-            summary["流動_電子記録債権"] = 0
+            electronic_claims = summary.get("流動_電子記録債権", 0)
+            current_assets = totals.get("CurrentAssets", 0)
+            if electronic_claims and current_assets:
+                subtotal = sum(value for key, value in summary.items() if key.startswith("流動_"))
+                delta_keep = current_assets - subtotal
+                delta_remove = delta_keep + electronic_claims
+                tolerance = max(abs(current_assets) * 0.0001, 1_000_000)
+                if abs(delta_remove) + tolerance < abs(delta_keep):
+                    summary["流動_電子記録債権"] = 0
+                    includes_other_claims = True
         selected = "combined"
     else:
         summary[combined_category] = 0
         selected = "separate"
+        includes_other_claims = False
 
     return {
         "selected": selected,
         "combined_delta": combined_delta,
         "separate_delta": separate_delta,
         "combined_includes_contract_assets": includes_contract_assets,
+        "combined_includes_other_claims": includes_other_claims,
     }
 
 def reconcile_optional_duplicate_categories(summary, totals):
     adjustments = []
+    groups = {}
     for category, prefix, total_key, other_category in OPTIONAL_DUPLICATE_CATEGORIES:
         value = summary.get(category, 0)
         total = totals.get(total_key, 0)
-        reported_other = summary.get(other_category, 0)
         if value <= 0 or total == 0:
             continue
+        groups.setdefault((prefix, total_key, other_category), []).append((category, value))
 
+    for (prefix, total_key, other_category), candidates in groups.items():
+        total = totals[total_key]
+        reported_other = summary.get(other_category, 0)
         subtotal = sum(summary[k] for k in summary if k.startswith(prefix) and k != other_category)
         delta_before = total - subtotal - reported_other
-        delta_after = delta_before + value
-        if delta_before < 0 and abs(delta_after) < abs(delta_before) * 0.25:
-            summary[category] = 0
-            adjustments.append({
-                "category": category,
-                "value": value,
-                "reason": "section_total_indicates_optional_detail_duplicate",
-                "delta_before": delta_before,
-                "delta_after": delta_after,
-            })
+        if delta_before >= 0:
+            continue
+
+        best_combo = None
+        best_delta = delta_before
+        for size in range(1, len(candidates) + 1):
+            for combo in combinations(candidates, size):
+                delta_after = delta_before + sum(value for _, value in combo)
+                if abs(delta_after) < abs(best_delta):
+                    best_combo = combo
+                    best_delta = delta_after
+
+        if best_combo and abs(best_delta) < abs(delta_before) * 0.25:
+            for category, value in best_combo:
+                summary[category] = 0
+                adjustments.append({
+                    "category": category,
+                    "value": value,
+                    "reason": "section_total_indicates_optional_detail_duplicate",
+                    "delta_before": delta_before,
+                    "delta_after": best_delta,
+                })
     return adjustments
 
 

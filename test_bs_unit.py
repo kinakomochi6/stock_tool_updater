@@ -161,7 +161,13 @@ class MappingTests(unittest.TestCase):
 
     def test_construction_payable_allows_duplicate_contract_liability_removal(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
-        summary["流負_短期借入金"] = 80_805_000_000
+        summary["流負_短期借入金"] = 20_995_000_000
+        summary["流負_未払法人税等"] = 7_171_000_000
+        summary["流負_前受金"] = 31_657_000_000
+        summary["流負_預り金"] = 49_400_000_000
+        summary["流負_完成工事補償引当金"] = 1_746_000_000
+        summary["流負_賞与引当金"] = 3_990_000_000
+        summary["流負_工事損失引当金"] = 605_000_000
         summary["流負_その他流動負債"] = 11_049_000_000
         summary["流負_契約負債"] = 34_659_000_000
         apply_mapped_tag(
@@ -169,11 +175,12 @@ class MappingTests(unittest.TestCase):
             "AccountsPayableForConstructionContractsAndOtherCL",
             59_764_000_000,
         )
-        totals = {"CurrentLiabilities": 151_618_000_000}
+        totals = {"CurrentLiabilities": 186_382_000_000}
 
         adjustments = reconcile_optional_duplicate_categories(summary, totals)
 
         self.assertEqual(summary["流負_契約負債"], 0)
+        self.assertEqual(summary["流負_前受金"], 31_657_000_000)
         self.assertEqual(adjustments[0]["category"], "流負_契約負債")
 
     def test_machinery_group_enables_aggregate_depreciation_reconciliation(self):
@@ -362,7 +369,7 @@ class MappingTests(unittest.TestCase):
         summary["流動_受取手形・売掛金(合算)"] = 203_890_000_000
         summary["流動_契約資産"] = 147_727_000_000
         summary["流動_電子記録債権"] = 10_979_000_000
-        totals = {"CurrentAssets": 3_907_449_000_000}
+        totals = {"CurrentAssets": 203_890_000_000}
         raw_tags = {"NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS": 203_890_000_000}
 
         result = reconcile_receivable_presentation(summary, totals, raw_tags)
@@ -371,6 +378,22 @@ class MappingTests(unittest.TestCase):
         self.assertTrue(result["combined_includes_contract_assets"])
         self.assertEqual(summary["流動_契約資産"], 0)
         self.assertEqual(summary["流動_電子記録債権"], 0)
+        self.assertTrue(result["combined_includes_other_claims"])
+
+    def test_combined_construction_receivable_keeps_independent_electronic_claims(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_受取手形・売掛金(合算)"] = 203_890_000_000
+        summary["流動_電子記録債権"] = 10_979_000_000
+        totals = {"CurrentAssets": 214_869_000_000}
+        raw_tags = {
+            "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS": 203_890_000_000
+        }
+
+        result = reconcile_receivable_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertEqual(summary["流動_電子記録債権"], 10_979_000_000)
+        self.assertFalse(result["combined_includes_other_claims"])
 
     def test_net_assets_total_is_preserved_when_details_are_missing(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
