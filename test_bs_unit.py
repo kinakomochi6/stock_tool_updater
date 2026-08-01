@@ -719,6 +719,20 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流動_棚卸資産"], 1_335_000_000)
         self.assertEqual(summary["投資_投資有価証券"], 449_524_000_000)
 
+    def test_construction_materials_are_skipped_when_contract_costs_include_them(self):
+        reason = should_skip_item_tag(
+            "RawMaterialsAndSuppliesCNS",
+            {
+                "RawMaterialsAndSuppliesCNS": 33_000_000,
+                "CostsOnUncompletedConstructionContractsCNS": 240_000_000,
+            },
+        )
+
+        self.assertEqual(
+            reason,
+            "construction_materials_skipped_because_uncompleted_contract_costs_exist",
+        )
+
     def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         summary["有形_建物・構築物"] = 130_000_000_000

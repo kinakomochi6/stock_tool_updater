@@ -1195,6 +1195,8 @@ def should_skip_item_tag(tag, raw_tags):
         return "excluded_summary_or_special_tag"
     if tag in INVENTORY_DETAIL_TAGS and any(k in raw_tags for k in INVENTORY_TOTAL_TAGS):
         return "inventory_detail_skipped_because_total_exists"
+    if tag == "RawMaterialsAndSuppliesCNS" and "CostsOnUncompletedConstructionContractsCNS" in raw_tags:
+        return "construction_materials_skipped_because_uncompleted_contract_costs_exist"
     if tag in OTHER_INVENTORY_SUBDETAIL_TAGS and "OtherInventories" in raw_tags:
         detail_sum = sum(raw_tags.get(k, 0) for k in OTHER_INVENTORY_SUBDETAIL_TAGS)
         other_total = raw_tags["OtherInventories"]
