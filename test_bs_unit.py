@@ -9,6 +9,9 @@ from firebase_master_test import (
     apply_summary_only_fallbacks,
     parse_codes_arg,
     reconcile_receivable_presentation,
+    reconcile_optional_duplicate_categories,
+    reconcile_skipped_section_summaries,
+    should_skip_item_tag,
     validate_tag_mapping,
 )
 
@@ -34,6 +37,71 @@ class MappingTests(unittest.TestCase):
         validate_tag_mapping()
         self.assertIn(TAG_MAPPING["ProvisionForDirectorsBonuses"], DISPLAY_ORDER)
         self.assertIn(TAG_MAPPING["BadDebts"], DISPLAY_ORDER)
+        self.assertIn(TAG_MAPPING["MarketableSecuritiesCAIFRS"], DISPLAY_ORDER)
+        self.assertIn(TAG_MAPPING["LongTermNonRecourseLoansPayableNCL"], DISPLAY_ORDER)
+
+    def test_independent_financial_loan_books_are_added(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "OperatingLoansCA", 663_896_000_000)
+        apply_mapped_tag(summary, "LoansAndBillsDiscountedForBankingBusinessCA", 3_197_412_000_000)
+        apply_mapped_tag(summary, "CallLoansAssetsBNK", 1_396_000_000)
+
+        self.assertEqual(summary["流動_金融債権"], 3_862_704_000_000)
+
+    def test_negative_equity_component_is_not_replaced_with_zero(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "CapitalSurplusIFRS", -459_335_000_000)
+
+        self.assertEqual(summary["純資_資本剰余金"], -459_335_000_000)
+
+    def test_skipped_ppe_summary_is_restored_when_it_closes_section_total(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_リース資産"] = 21_854_000_000
+        summary["無形_その他無形固定資産"] = 59_277_000_000
+        summary["投資_繰延税金資産"] = 84_689_000_000
+        summary["投資_退職給付資産"] = 26_693_000_000
+        summary["投資_その他固定資産"] = 71_590_000_000
+        totals = {"NonCurrentAssets": 745_725_000_000}
+        raw_tags = {"PropertyPlantAndEquipmentIFRS": 481_623_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_その他有形固定資産"], 481_623_000_000)
+        self.assertEqual(adjustments[0]["tag"], "PropertyPlantAndEquipmentIFRS")
+
+    def test_skipped_ppe_summary_stays_skipped_when_details_already_cover_it(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 1_194_791_000_000
+        summary["有形_機械・運搬具"] = 445_126_000_000
+        summary["有形_土地"] = 424_871_000_000
+        summary["有形_その他有形固定資産"] = 39_477_000_000
+        totals = {"NonCurrentAssets": 10_462_730_000_000}
+        raw_tags = {"PropertyPlantAndEquipmentIFRS": 2_416_885_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_その他有形固定資産"], 39_477_000_000)
+        self.assertEqual(adjustments, [])
+
+    def test_duplicate_contract_liability_alias_is_skipped(self):
+        reason = should_skip_item_tag(
+            "ContractLiabilitiesCL",
+            {"ContractLiabilities": 112_142_000_000},
+        )
+
+        self.assertEqual(reason, "duplicate_contract_liability_alias")
+
+    def test_noncurrent_contract_liability_can_be_removed_when_included_in_other(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["固負_契約負債"] = 32_414_000_000
+        summary["固負_その他固定負債"] = 69_726_000_000
+        summary["固負_長期借入金"] = 10_000_000_000
+        totals = {"NonCurrentLiabilities": 79_726_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["固負_契約負債"], 0)
+        self.assertEqual(adjustments[0]["category"], "固負_契約負債")
 
     def test_clearing_liability_components_are_independent(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
