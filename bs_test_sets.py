@@ -40,16 +40,38 @@ BREADTH_100 = (
     "2579", "2818", "2936", "1418",
 )
 
+# A non-overlapping stress sample weighted toward sectors whose balance sheets
+# use specialized presentation rules: finance, real estate, transportation,
+# utilities, construction, pharmaceuticals, IT, and services.
+STRESS_100 = (
+    "8341", "7322", "8714", "7189", "8563", "7150", "8383", "5831",
+    "8361", "8551", "8473", "8614", "8624", "8707", "3113", "7175",
+    "8700", "462A", "7157", "8715", "8795", "8798", "7325", "7343",
+    "5840", "7181", "8566", "7187", "7383", "8424", "8789", "8596",
+    "5845", "7345", "2980", "2975", "3480", "8818", "8928", "3246",
+    "8864", "3491", "5532", "5528", "9024", "9090", "9044", "9007",
+    "9036", "9017", "9033", "9149", "9324", "9364", "9304", "9310",
+    "9380", "9363", "9107", "9119", "9130", "9308", "9115", "9533",
+    "9543", "9511", "9513", "9537", "7162", "9539", "5011", "5021",
+    "3315", "5018", "5010", "5076", "1968", "1939", "1930", "1788",
+    "1810", "1844", "3769", "4684", "9697", "3992", "7527", "6194",
+    "9216", "2168", "2163", "505A", "343A", "9704", "6554", "4577",
+    "4528", "4569", "4574", "197A",
+)
+
 MARKET_100 = tuple(sorted(set(REGRESSION_40) | set(EXPANSION_60)))
 MARKET_200 = tuple(sorted(set(MARKET_100) | set(BREADTH_100)))
+MARKET_300 = tuple(sorted(set(MARKET_200) | set(STRESS_100)))
 
 BS_TEST_SETS = {
     "none": (),
     "regression-40": REGRESSION_40,
     "expansion-60": EXPANSION_60,
     "breadth-100": BREADTH_100,
+    "stress-100": STRESS_100,
     "market-100": MARKET_100,
     "market-200": MARKET_200,
+    "market-300": MARKET_300,
 }
 
 

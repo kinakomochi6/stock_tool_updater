@@ -7,7 +7,9 @@ from bs_test_sets import (
     EXPANSION_60,
     MARKET_100,
     MARKET_200,
+    MARKET_300,
     REGRESSION_40,
+    STRESS_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -564,6 +566,58 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["有形_その他有形固定資産"], 39_477_000_000)
         self.assertEqual(adjustments, [])
 
+    def test_ifrs_parent_summaries_add_only_unrepresented_remainders(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 131_420_000_000
+        summary["有形_土地"] = 73_970_000_000
+        summary["有形_建設仮勘定"] = 12_850_000_000
+        summary["無形_のれん"] = 170_110_000_000
+        summary["無形_ソフトウエア"] = 38_770_000_000
+        summary["無形_その他無形固定資産"] = 2_780_000_000
+        totals = {"NonCurrentAssets": 1_099_930_000_000}
+        raw_tags = {
+            "PropertyPlantAndEquipmentIFRS": 596_770_000_000,
+            "IntangibleAssetsIFRS": 333_050_000_000,
+        }
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_その他有形固定資産"], 378_530_000_000)
+        self.assertEqual(summary["無形_その他無形固定資産"], 294_280_000_000)
+        self.assertEqual(len(adjustments), 2)
+        self.assertEqual(
+            {item["reason"] for item in adjustments},
+            {"section_total_supports_skipped_summary_remainder"},
+        )
+
+    def test_jgaap_investments_parent_fills_an_unrepresented_section(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 3_252_560_000
+        summary["有形_土地"] = 2_646_555_000
+        summary["有形_その他有形固定資産"] = 89_460_000
+        summary["無形_その他無形固定資産"] = 729_204_000
+        totals = {"NonCurrentAssets": 9_243_512_000}
+        raw_tags = {
+            "PropertyPlantAndEquipment": 5_988_575_000,
+            "InvestmentsAndOtherAssets": 2_525_733_000,
+        }
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["投資_その他固定資産"], 2_525_733_000)
+        self.assertEqual(len(adjustments), 1)
+        self.assertEqual(adjustments[0]["tag"], "InvestmentsAndOtherAssets")
+
+    def test_new_industry_specific_tags_use_independent_categories(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "AccountsReceivableLeaseCALEA", 50_390_000_000)
+        apply_mapped_tag(summary, "RetainedEarningsCumulativeTranslationIFRS", -34_300_000_000)
+        apply_mapped_tag(summary, "MarketingRelatedAssetsIA", 107_310_000_000)
+
+        self.assertEqual(summary["流動_リース売掛金"], 50_390_000_000)
+        self.assertEqual(summary["純資_累積換算調整額"], -34_300_000_000)
+        self.assertEqual(summary["無形_マーケティング関連資産"], 107_310_000_000)
+
     def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         summary["有形_建物・構築物"] = 130_000_000_000
@@ -699,9 +753,14 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(MARKET_100) & set(BREADTH_100))
         self.assertEqual(len(MARKET_100), 100)
         self.assertEqual(len(MARKET_200), 200)
+        self.assertEqual(len(STRESS_100), 100)
+        self.assertFalse(set(MARKET_200) & set(STRESS_100))
+        self.assertEqual(len(MARKET_300), 300)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
+        self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
         self.assertEqual(BS_TEST_SETS["market-200"], MARKET_200)
+        self.assertEqual(BS_TEST_SETS["market-300"], MARKET_300)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])
