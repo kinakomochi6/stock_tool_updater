@@ -99,6 +99,100 @@ class MappingTests(unittest.TestCase):
         )
         self.assertIsNone(should_skip_item_tag("OperatingAccountsPayable", raw_tags))
 
+    def test_industry_specific_assets_and_liabilities_are_separate(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LandForGeneralUsePPE": 16_038_000_000,
+            "LandUsedForMiningOperationsNetPPE": 3_623_000_000,
+            "MiningRight": 3_127_000_000,
+            "AquacultureConcessionsIA": 21_033_000_000,
+            "MachinerysAndEquipmentsNet": 21_890_000_000,
+            "LongTermTimeDepositsIOA": 20_220_000_000,
+            "ReturnLiabilityCL": 20_625_000_000,
+            "WarrantyReservesCL": 8_870_000_000,
+            "ProvisionForEmployeeStockOwnershipPlanTrustNCL": 1_635_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["有形_土地"], 16_038_000_000)
+        self.assertEqual(summary["有形_鉱業用土地"], 3_623_000_000)
+        self.assertEqual(summary["無形_採掘権"], 3_127_000_000)
+        self.assertEqual(summary["無形_養殖権・水面利用権"], 21_033_000_000)
+        self.assertEqual(summary["投資_長期預け金"], 20_220_000_000)
+        self.assertEqual(summary["流負_返品負債"], 20_625_000_000)
+        self.assertEqual(summary["流負_製品保証引当金"], 8_870_000_000)
+        self.assertEqual(summary["固負_従業員持株ESOP引当金"], 1_635_000_000)
+
+    def test_machinery_vehicles_and_special_repairs_use_correct_sections(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "MachineryAndEquipmentNet", 17_659_000_000)
+        apply_mapped_tag(summary, "VehiclesNet", 21_871_000_000)
+        apply_mapped_tag(summary, "ProvisionForSpecialRepairs", 7_626_000_000)
+
+        self.assertEqual(summary["有形_機械・運搬具"], 17_659_000_000)
+        self.assertEqual(summary["有形_車両運搬具"], 21_871_000_000)
+        self.assertEqual(summary["固負_特別修繕引当金"], 7_626_000_000)
+
+    def test_gross_mining_land_is_skipped_when_net_value_exists(self):
+        raw_tags = {
+            "LandUsedForMiningOperationsPPE": 10_746_000_000,
+            "LandUsedForMiningOperationsNetPPE": 3_623_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("LandUsedForMiningOperationsPPE", raw_tags),
+            "gross_mining_land_skipped_because_net_exists",
+        )
+
+    def test_warranty_mapping_allows_duplicate_contract_liability_removal(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 46_262_000_000
+        summary["流負_未払法人税等"] = 25_694_000_000
+        summary["流負_その他流動負債"] = 98_631_000_000
+        summary["流負_契約負債"] = 35_173_000_000
+        apply_mapped_tag(summary, "WarrantyReservesCL", 8_870_000_000)
+        totals = {"CurrentLiabilities": 179_457_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流負_契約負債"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_契約負債")
+
+    def test_construction_payable_allows_duplicate_contract_liability_removal(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_短期借入金"] = 80_805_000_000
+        summary["流負_その他流動負債"] = 11_049_000_000
+        summary["流負_契約負債"] = 34_659_000_000
+        apply_mapped_tag(
+            summary,
+            "AccountsPayableForConstructionContractsAndOtherCL",
+            59_764_000_000,
+        )
+        totals = {"CurrentLiabilities": 151_618_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流負_契約負債"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_契約負債")
+
+    def test_machinery_group_enables_aggregate_depreciation_reconciliation(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 10_000_000_000
+        summary["投資_投資有価証券"] = 50_000_000_000
+        apply_mapped_tag(
+            summary,
+            "MachineryVehiclesToolsFurnitureAndFixtures",
+            17_315_000_000,
+        )
+        totals = {"NonCurrentAssets": 48_223_000_000}
+        raw_tags = {"AccumulatedDepreciationPPEByGroup": -29_092_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_減価償却累計額"], -29_092_000_000)
+        self.assertEqual(adjustments[0]["tag"], "AccumulatedDepreciationPPEByGroup")
+
     def test_ifrs_independent_asset_components_do_not_collide(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         values = {
@@ -267,6 +361,7 @@ class MappingTests(unittest.TestCase):
         summary = {key: 0 for key in DISPLAY_ORDER}
         summary["流動_受取手形・売掛金(合算)"] = 203_890_000_000
         summary["流動_契約資産"] = 147_727_000_000
+        summary["流動_電子記録債権"] = 10_979_000_000
         totals = {"CurrentAssets": 3_907_449_000_000}
         raw_tags = {"NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS": 203_890_000_000}
 
@@ -275,6 +370,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(result["selected"], "combined")
         self.assertTrue(result["combined_includes_contract_assets"])
         self.assertEqual(summary["流動_契約資産"], 0)
+        self.assertEqual(summary["流動_電子記録債権"], 0)
 
     def test_net_assets_total_is_preserved_when_details_are_missing(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
