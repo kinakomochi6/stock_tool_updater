@@ -666,6 +666,34 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["純資_累積換算調整額"], -34_300_000_000)
         self.assertEqual(summary["無形_マーケティング関連資産"], 107_310_000_000)
 
+    def test_expanded_provisions_remain_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "AccruedLongServiceRewardsForEmployeesNCL", 1_117_000_000)
+        apply_mapped_tag(summary, "ProvisionForEnvironmentalMeasuresNCL", 650_000_000)
+        apply_mapped_tag(
+            summary,
+            "ProvisionForPreventingEnvironmentalPollutionInMineralMiningAndOtherOperationsNCL",
+            850_000_000,
+        )
+        apply_mapped_tag(summary, "ProvisionForLossOnOrderReceivedCL", 1_503_000_000)
+
+        self.assertEqual(summary["固負_長期勤続報奨引当金"], 1_117_000_000)
+        self.assertEqual(summary["固負_環境対策引当金"], 650_000_000)
+        self.assertEqual(summary["固負_鉱害防止引当金"], 850_000_000)
+        self.assertEqual(summary["流負_受注損失引当金"], 1_503_000_000)
+
+    def test_specialized_assets_map_to_their_natural_sections(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "TreesPPE", 1_108_000_000)
+        apply_mapped_tag(summary, "RightOfUsingElectricSupplyFacilities", 726_000_000)
+        apply_mapped_tag(summary, "IndustrialPropertyIFRS", 1_464_000_000)
+        apply_mapped_tag(summary, "RawMaterialsAndSuppliesCNS", 1_335_000_000)
+
+        self.assertEqual(summary["有形_立木"], 1_108_000_000)
+        self.assertEqual(summary["有形_施設利用権"], 726_000_000)
+        self.assertEqual(summary["無形_産業財産権"], 1_464_000_000)
+        self.assertEqual(summary["流動_棚卸資産"], 1_335_000_000)
+
     def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         summary["有形_建物・構築物"] = 130_000_000_000
