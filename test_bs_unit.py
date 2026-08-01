@@ -24,6 +24,7 @@ from firebase_master_test import (
     empty_financial_data,
     parse_codes_arg,
     reconcile_bank_presentation,
+    reconcile_insurance_presentation,
     reconcile_parent_component_overlaps,
     reconcile_receivable_presentation,
     reconcile_optional_duplicate_categories,
@@ -401,6 +402,28 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_銀行預金"], 9_475_000_000)
         self.assertEqual(len(adjustments), 2)
 
+    def test_insurance_statement_moves_unsplit_cash_and_current_liabilities(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 1_752_984_000_000
+        summary["投資_保険現金預金"] = 1_752_984_000_000
+        summary["流負_役員賞与引当金"] = 248_000_000
+        raw_tags = {
+            "CashAndDepositsAssetsINS": 1_752_984_000_000,
+            "PolicyReserveLiabilitiesINS": 46_653_326_000_000,
+        }
+
+        adjustments = reconcile_insurance_presentation(
+            summary,
+            {"CurrentAssets": 0, "CurrentLiabilities": 0},
+            raw_tags,
+        )
+
+        self.assertEqual(summary["流動_現金及び預金"], 0)
+        self.assertEqual(summary["投資_保険現金預金"], 1_752_984_000_000)
+        self.assertEqual(summary["流負_役員賞与引当金"], 0)
+        self.assertEqual(summary["固負_保険その他負債"], 248_000_000)
+        self.assertEqual(len(adjustments), 2)
+
     def test_category_move_adjustment_can_be_serialized_without_section_deltas(self):
         result = serialize_reconciliation_adjustment({
             "category": "流動_リース債権",
@@ -688,11 +711,13 @@ class MappingTests(unittest.TestCase):
         apply_mapped_tag(summary, "RightOfUsingElectricSupplyFacilities", 726_000_000)
         apply_mapped_tag(summary, "IndustrialPropertyIFRS", 1_464_000_000)
         apply_mapped_tag(summary, "RawMaterialsAndSuppliesCNS", 1_335_000_000)
+        apply_mapped_tag(summary, "LongTermInvestments", 449_524_000_000)
 
         self.assertEqual(summary["有形_立木"], 1_108_000_000)
         self.assertEqual(summary["有形_施設利用権"], 726_000_000)
         self.assertEqual(summary["無形_産業財産権"], 1_464_000_000)
         self.assertEqual(summary["流動_棚卸資産"], 1_335_000_000)
+        self.assertEqual(summary["投資_投資有価証券"], 449_524_000_000)
 
     def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
