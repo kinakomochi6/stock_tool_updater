@@ -1,7 +1,14 @@
 import unittest
 
 from bs_diagnostics_report import summarize_diagnostics
-from bs_test_sets import BS_TEST_SETS, EXPANSION_60, MARKET_100, REGRESSION_40
+from bs_test_sets import (
+    BREADTH_100,
+    BS_TEST_SETS,
+    EXPANSION_60,
+    MARKET_100,
+    MARKET_200,
+    REGRESSION_40,
+)
 from firebase_master_test import (
     DISPLAY_ORDER,
     TAG_MAPPING,
@@ -192,6 +199,73 @@ class MappingTests(unittest.TestCase):
             should_skip_item_tag("AmusementFacilitiesAndMachines", raw_tags),
             "gross_value_skipped_because_net_exists",
         )
+
+    def test_next_residual_detail_lines_use_independent_categories(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "EmployeeBenefitsAccrualsCLIFRS": 51_585_000_000,
+            "ProvisionsCLIFRS": 6_362_000_000,
+            "InformationSystemEquipmentIFRS": 5_460_000_000,
+            "BuildingsIFRS": 1_177_000_000,
+            "UntitledNCLIFRS": 2_190_000_000,
+            "VehiclesToolsFurnitureAndFixturesNet": 404_000_000,
+            "ValuationDifferenceOnAvailableForSaleSecurities": 7_302_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流負_従業員給付未払金"], 51_585_000_000)
+        self.assertEqual(summary["流負_引当金"], 6_362_000_000)
+        self.assertEqual(summary["有形_情報システム機器"], 5_460_000_000)
+        self.assertEqual(summary["有形_建物・構築物"], 1_177_000_000)
+        self.assertEqual(summary["固負_内訳未分類"], 2_190_000_000)
+        self.assertEqual(summary["有形_工具器具備品"], 404_000_000)
+        self.assertEqual(summary["純資_評価換算差額金"], 7_302_000_000)
+
+    def test_construction_inventory_parent_and_pfi_assets_are_distinct(self):
+        raw_tags = {
+            "OtherInventories": 12_568_000_000,
+            "RawMaterialsAndSupplies": 7_708_000_000,
+            "CostsOnOtherBusiness": 4_859_000_000,
+            "InventoriesForPFIAndOtherProjectsCA": 1_545_000_000,
+            "CostsOnPFIBusiness": 1_545_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("RawMaterialsAndSupplies", raw_tags),
+            "inventory_subdetail_skipped_because_other_inventory_total_matches",
+        )
+        self.assertEqual(
+            should_skip_item_tag("CostsOnOtherBusiness", raw_tags),
+            "inventory_subdetail_skipped_because_other_inventory_total_matches",
+        )
+
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "InventoriesForPFIAndOtherProjectsCA", 1_545_000_000)
+        apply_mapped_tag(summary, "CostsOnPFIBusiness", 1_545_000_000)
+        self.assertEqual(summary["流動_PFI等プロジェクト棚卸資産"], 1_545_000_000)
+
+    def test_current_nonrecourse_loan_is_not_lost(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "CurrentPortionOfNonrecourseLoansCL", 8_510_000_000)
+
+        self.assertEqual(summary["流負_短期ノンリコース借入金"], 8_510_000_000)
+
+    def test_section_total_selects_contract_detail_over_parent_total(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 1_009_275_000_000
+        summary["流負_前受金"] = 299_979_000_000
+        summary["流負_契約負債"] = 307_016_000_000
+        summary["流負_短期ノンリコース借入金"] = 8_510_000_000
+        summary["流負_その他流動負債"] = 111_757_000_000
+        totals = {"CurrentLiabilities": 1_429_526_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流負_前受金"], 299_979_000_000)
+        self.assertEqual(summary["流負_契約負債"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_契約負債")
+        self.assertEqual(adjustments[0]["delta_after"], 5_000_000)
 
     def test_machinery_vehicles_and_special_repairs_use_correct_sections(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
@@ -479,8 +553,16 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(len(REGRESSION_40), 40)
         self.assertEqual(len(EXPANSION_60), 60)
         self.assertFalse(set(REGRESSION_40) & set(EXPANSION_60))
+        self.assertEqual(len(BREADTH_100), 100)
+        self.assertFalse(set(MARKET_100) & set(BREADTH_100))
         self.assertEqual(len(MARKET_100), 100)
+        self.assertEqual(len(MARKET_200), 200)
+        self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
+        self.assertEqual(BS_TEST_SETS["market-200"], MARKET_200)
+
+    def test_alphanumeric_security_codes_are_accepted(self):
+        self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])
 
     def test_empty_explicit_codes_can_be_combined_with_test_set(self):
         requested = sorted(set(parse_codes_arg("") or []) | set(EXPANSION_60))
