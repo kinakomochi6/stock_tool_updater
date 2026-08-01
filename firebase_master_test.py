@@ -2708,6 +2708,11 @@ def main():
     parser.add_argument("--debug-bs", action="store_true", help="Write B/S extraction diagnostics JSON for each processed code")
     parser.add_argument("--debug-dir", type=str, default=".", help="Directory for --debug-bs output files")
     parser.add_argument("--dry-run", action="store_true", help="Run without writing results to Firestore")
+    parser.add_argument(
+        "--bs-only",
+        action="store_true",
+        help="Skip market, real-estate, and securities data during B/S diagnostics",
+    )
     args = parser.parse_args()
 
     if not EDINET_API_KEY:
@@ -2716,6 +2721,8 @@ def main():
         raise ValueError("--total-shards は1以上で指定してください。")
     if args.shard_index < 0 or args.shard_index >= args.total_shards:
         raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
+    if args.bs_only and not args.dry_run:
+        raise ValueError("--bs-only は財務データをゼロで上書きしないよう --dry-run と併用してください。")
 
     validate_tag_mapping()
     requested_codes = sorted(set(parse_codes_arg(args.codes) or []) | set(get_test_set_codes(args.test_set)))
@@ -2803,7 +2810,7 @@ def main():
         sector = comp_info.get("sector", "")
         
         # ★ 東証以外の企業など情報の無い銘柄は、みんかぶから企業名等を補完
-        if "不明" in company_name or "東証以外" in company_name:
+        if not args.bs_only and ("不明" in company_name or "東証以外" in company_name):
             try:
                 url_mk = f"https://minkabu.jp/stock/{code}"
                 res_mk = requests.get(url_mk, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
@@ -2842,11 +2849,14 @@ def main():
                 "B/S_取得書類": "なし", "不動産_取得書類": "なし"
             })
             
-            try:
-                fin_data = get_financial_data(code)
-            except Exception as e:
-                print(f" -> [警告] 株価・還元データの取得に失敗しました。B/S処理は続行します: {e}")
+            if args.bs_only:
                 fin_data = empty_financial_data()
+            else:
+                try:
+                    fin_data = get_financial_data(code)
+                except Exception as e:
+                    print(f" -> [警告] 株価・還元データの取得に失敗しました。B/S処理は続行します: {e}")
+                    fin_data = empty_financial_data()
             combined_data.update(fin_data)
             
             # B/S データの取得
@@ -2914,10 +2924,11 @@ def main():
                 })
                 print(f" -> [B/S診断] {debug_path} に書類未取得情報を出力しました。")
             
-            time.sleep(2)  # API制限対策・待機
+            if not args.bs_only:
+                time.sleep(2)  # API制限対策・待機
             
             # 不動産と有価証券データの取得
-            re_doc_id = searcher.find_best_re_doc(code)
+            re_doc_id = searcher.find_best_re_doc(code) if not args.bs_only else None
             if re_doc_id:
                 re_sec_data = analyze_real_estate_and_securities_html(re_doc_id)
                 if re_sec_data["不動産_時価_億"] > 0 or re_sec_data["不動産_簿価_億"] > 0 or re_sec_data["有価証券_含み益_億"] > 0:
@@ -2938,7 +2949,7 @@ def main():
         except Exception as e:
             print(f" -> [エラー] {code} の処理中にエラーが発生しました: {e}")
             
-        time.sleep(2)  # API制限対策・次の銘柄へ行く前に待機
+        time.sleep(1 if args.bs_only else 2)  # EDINET/API制限対策
 
     print("\nすべての処理が完了しました！")
 

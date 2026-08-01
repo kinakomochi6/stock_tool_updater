@@ -49,6 +49,11 @@ on:
         required: false
         type: boolean
         default: true
+      bs_only:
+        description: 'Skip non-B/S data during diagnostics'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   scrape:
@@ -135,6 +140,7 @@ jobs:
               --days-back 365 \
               --debug-bs \
               --debug-dir diagnostics \
+              --bs-only \
               --dry-run
             exit 0
           fi
@@ -151,6 +157,9 @@ jobs:
           fi
           if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
             ARGS+=(--dry-run)
+          fi
+          if [ "${{ github.event.inputs.bs_only }}" = "true" ]; then
+            ARGS+=(--bs-only)
           fi
           printf 'python'
           printf ' %q' "${ARGS[@]}"
