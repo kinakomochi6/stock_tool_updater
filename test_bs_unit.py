@@ -6,7 +6,9 @@ from firebase_master_test import (
     DISPLAY_ORDER,
     TAG_MAPPING,
     apply_mapped_tag,
+    apply_summary_only_fallbacks,
     parse_codes_arg,
+    reconcile_receivable_presentation,
     validate_tag_mapping,
 )
 
@@ -32,6 +34,42 @@ class MappingTests(unittest.TestCase):
         validate_tag_mapping()
         self.assertIn(TAG_MAPPING["ProvisionForDirectorsBonuses"], DISPLAY_ORDER)
         self.assertIn(TAG_MAPPING["BadDebts"], DISPLAY_ORDER)
+
+    def test_clearing_liability_components_are_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "ClearingBusinessFinancialLiabilitiesCLIFRS": 63_401_208_000_000,
+            "DepositsFromClearingParticipantsCLIFRS": 7_716_198_000_000,
+            "TradingParticipantSecurityMoneyCLIFRS": 10_827_000_000,
+            "LegalGuaranteeFundsCLIFRS": 549_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        total = sum(value for key, value in summary.items() if key.startswith("流負_"))
+        self.assertEqual(total, sum(values.values()))
+
+    def test_combined_construction_receivable_removes_contract_asset_detail(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_受取手形・売掛金(合算)"] = 203_890_000_000
+        summary["流動_契約資産"] = 147_727_000_000
+        totals = {"CurrentAssets": 3_907_449_000_000}
+        raw_tags = {"NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS": 203_890_000_000}
+
+        result = reconcile_receivable_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertTrue(result["combined_includes_contract_assets"])
+        self.assertEqual(summary["流動_契約資産"], 0)
+
+    def test_net_assets_total_is_preserved_when_details_are_missing(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        totals = {"NetAssets": 2_027_663_000_000}
+
+        fallbacks = apply_summary_only_fallbacks(summary, totals)
+
+        self.assertEqual(summary["純資_内訳未分類"], totals["NetAssets"])
+        self.assertEqual(fallbacks[0]["section"], "NetAssets")
 
 
 class TestSetTests(unittest.TestCase):
