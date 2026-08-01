@@ -805,13 +805,13 @@ class EdinetSearcher:
     def __init__(self):
         self.df_docs = pd.DataFrame()
 
-    def fetch_list(self, target_codes, days_back=365):
+    def fetch_list(self, target_codes, days_back=365, require_real_estate=True):
         today = datetime.date.today()
         print(f"--- [リスト作成] 最大 {days_back} 日分をスキャンします（対象書類が揃い次第終了） ---")
         
         target_set = {str(c).strip()[:4] for c in target_codes}
         needs_bs = set(target_set)
-        needs_re = set(target_set)
+        needs_re = set(target_set) if require_real_estate else set()
         
         all_docs = []
         for i in range(days_back + 1):
@@ -2760,7 +2760,11 @@ def main():
         target_codes_for_scan = list(jpx_codes.keys()) + ["0000"] # 確実に365日スキャンさせるためのダミーコード
     
     searcher = EdinetSearcher()
-    searcher.fetch_list(target_codes_for_scan, days_back=args.days_back)
+    searcher.fetch_list(
+        target_codes_for_scan,
+        days_back=args.days_back,
+        require_real_estate=not args.bs_only,
+    )
     
     if not requested_codes:
         # EDINETで見つかった全証券コードを抽出

@@ -19,6 +19,7 @@ from bs_test_sets import (
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
+    EdinetSearcher,
     TAG_MAPPING,
     BsAnalysisError,
     apply_mapped_tag,
@@ -79,6 +80,30 @@ class EdinetDownloadTests(unittest.TestCase):
             "response_is_not_zip",
         )
         self.assertEqual([call.args[0] for call in mock_sleep.call_args_list], [1, 2])
+
+
+class EdinetSearcherTests(unittest.TestCase):
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_bs_only_scan_stops_without_waiting_for_annual_report(self, mock_get, _mock_sleep):
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "results": [{
+                "docTypeCode": "140",
+                "secCode": "72030",
+                "xbrlFlag": "1",
+                "filerName": "Test Company",
+                "docID": "S100TEST",
+                "docDescription": "Quarterly report",
+            }],
+        }
+        mock_get.return_value = response
+
+        searcher = EdinetSearcher()
+        searcher.fetch_list(["7203"], days_back=10, require_real_estate=False)
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(len(searcher.df_docs), 1)
 
 
 class MappingTests(unittest.TestCase):
