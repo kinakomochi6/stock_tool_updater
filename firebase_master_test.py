@@ -150,9 +150,9 @@ TAG_MAPPING = {
     "NotesAndAccountsPayableTrade": "流負_支払手形・買掛金",
     "NotesAndOperatingAccountsPayableTrade": "流負_支払手形・買掛金",
     "AccountsPayableTrade": "流負_支払手形・買掛金",
-    "ElectronicallyRecordedObligationsOperating": "流負_支払手形・買掛金", 
+    "ElectronicallyRecordedObligationsOperating": "流負_電子記録債務",
     "OperatingAccountsPayable": "流負_支払手形・買掛金",
-    "NotesPayableAccountsPayableForConstructionContractsAndOtherCNS": "流負_支払手形・買掛金",
+    "NotesPayableAccountsPayableForConstructionContractsAndOtherCNS": "流負_工事関係支払手形・買掛金",
     "NotesPayableFacilities": "流負_設備関係支払手形",
     "NotesAndAccountsPayableTradeForFranchisedStores": "流負_加盟店買掛金",
     "ShortTermLoansPayable": "流負_短期借入金", "ShortTermLoansPayableToSubsidiariesAndAffiliates": "流負_短期借入金", "ShortTermNonRecourseLoansCL": "流負_短期ノンリコース借入金", "CurrentPortionOfLongTermLoansPayable": "流負_1年内返済長期借入金",
@@ -582,8 +582,8 @@ TAG_MAPPING = {
     "LongTermFinancialAssetsNCAIFRS": "投資_その他金融資産",
     "CurrentPortionOfLongTermBorrowingsCLIFRS": "流負_1年内返済長期借入金",
     "IndustrialProperty": "無形_産業財産権",
-    "ElectronicallyRecordedObligationsOperatingCL": "流負_支払手形・買掛金",
-    "NotesPayableAccountsPayableForConstructionContractsCNS": "流負_支払手形・買掛金",
+    "ElectronicallyRecordedObligationsOperatingCL": "流負_電子記録債務",
+    "NotesPayableAccountsPayableForConstructionContractsCNS": "流負_工事関係支払手形・買掛金",
     "NonrecourseLoansNCL": "固負_長期ノンリコース借入金",
     "MachineryVehiclesToolsFurnitureAndFixturesNet": "有形_機械・運搬具",
 }
@@ -596,7 +596,7 @@ DISPLAY_ORDER = [
     "有形_建物・構築物", "有形_構築物", "有形_機械・運搬具", "有形_通信設備", "有形_通信線路", "有形_警備機器・管制局", "有形_鉱業権資産", "有形_石油・天然ガス資産", "有形_山林", "有形_立木", "有形_坑井", "有形_鉱物資源", "有形_土地", "有形_信託土地", "有形_建設仮勘定", "有形_リース資産", "有形_施設利用権", "有形_賃貸用資産", "有形_賃貸資産購入前渡金", "有形_船舶", "有形_航空機", "有形_航空関連設備", "有形_航空機・船舶", "有形_工具器具備品", "有形_減価償却累計額", "有形_その他有形固定資産",
     "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_電話加入権", "無形_採掘権", "無形_商標権", "無形_商標・営業権", "無形_特許権", "無形_産業財産権", "無形_リース資産", "無形_研究開発資産", "無形_仕掛研究開発", "無形_販売権", "無形_発電権", "無形_販売権・顧客関連資産", "無形_養殖権・水面利用権", "無形_製品関連無形資産", "無形_耐用年数確定その他無形資産", "無形_耐用年数非確定その他無形資産", "無形_顧客関連資産", "無形_技術関連資産", "無形_コンテンツ資産", "無形_周波数移行費用", "無形_その他無形固定資産",
     "投資_投資有価証券", "投資_出資金", "投資_SVF投資", "投資_銀行業有価証券", "投資_関係会社株式", "投資_関係会社出資金", "投資_関係会社その他有価証券", "投資_投資不動産", "投資_金融債権", "投資_長期営業債権", "投資_公正価値測定金融資産", "投資_その他金融資産", "投資_デリバティブ資産", "投資_長期預け金", "投資_長期貸付金", "投資_差入保証金", "投資_長期前払費用", "投資_退職給付資産", "投資_繰延税金資産", "投資_土地再評価繰延税金資産", "投資_契約獲得コスト", "投資_契約関連資産", "投資_持続可能エネルギー補助金", "投資_核燃料", "投資_原子力廃炉積立金", "投資_使用済燃料再処理関連資産", "投資_原賠機構未収金", "投資_電気事業その他固定資産", "投資_清算参加者補償特定資産", "投資_破産更生債権等", "投資_貸倒引当金", "投資_その他固定資産",
-    "流負_支払手形・買掛金", "流負_設備関係支払手形", "流負_加盟店買掛金", "流負_短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
+    "流負_支払手形・買掛金", "流負_工事関係支払手形・買掛金", "流負_電子記録債務", "流負_設備関係支払手形", "流負_加盟店買掛金", "流負_短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
     "流負_未払金", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払法人税等", "流負_前受金", "流負_契約負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_清算業務金融負債", "流負_清算参加者預り金", "流負_取引参加者保証金", "流負_法定保証基金", "流負_有価証券担保借入金", "流負_証券業トレーディング商品", "流負_約定見越", "流負_証券業預り金", "流負_証券業受入保証金", "流負_信用取引負債", "流負_金融事業短期預金", "流負_有価証券貸借受入担保金", "流負_コールマネー", "流負_リース債務", "流負_資産除去債務", "流負_有利子負債", "流負_賞与引当金", "流負_役員賞与引当金", "流負_株式報酬引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_完成工事補償引当金", "流負_変動報酬引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
     "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_契約負債", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_株式給付引当金", "固負_債務保証損失引当金", "固負_契約損失引当金", "固負_特別修繕引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_その他固定負債",
     "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_内訳未分類", "純資_その他純資産"
@@ -1225,7 +1225,7 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
     return adjustments
 
 
-def reconcile_parent_component_overlaps(summary, raw_tags):
+def reconcile_parent_component_overlaps(summary, totals, raw_tags):
     """Remove a component only when a reported parent total proves it is duplicated."""
     adjustments = []
     parent = raw_tags.get("PropertyPlantAndEquipmentIFRS", 0)
@@ -1242,19 +1242,31 @@ def reconcile_parent_component_overlaps(summary, raw_tags):
     if delta_before >= -tolerance:
         return adjustments
 
+    noncurrent_total = totals.get("NonCurrentAssets", 0)
+    noncurrent_subtotal = sum(
+        amount for key, amount in summary.items()
+        if key.startswith(("有形_", "無形_", "投資_"))
+    )
+    section_delta_before = noncurrent_total - noncurrent_subtotal
+
     best = None
     for category, value in categories.items():
         delta_after = delta_before + value
         if abs(delta_after) + tolerance >= abs(delta_before) * 0.25:
             continue
-        candidate = (abs(delta_after), category, value, delta_after)
+        section_delta_after = section_delta_before + value
+        if abs(section_delta_after) + tolerance >= abs(section_delta_before) * 0.9:
+            continue
+        candidate = (
+            abs(delta_after), category, value, delta_after, section_delta_after
+        )
         if best is None or candidate < best:
             best = candidate
 
     if best is None:
         return adjustments
 
-    _, category, value, delta_after = best
+    _, category, value, delta_after, section_delta_after = best
     summary[category] = 0
     adjustments.append({
         "category": category,
@@ -1263,6 +1275,8 @@ def reconcile_parent_component_overlaps(summary, raw_tags):
         "reason": "parent_total_indicates_duplicate_component",
         "delta_before": delta_before,
         "delta_after": delta_after,
+        "section_delta_before": section_delta_before,
+        "section_delta_after": section_delta_after,
     })
     return adjustments
 
@@ -1525,7 +1539,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         totals["NonCurrentLiabilities"] = totals["Liabilities"] - totals["CurrentLiabilities"]
 
     reconciliation_adjustments = reconcile_parent_component_overlaps(
-        summary, best_raw_tags
+        summary, totals, best_raw_tags
     )
     reconciliation_adjustments.extend(
         reconcile_skipped_section_summaries(summary, totals, best_raw_tags)

@@ -50,6 +50,22 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(summary["流動_金融債権"], 3_862_704_000_000)
 
+    def test_construction_payables_and_electronic_obligations_are_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(
+            summary,
+            "NotesPayableAccountsPayableForConstructionContractsAndOtherCNS",
+            594_367_000_000,
+        )
+        apply_mapped_tag(
+            summary,
+            "ElectronicallyRecordedObligationsOperatingCL",
+            87_635_000_000,
+        )
+
+        self.assertEqual(summary["流負_工事関係支払手形・買掛金"], 594_367_000_000)
+        self.assertEqual(summary["流負_電子記録債務"], 87_635_000_000)
+
     def test_negative_equity_component_is_not_replaced_with_zero(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "CapitalSurplusIFRS", -459_335_000_000)
@@ -102,12 +118,25 @@ class MappingTests(unittest.TestCase):
         summary["有形_建設仮勘定"] = 115_612_000_000
         summary["有形_その他有形固定資産"] = 102_221_000_000
         summary["有形_建物・構築物"] = 35_585_000_000
+        totals = {"NonCurrentAssets": 1_259_530_000_000}
         raw_tags = {"PropertyPlantAndEquipmentIFRS": 1_259_530_000_000}
 
-        adjustments = reconcile_parent_component_overlaps(summary, raw_tags)
+        adjustments = reconcile_parent_component_overlaps(summary, totals, raw_tags)
 
         self.assertEqual(summary["有形_建物・構築物"], 0)
         self.assertEqual(adjustments[0]["reason"], "parent_total_indicates_duplicate_component")
+
+    def test_ppe_component_is_kept_when_section_total_would_get_worse(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 100_000_000_000
+        summary["有形_リース資産"] = 50_000_000_000
+        totals = {"NonCurrentAssets": 150_000_000_000}
+        raw_tags = {"PropertyPlantAndEquipmentIFRS": 100_000_000_000}
+
+        adjustments = reconcile_parent_component_overlaps(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_リース資産"], 50_000_000_000)
+        self.assertEqual(adjustments, [])
 
     def test_duplicate_contract_liability_alias_is_skipped(self):
         reason = should_skip_item_tag(
