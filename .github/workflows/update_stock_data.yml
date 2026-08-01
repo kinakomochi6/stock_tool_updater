@@ -1,6 +1,9 @@
 name: Update Stock Data
 
 on:
+  push:
+    branches:
+      - bs-diagnostics
   schedule:
     # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
@@ -76,7 +79,7 @@ jobs:
           exit 1
 
   diagnose:
-    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.codes != '' || github.event.inputs.test_set != 'none') }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.codes != '' || github.event.inputs.test_set != 'none')) }}
     runs-on: ubuntu-latest
 
     steps:
@@ -102,6 +105,16 @@ jobs:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           PYTHONUNBUFFERED: "1"
         run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            python firebase_master_test.py \
+              --test-set expansion-60 \
+              --days-back 365 \
+              --debug-bs \
+              --debug-dir diagnostics \
+              --dry-run
+            exit 0
+          fi
+
           ARGS=(firebase_master_test.py --days-back "${{ github.event.inputs.days_back }}")
           if [ -n "${{ github.event.inputs.codes }}" ]; then
             ARGS+=(--codes "${{ github.event.inputs.codes }}")
@@ -121,7 +134,7 @@ jobs:
           python "${ARGS[@]}"
 
       - name: Build B/S diagnostics report
-        if: ${{ always() && github.event.inputs.debug_bs == 'true' }}
+        if: ${{ always() && (github.event_name == 'push' || github.event.inputs.debug_bs == 'true') }}
         continue-on-error: true
         run: |
           python bs_diagnostics_report.py diagnostics \
@@ -130,7 +143,7 @@ jobs:
           cat reports/bs_diagnostics_summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload B/S diagnostics
-        if: ${{ always() && github.event.inputs.debug_bs == 'true' }}
+        if: ${{ always() && (github.event_name == 'push' || github.event.inputs.debug_bs == 'true') }}
         uses: actions/upload-artifact@v4
         with:
           name: bs-diagnostics
