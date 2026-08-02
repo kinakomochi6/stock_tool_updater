@@ -12,10 +12,13 @@ from bs_test_sets import (
     MARKET_200,
     MARKET_300,
     MARKET_500,
+    MARKET_700,
     REGRESSION_40,
     STRESS_100,
     WAVE_A_100,
     WAVE_B_100,
+    WAVE_C_100,
+    WAVE_D_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -305,6 +308,122 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["固負_製品補償引当金"], 435_000_000)
         self.assertEqual(summary["固負_銀行預金払戻損失引当金"], 570_000_000)
         self.assertEqual(summary["固負_銀行債券払戻損失引当金"], 2_778_000_000)
+
+    def test_seventh_wave_cross_industry_aliases_map_to_reported_sections(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "CustomerRelationshipAssetsIA": 1_865_000_000,
+            "CustomerRelatedAssetsIA": 747_000_000,
+            "CustomerRelationAssetsIA": 140_600_000,
+            "LongTermAccountsPayableInstallmentPurchase": 128_000_000,
+            "DepositsReceivedForConsignmentSalesCL": 1_861_700_000,
+            "ProvisionForLossesOnTransferOfSubsidiariesAndAssociatesCL": 1_776_000_000,
+            "CostsOnUncompletedConstructionContractsAndOtherCNS": 1_670_000_000,
+            "ProvisionForUserRebatesCL": 1_259_900_000,
+            "AccountsPayableForConstructionContractsCL": 857_600_000,
+            "CurrentMaturityBondsCLIFRSIFRS": 800_000_000,
+            "ProvisionForLossOnFireEL": 768_000_000,
+            "ReforestationObligationsCL": 231_000_000,
+            "ReforestationObligationsNCL": 430_000_000,
+            "ProvisionForLossOnDisasterCL": 386_000_000,
+            "ProvisionForBonusesForDirectorsAndOtherOfficersNCL": 334_500_000,
+            "ProvisionForLossOnBusinessLiquidationNCL": 366_000_000,
+            "ProvisionForShareholderBenefitProgramCL": 156_000_000,
+            "ProvisionForDirectorsRetirementBenefitsStockBS": 232_800_000,
+            "ProvisionForShareAwardsForEmployeesNCL": 246_000_000,
+            "PartlyFinishedWork": 180_700_000,
+            "CurrentPortionOfLongTermBorrowingsCL": 160_000_000,
+            "ProvisionForVoluntaryProductRecallRelatedCostsCL": 144_000_000,
+            "MaterialsAndStocksCA": 104_200_000,
+            "ReturnedAssetsCA": 631_000_000,
+            "RefundLiabilitiesCL": 556_000_000,
+            "SalesRightsIA": 218_000_000,
+            "AllowanceForConstructionLossCL": 261_000_000,
+            "TechnologiesRelatedIntangibleAssets": 166_300_000,
+            "AllowanceForStockBenefitForEmployeeProvisions": 163_000_000,
+            "ProvisionForShareBasedCompensationLiabilities": 157_000_000,
+            "ElectronicallyRecordedObligationsFacilities": 135_500_000,
+            "LongTermElectronicallyRecordedObligationsFacilities": 135_500_000,
+            "AccruedBonuses": 111_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["無形_顧客関連資産"], 1_865_000_000)
+        self.assertEqual(summary["固負_長期未払金"], 128_000_000)
+        self.assertEqual(summary["流負_委託販売預り金"], 1_861_700_000)
+        self.assertEqual(summary["流負_関係会社株式譲渡損失引当金"], 1_776_000_000)
+        self.assertEqual(summary["流動_未成工事支出金"], 1_670_000_000)
+        self.assertEqual(summary["流負_利用者還元引当金"], 1_259_900_000)
+        self.assertEqual(summary["流負_工事関係買掛金"], 857_600_000)
+        self.assertEqual(summary["流負_1年内償還社債"], 800_000_000)
+        self.assertEqual(summary["固負_火災損失引当金"], 768_000_000)
+        self.assertEqual(summary["流負_森林再生債務"], 231_000_000)
+        self.assertEqual(summary["固負_森林再生債務"], 430_000_000)
+        self.assertEqual(summary["流負_災害損失引当金"], 386_000_000)
+        self.assertEqual(summary["固負_役員賞与引当金"], 334_500_000)
+        self.assertEqual(summary["固負_事業清算損失引当金"], 366_000_000)
+        self.assertEqual(summary["流負_株主優待引当金"], 156_000_000)
+        self.assertEqual(summary["固負_役員退職慰労引当金"], 232_800_000)
+        self.assertEqual(summary["固負_株式報酬引当金"], 246_000_000)
+        self.assertEqual(summary["流動_棚卸資産"], 284_900_000)
+        self.assertEqual(summary["流負_1年内返済長期借入金"], 160_000_000)
+        self.assertEqual(summary["流負_製品自主回収関連引当金"], 144_000_000)
+        self.assertEqual(summary["流動_返品資産"], 631_000_000)
+        self.assertEqual(summary["流負_返品負債"], 556_000_000)
+        self.assertEqual(summary["無形_販売権"], 218_000_000)
+        self.assertEqual(summary["流負_工事損失引当金"], 261_000_000)
+        self.assertEqual(summary["無形_技術関連資産"], 166_300_000)
+        self.assertEqual(summary["固負_株式給付引当金"], 163_000_000)
+        self.assertEqual(summary["流負_設備関係電子記録債務"], 135_500_000)
+        self.assertEqual(summary["固負_設備関係電子記録債務"], 135_500_000)
+        self.assertEqual(summary["流負_賞与引当金"], 111_000_000)
+
+    def test_seventh_wave_inventory_aliases_are_skipped_when_total_exists(self):
+        raw_tags = {
+            "Inventories": 2_000_000_000,
+            "CostsOnUncompletedConstructionContractsAndOtherCNS": 1_670_000_000,
+            "PartlyFinishedWork": 180_700_000,
+            "MaterialsAndStocksCA": 104_200_000,
+        }
+
+        for tag in raw_tags.keys() - {"Inventories"}:
+            self.assertEqual(
+                should_skip_item_tag(tag, raw_tags),
+                "inventory_detail_skipped_because_total_exists",
+            )
+
+    def test_seventh_wave_receivable_aliases_include_contract_assets(self):
+        for tag in (
+            "NotesAndAccountsReceivableTradeAndContractAssetsCA",
+            "AccountsReceivableAndContractAssetsCA",
+        ):
+            summary = {key: 0 for key in DISPLAY_ORDER}
+            apply_mapped_tag(summary, tag, 10_000_000_000)
+            summary["流動_売掛金"] = 8_000_000_000
+            summary["流動_契約資産"] = 2_000_000_000
+
+            result = reconcile_receivable_presentation(
+                summary,
+                {"CurrentAssets": 10_000_000_000},
+                {tag: 10_000_000_000, "AccountsReceivableTrade": 8_000_000_000, "ContractAssets": 2_000_000_000},
+            )
+
+            self.assertEqual(result["selected"], "combined")
+            self.assertTrue(result["combined_includes_contract_assets"])
+            self.assertEqual(summary["流動_売掛金"], 0)
+            self.assertEqual(summary["流動_契約資産"], 0)
+
+    def test_seventh_wave_gross_transport_assets_are_skipped_for_net_values(self):
+        cases = {
+            "Vessels": "VesselsNet",
+            "VehiclesToolsFurnitureAndFixtures": "VehiclesToolsFurnitureAndFixturesNet",
+        }
+        for gross_tag, net_tag in cases.items():
+            self.assertEqual(
+                should_skip_item_tag(gross_tag, {gross_tag: 2_000_000_000, net_tag: 1_000_000_000}),
+                "gross_value_skipped_because_net_exists",
+            )
 
     def test_construction_receivables_reconcile_after_face_inventory_lines_are_kept(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
@@ -1238,6 +1357,12 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(MARKET_300) & set(WAVE_B_100))
         self.assertFalse(set(WAVE_A_100) & set(WAVE_B_100))
         self.assertEqual(len(MARKET_500), 500)
+        self.assertEqual(len(WAVE_C_100), 100)
+        self.assertEqual(len(WAVE_D_100), 100)
+        self.assertFalse(set(MARKET_500) & set(WAVE_C_100))
+        self.assertFalse(set(MARKET_500) & set(WAVE_D_100))
+        self.assertFalse(set(WAVE_C_100) & set(WAVE_D_100))
+        self.assertEqual(len(MARKET_700), 700)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
@@ -1246,6 +1371,9 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(BS_TEST_SETS["wave-a-100"], WAVE_A_100)
         self.assertEqual(BS_TEST_SETS["wave-b-100"], WAVE_B_100)
         self.assertEqual(BS_TEST_SETS["market-500"], MARKET_500)
+        self.assertEqual(BS_TEST_SETS["wave-c-100"], WAVE_C_100)
+        self.assertEqual(BS_TEST_SETS["wave-d-100"], WAVE_D_100)
+        self.assertEqual(BS_TEST_SETS["market-700"], MARKET_700)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])
