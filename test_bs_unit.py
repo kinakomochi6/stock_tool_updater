@@ -1329,6 +1329,106 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流動_電子記録債権"], 10_979_000_000)
         self.assertFalse(result["combined_includes_other_claims"])
 
+    def test_eighth_wave_banking_and_finance_lines_remain_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AccountsReceivableMembersAssets": 126_146_000_000,
+            "ATMRelatedTemporaryPaymentsAssetsBNK": 99_664_000_000,
+            "ATMsNetPPE": 33_795_000_000,
+            "ATMRelatedTemporaryAdvancesLiabilitiesBNK": 68_319_000_000,
+            "DepositsForElectronicMoneyLiabilities": 59_186_000_000,
+            "AccountsPayableForCreditCardBusinessLiabilities": 39_155_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        noncurrent_assets = sum(
+            value for key, value in summary.items()
+            if key.startswith(("有形_", "無形_", "投資_"))
+        )
+        noncurrent_liabilities = sum(
+            value for key, value in summary.items() if key.startswith("固負_")
+        )
+
+        self.assertEqual(noncurrent_assets, 259_605_000_000)
+        self.assertEqual(noncurrent_liabilities, 166_660_000_000)
+
+    def test_eighth_wave_inventory_aliases_are_skipped_when_total_exists(self):
+        raw_tags = {
+            "Inventories": 40_000_000_000,
+            "SemiFinishedGoods": 10_767_000_000,
+            "CostsOnUncompletedConstructionConstructs": 5_194_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("SemiFinishedGoods", raw_tags),
+            "inventory_detail_skipped_because_total_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("CostsOnUncompletedConstructionConstructs", raw_tags),
+            "inventory_detail_skipped_because_total_exists",
+        )
+
+    def test_eighth_wave_combined_receivables_remove_included_details(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_受取手形・売掛金(合算)"] = 394_740_000_000
+        summary["流動_契約資産"] = 120_000_000_000
+        totals = {"CurrentAssets": 394_740_000_000}
+        raw_tags = {
+            "NotesAndOperationAccountsReceivableTradeAndContractAssets": 394_740_000_000
+        }
+
+        result = reconcile_receivable_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertTrue(result["combined_includes_contract_assets"])
+        self.assertEqual(summary["流動_契約資産"], 0)
+
+    def test_electric_plant_parent_adds_only_unrepresented_remainder(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 300_000_000_000
+        summary["有形_機械・運搬具"] = 100_000_000_000
+        summary["無形_その他無形固定資産"] = 57_476_000_000
+        summary["投資_投資有価証券"] = 100_000_000_000
+        totals = {"NonCurrentAssets": 1_132_129_000_000}
+        raw_tags = {"PlantAndEquipmentAndIntangibleAssetsELE": 1_032_129_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_その他有形固定資産"], 574_653_000_000)
+        self.assertEqual(len(adjustments), 1)
+        self.assertEqual(adjustments[0]["tag"], "PlantAndEquipmentAndIntangibleAssetsELE")
+
+    def test_electric_utility_facilities_are_independent_components(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "HydroelectricPowerProductionFacilitiesNCAElectricELE": 63_188_000_000,
+            "ThermalPowerProductionFacilitiesNCAElectricELE": 126_102_000_000,
+            "NuclearPowerProductionFacilitiesNCAElectricELE": 151_894_000_000,
+            "TransmissionFacilitiesNCAElectricELE": 115_786_000_000,
+            "TransformationFacilitiesNCAElectricELE": 92_750_000_000,
+            "DistributionFacilitiesNCAElectricELE": 214_751_000_000,
+            "NuclearPowerAbolitionInProgressELE": 24_927_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        total = sum(value for key, value in summary.items() if key.startswith("有形_"))
+        self.assertEqual(total, sum(values.values()))
+
+    def test_electric_utility_facilities_are_skipped_when_total_exists(self):
+        raw_tags = {
+            "ElectricUtilityPlantAndEquipmentAssetsELE": 873_234_000_000,
+            "HydroelectricPowerProductionFacilitiesNCAElectricELE": 108_276_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag(
+                "HydroelectricPowerProductionFacilitiesNCAElectricELE", raw_tags
+            ),
+            "electric_utility_facility_detail_skipped_because_total_exists",
+        )
+
     def test_net_assets_total_is_preserved_when_details_are_missing(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         totals = {"NetAssets": 2_027_663_000_000}

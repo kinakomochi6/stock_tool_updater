@@ -112,7 +112,7 @@ TAG_MAPPING = {
     "ConstructionInProgress": "有形_建設仮勘定",
     "ConstructionInProgressELE": "有形_建設仮勘定",
     "ConstructionAndRetirementInProgressNCAInProcessELE": "有形_建設仮勘定",
-    "NuclearPowerAbolitionInProgressELE": "有形_建設仮勘定",
+    "NuclearPowerAbolitionInProgressELE": "有形_原子力廃止仮勘定",
     "LeaseAssets": "有形_リース資産", "LeaseAssetsNet": "有形_リース資産",
     "LeaseAssetsPPE": "有形_リース資産", "LeaseAssetsNetPPE": "有形_リース資産",
     "RightOfUseAssetsPPE": "有形_リース資産", "RightOfUseAssetsNetPPE": "有形_リース資産",
@@ -125,14 +125,14 @@ TAG_MAPPING = {
     "BuildingsNet": "有形_建物・構築物",
     "VesselsNet": "有形_船舶", "AircraftNet": "有形_航空機", "EquipmentNetPPEWAT": "有形_航空関連設備",
     "ElectricUtilityPlantAndEquipmentAssetsELE": "有形_その他有形固定資産",
-    "DistributionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "TransmissionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "TransformationFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "HydroelectricPowerProductionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "ThermalPowerProductionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "NuclearPowerProductionFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "GeneralFacilitiesNCAElectricELE": "有形_その他有形固定資産",
-    "OtherElectricUtilityPlantAndEquipmentNCAElectricELE": "有形_その他有形固定資産",
+    "DistributionFacilitiesNCAElectricELE": "有形_配電設備",
+    "TransmissionFacilitiesNCAElectricELE": "有形_送電設備",
+    "TransformationFacilitiesNCAElectricELE": "有形_変電設備",
+    "HydroelectricPowerProductionFacilitiesNCAElectricELE": "有形_水力発電設備",
+    "ThermalPowerProductionFacilitiesNCAElectricELE": "有形_火力発電設備",
+    "NuclearPowerProductionFacilitiesNCAElectricELE": "有形_原子力発電設備",
+    "GeneralFacilitiesNCAElectricELE": "有形_電力一般設備",
+    "OtherElectricUtilityPlantAndEquipmentNCAElectricELE": "有形_その他電気事業設備",
     "OtherPPE": "有形_その他有形固定資産",
     "SecurityEquipmentAndControlStations": "有形_警備機器・管制局",
     "SecurityEquipmentAndControlStationsNetPPE": "有形_警備機器・管制局",
@@ -913,6 +913,71 @@ TAG_MAPPING = {
     "ElectronicallyRecordedObligationsFacilities": "流負_設備関係電子記録債務",
     "LongTermElectronicallyRecordedObligationsFacilities": "固負_設備関係電子記録債務",
     "AccruedBonuses": "流負_賞与引当金",
+    # Eighth-wave aliases: IFRS, banking, leasing, funds, and market operators.
+    "TradeReceivables2CAIFRS": "流動_売掛金",
+    "TradePayables2CLIFRS": "流負_支払手形・買掛金",
+    "RefundLiabilitiesCLIFRS": "流負_返品負債",
+    "TechnologyRelatedToResearchAndManufacturingIFRS": "無形_技術関連資産",
+    "IncomeTaxesPayableNCLIFRS": "固負_未払法人税等",
+    "FinancialAssetsNCAIFRS": "投資_その他金融資産",
+    "FinancialLiabilitiesNCLIFRS": "固負_その他金融負債",
+    "NotesAndOperationAccountsReceivableTradeAndContractAssets": "流動_受取手形・売掛金(合算)",
+    "TradeReceivablesAndElectronicallyRecordedMonetaryClaimsCA": "流動_受取手形・売掛金(合算)",
+    "AccountsReceivableMembersAssets": "投資_銀行会員未収金",
+    "ATMRelatedTemporaryPaymentsAssetsBNK": "投資_銀行ATM仮払金",
+    "ATMRelatedTemporaryAdvancesLiabilitiesBNK": "固負_銀行ATM仮受金",
+    "DepositsForElectronicMoneyLiabilities": "固負_電子マネー預り金",
+    "AccountsPayableForCreditCardBusinessLiabilities": "固負_カード事業未払金",
+    "ATMsNetPPE": "有形_ATM設備",
+    "TradingAccountSecuritiesAssetsBNK": "投資_銀行トレーディング有価証券",
+    "AmortizableLongTermGuaranteeDepositsReceivedNCL": "固負_償却性長期預り保証金",
+    "GolfCourses": "有形_ゴルフ場",
+    "ProvisionForStocksPayment": "固負_株式給付引当金",
+    "PFIAndOtherProjectsFinanceLoansNCL": "固負_PFI等長期借入金",
+    "CurrentPortionOfPFIAndOtherProjectsFinanceLoansCL": "流負_PFI等短期借入金",
+    "ProvisionForLossOnConstructionContractsVES": "流負_工事損失引当金",
+    "RightToOperatePublicFacilities": "無形_公共施設運営権",
+    "PatentRight": "無形_特許権",
+    "SemiFinishedGoods": "流動_棚卸資産",
+    "LongTermContractLiabilities": "固負_契約負債",
+    "AccountsPayableOtherCL": "流負_未払金",
+    "TechnologyAssets": "無形_技術関連資産",
+    "ProvisionForLossOnBusinessOfEuropeCL": "流負_欧州事業損失引当金",
+    "ProvisionForLossOnBusinessOfEuropeNCL": "固負_欧州事業損失引当金",
+    "LongTermAdvancesReceived": "固負_長期前受金",
+    "ThirdPartyInterestsInCEJFundIFRS": "固負_CEJファンド外部持分",
+    "OperatingLeaseAssetsIFRS": "有形_賃貸用資産",
+    "AccountReceivableAdvisoryFeeCA": "流動_助言報酬未収金",
+    "AccruedInvestmentTrustManagementFeeCAIVT": "流動_投資信託委託者報酬未収金",
+    "UnpaidCommissionCLIVT": "流負_未払委託手数料",
+    "OperatingLoanReceivablesCA": "流動_営業貸付金",
+    "OtherOperatingAssetsPPELEA": "有形_その他営業資産",
+    "OwnUsedAssetsPPELEA": "有形_自社使用資産",
+    "LeasePropertyIALEA": "無形_賃貸資産",
+    "ReserveForCarMaintenanceNCL": "固負_自動車整備費用引当金",
+    "ProvisionForLossOnRailwayLineLiquidationNCL": "固負_鉄道路線整理損失引当金",
+    "AllowanceForEnvironmentalSafetyMeasuresNCL": "固負_安全環境対策引当金",
+    "AccountsPayableRailwayEquipmentCLRWY": "流負_設備未払金",
+    "DepositsReceivedFromInvestmentsInSilentPartnershipsCL": "流負_匿名組合出資預り金",
+    "CrowdfundingDepositsReceivedCL": "流負_クラウドファンディング預り金",
+    "CashSegregatedAsDepositsCA": "流動_分別保管預金",
+    "DepositsInTheSecuritiesIndustryCA": "流動_証券業預け金",
+    "DepositsInTheSecuritiesIndustryCL": "流負_証券業預り金",
+    "GuaranteeDepositsCACMD": "流動_商品先物取引差入保証金",
+    "CustomersDepositsReceivedForCommodityFuturesTransactionCLCMD": "流負_商品先物取引顧客預り金",
+    "SecuritiesInCustodyCACMD": "流動_商品先物取引保管有価証券",
+    "SecuritiesReceivedAsCustomersDepositsForCommodityFuturesTransactionCLCMD": "流負_商品先物取引預り有価証券",
+    "CashAndDepositsRequiredToBeSegregatedUnderRegulationsCACMD": "流動_商品先物取引分離保管金",
+    "LongTermNonRecourseBorrowings": "固負_長期ノンリコース借入金",
+    "CurrentPortionOfGuaranteeDepositsReceived": "流負_1年内返済預り保証金",
+    "DepositsReceivedFromInvestmentsInSilentPartnerships": "固負_匿名組合出資預り金",
+    "ProvisionForExcutionOfAssumptionOfDebtNCL": "固負_債務引受履行引当金",
+    "CryptoAssetsCA": "流動_暗号資産",
+    "LongTermOperatingReceivablesIOA": "投資_長期営業債権",
+    "CostsOnUncompletedConstructionConstructs": "流動_未成工事支出金",
+    "MetalMoldToolNet": "有形_金型・工具",
+    "GuaranteeDepositsReceivedNCL": "固負_長期預り保証金",
+    "NonRecourseLongTermLoansPayable": "固負_長期ノンリコース借入金",
 }
 
 
@@ -927,11 +992,13 @@ DISPLAY_ORDER = [
     "流負_未払金", "流負_営業未払金", "流負_売買取引債務", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払石油諸税", "流負_未払法人税等", "流負_従業員給付未払金", "流負_前受金", "流負_未成工事受入金", "流負_リース前受金", "流負_契約負債", "流負_返品負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_委託販売預り金", "流負_匿名組合出資預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_清算業務金融負債", "流負_清算参加者預り金", "流負_取引参加者保証金", "流負_法定保証基金", "流負_有価証券担保借入金", "流負_証券業トレーディング商品", "流負_約定見越", "流負_証券業預り金", "流負_証券業受入保証金", "流負_信用取引負債", "流負_金融事業短期預金", "流負_有価証券貸借受入担保金", "流負_コールマネー", "流負_リース債務", "流負_資産除去債務", "流負_森林再生債務", "流負_有利子負債", "流負_引受債務支払額", "流負_賞与引当金", "流負_役員賞与引当金", "流負_株式報酬引当金", "流負_役員株式報酬引当金", "流負_本社移転費用引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_契約解約調整引当金", "流負_関係会社整理損失引当金", "流負_関係会社株式譲渡損失引当金", "流負_完成工事補償引当金", "流負_製品保証引当金", "流負_製品補償引当金", "流負_製品自主回収関連引当金", "流負_変動報酬引当金", "流負_利用者還元引当金", "流負_株主優待引当金", "流負_受注損失引当金", "流負_偶発損失引当金", "流負_災害損失引当金", "流負_修繕引当金", "流負_環境対策引当金", "流負_関税引当金", "流負_商品券回収損失引当金", "流負_将来不具合対策費用引当金", "流負_事業再編損失引当金", "流負_製品検査修理損失引当金", "流負_訴訟損失引当金", "流負_未使用商品券等引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_ポイント引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
     "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_劣後特約付借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_契約負債", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_利息返還損失引当金", "固負_製品保証引当金", "固負_製品補償引当金", "固負_ポイント引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_株式給付引当金", "固負_従業員持株ESOP引当金", "固負_債務保証損失引当金", "固負_契約損失引当金", "固負_特別修繕引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_内訳未分類", "固負_その他固定負債",
     "流動_営業貸付金", "流動_顧客向けその他貸付金", "流動_引受出資持分", "流動_販売用航空機等", "流動_短期差入保証金", "流動_関係会社預け金", "流動_貸借暗号資産", "流動_自己保有暗号資産", "流動_補填請求権", "流動_為替予約資産",
-    "有形_その他営業資産", "有形_自社使用資産", "有形_航空機部品", "無形_賃貸資産",
+    "有形_その他営業資産", "有形_自社使用資産", "有形_航空機部品", "有形_ATM設備", "有形_ゴルフ場", "有形_金型・工具",
+    "有形_水力発電設備", "有形_火力発電設備", "有形_原子力発電設備", "有形_送電設備", "有形_変電設備", "有形_配電設備", "有形_電力一般設備", "有形_その他電気事業設備", "有形_原子力廃止仮勘定", "無形_賃貸資産", "無形_公共施設運営権",
     "流動_銀行現金預け金", "流動_銀行貸出金", "流動_銀行業有価証券", "流動_銀行買入金銭債権", "流動_銀行トレーディング資産", "流動_銀行金銭の信託", "流動_銀行外国為替", "流動_銀行支払承諾見返", "流動_銀行貸倒引当金", "流動_銀行その他資産",
-    "投資_銀行現金預け金", "投資_銀行貸出金", "投資_銀行買入金銭債権", "投資_銀行トレーディング資産", "投資_銀行金銭の信託", "投資_銀行外国為替", "投資_銀行支払承諾見返", "投資_銀行リース債権", "投資_銀行割賦債権", "投資_銀行貸倒引当金", "投資_銀行その他資産", "投資_為替予約資産",
-    "流負_短期社債", "流負_商品券交換損失引当金", "流負_リース債権流動化債務", "流負_定期整備引当金", "流負_銀行譲渡性預金", "流負_銀行コールマネー", "流負_銀行売現先勘定", "流負_銀行債券貸借取引受入担保金", "流負_銀行借用金", "流負_銀行信託勘定借", "流負_銀行トレーディング負債", "流負_銀行外国為替", "流負_銀行支払承諾", "流負_銀行偶発損失引当金", "流負_銀行睡眠預金払戻損失引当金", "流負_銀行その他負債",
-    "固負_長期未払金", "固負_鉄道建設機構長期未払金", "固負_未払法人税等", "固負_修繕引当金", "固負_長期預り保証金", "固負_リース債権流動化債務", "固負_定期整備引当金", "固負_航空機返却引当金", "固負_自動車整備費用引当金", "固負_長期前受収益", "固負_匿名組合出資預り金", "固負_再生ファンド第三者持分", "固負_企業結合関連引当金", "固負_長期勤続報奨引当金", "固負_環境対策引当金", "固負_鉱害防止引当金", "固負_安全環境対策引当金", "固負_火災損失引当金", "固負_森林再生債務", "固負_役員賞与引当金", "固負_事業清算損失引当金", "固負_設備関係電子記録債務", "投資_保険積立資産", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行短期社債", "固負_銀行賞与引当金", "固負_銀行役員賞与引当金", "固負_銀行偶発損失引当金", "固負_銀行預金払戻損失引当金", "固負_銀行債券払戻損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債", "固負_保険責任準備金", "固負_契約者配当準備金", "固負_支払備金", "固負_保険売戻条件付債務", "固負_再保険借", "固負_保険その他金融負債", "固負_保険その他負債",
+    "投資_銀行現金預け金", "投資_銀行貸出金", "投資_銀行買入金銭債権", "投資_銀行トレーディング資産", "投資_銀行トレーディング有価証券", "投資_銀行金銭の信託", "投資_銀行外国為替", "投資_銀行支払承諾見返", "投資_銀行会員未収金", "投資_銀行ATM仮払金", "投資_銀行リース債権", "投資_銀行割賦債権", "投資_銀行貸倒引当金", "投資_銀行その他資産", "投資_為替予約資産",
+    "流負_短期社債", "流負_PFI等短期借入金", "流負_1年内返済預り保証金", "流負_設備未払金", "流負_商品券交換損失引当金", "流負_リース債権流動化債務", "流負_定期整備引当金", "流負_欧州事業損失引当金", "流負_クラウドファンディング預り金", "流負_未払委託手数料", "流負_商品先物取引顧客預り金", "流負_商品先物取引預り有価証券", "流負_銀行譲渡性預金", "流負_銀行コールマネー", "流負_銀行売現先勘定", "流負_銀行債券貸借取引受入担保金", "流負_銀行借用金", "流負_銀行信託勘定借", "流負_銀行トレーディング負債", "流負_銀行外国為替", "流負_銀行支払承諾", "流負_銀行偶発損失引当金", "流負_銀行睡眠預金払戻損失引当金", "流負_銀行その他負債",
+    "固負_長期未払金", "固負_鉄道建設機構長期未払金", "固負_PFI等長期借入金", "固負_未払法人税等", "固負_修繕引当金", "固負_長期預り保証金", "固負_償却性長期預り保証金", "固負_リース債権流動化債務", "固負_定期整備引当金", "固負_航空機返却引当金", "固負_自動車整備費用引当金", "固負_長期前受収益", "固負_長期前受金", "固負_匿名組合出資預り金", "固負_再生ファンド第三者持分", "固負_CEJファンド外部持分", "固負_企業結合関連引当金", "固負_長期勤続報奨引当金", "固負_環境対策引当金", "固負_鉱害防止引当金", "固負_安全環境対策引当金", "固負_火災損失引当金", "固負_森林再生債務", "固負_役員賞与引当金", "固負_事業清算損失引当金", "固負_欧州事業損失引当金", "固負_鉄道路線整理損失引当金", "固負_債務引受履行引当金", "固負_設備関係電子記録債務", "投資_保険積立資産", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行ATM仮受金", "固負_電子マネー預り金", "固負_カード事業未払金", "固負_銀行短期社債", "固負_銀行賞与引当金", "固負_銀行役員賞与引当金", "固負_銀行偶発損失引当金", "固負_銀行預金払戻損失引当金", "固負_銀行債券払戻損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債", "固負_保険責任準備金", "固負_契約者配当準備金", "固負_支払備金", "固負_保険売戻条件付債務", "固負_再保険借", "固負_保険その他金融負債", "固負_保険その他負債",
+    "流動_助言報酬未収金", "流動_投資信託委託者報酬未収金", "流動_証券業預け金", "流動_商品先物取引差入保証金", "流動_商品先物取引保管有価証券", "流動_商品先物取引分離保管金", "流動_暗号資産",
     "純資_資本金", "純資_資本剰余金", "純資_その他資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_累積換算調整額", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_内訳未分類", "純資_その他純資産"
 ]
 
@@ -1080,6 +1147,7 @@ INVENTORY_DETAIL_TAGS = {
     "FinishedGoods", "Merchandise", "Supplies",
     "CostsOnUncompletedConstructionContractsAndOtherCNS",
     "PartlyFinishedWork", "MaterialsAndStocksCA",
+    "SemiFinishedGoods", "CostsOnUncompletedConstructionConstructs",
 }
 INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
 OTHER_INVENTORY_SUBDETAIL_TAGS = {
@@ -1116,6 +1184,16 @@ PPE_DETAIL_TAGS = {
     "RenewablePowerProductionAndRelatedFacilitiesNCAElectricELE",
     "CommunicationFacilitiesNCAElectricELE",
 }
+ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS = {
+    "DistributionFacilitiesNCAElectricELE",
+    "TransmissionFacilitiesNCAElectricELE",
+    "TransformationFacilitiesNCAElectricELE",
+    "HydroelectricPowerProductionFacilitiesNCAElectricELE",
+    "ThermalPowerProductionFacilitiesNCAElectricELE",
+    "NuclearPowerProductionFacilitiesNCAElectricELE",
+    "GeneralFacilitiesNCAElectricELE",
+    "OtherElectricUtilityPlantAndEquipmentNCAElectricELE",
+}
 INTANGIBLE_EX_GOODWILL_SUMMARY_TAGS = {"IntangibleAssets", "IntangibleAssetsIFRS"}
 GOODWILL_AND_INTANGIBLE_SUMMARY_TAGS = {"GoodwillAndIntangibleAssetsIFRS"}
 INTANGIBLE_DETAIL_TAGS = {
@@ -1142,6 +1220,8 @@ INTANGIBLE_DETAIL_TAGS = {
     "IndustrialPropertyIFRS", "TechnicalAssetsIA", "ContractBasedIntangibleAssetsIA",
     "CustomerRelationshipAssetsIA", "CustomerRelatedAssetsIA", "CustomerRelationAssetsIA",
     "SalesRightsIA", "TechnologiesRelatedIntangibleAssets",
+    "TechnologyRelatedToResearchAndManufacturingIFRS", "TechnologyAssets",
+    "PatentRight", "RightToOperatePublicFacilities",
 }
 INTANGIBLE_OTHER_TOTAL_TAGS = {
     "OtherIntangibleAssetsIFRS",
@@ -1379,6 +1459,8 @@ def should_skip_item_tag(tag, raw_tags):
         return "trade_payable_detail_skipped_because_combined_total_exists"
     if tag in PPE_SUMMARY_TAGS and any(k in raw_tags for k in PPE_DETAIL_TAGS):
         return "ppe_summary_skipped_because_details_exist"
+    if tag in ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS and "ElectricUtilityPlantAndEquipmentAssetsELE" in raw_tags:
+        return "electric_utility_facility_detail_skipped_because_total_exists"
     non_goodwill_details = INTANGIBLE_DETAIL_TAGS - {"Goodwill", "GoodwillIFRS"}
     if tag in INTANGIBLE_EX_GOODWILL_SUMMARY_TAGS and any(k in raw_tags for k in non_goodwill_details):
         return "intangible_summary_skipped_because_details_exist"
@@ -1653,10 +1735,12 @@ COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS = {
     "TradeNotesAndAccountsReceivableTradeAndContractAssetsCA",
     "NotesAndAccountsReceivableTradeAndContractAssetsCA",
     "AccountsReceivableAndContractAssetsCA",
+    "NotesAndOperationAccountsReceivableTradeAndContractAssets",
 }
 COMBINED_RECEIVABLE_TAGS_WITH_OTHER_CLAIMS = {
     "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS",
     "NotesReceivableAccountsReceivableFromCompletedConstructionContractsContractAssetsAndOtherCA",
+    "TradeReceivablesAndElectronicallyRecordedMonetaryClaimsCA",
 }
 
 def reconcile_receivable_presentation(summary, totals, raw_tags):
@@ -1814,6 +1898,11 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
             "InvestmentsAndOtherAssets",
             "投資_その他固定資産",
             lambda key: key.startswith("投資_"),
+        ),
+        (
+            "PlantAndEquipmentAndIntangibleAssetsELE",
+            "有形_その他有形固定資産",
+            lambda key: key.startswith(("有形_", "無形_")) and key != "有形_減価償却累計額",
         ),
     ]
     total = totals.get("NonCurrentAssets", 0)
