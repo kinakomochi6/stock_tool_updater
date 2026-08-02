@@ -198,7 +198,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流動_完成工事未収入金・契約資産"], 94_535_000_000)
         self.assertEqual(summary["無形_採掘権"], 615_444_000_000)
         self.assertEqual(summary["有形_立木"], 44_575_000_000)
-        self.assertEqual(summary["流動_その他金融資産"], 62_721_000_000)
+        self.assertEqual(summary["流動_拘束性預金"], 62_721_000_000)
         self.assertEqual(summary["投資_その他金融資産"], 34_975_000_000)
         self.assertEqual(summary["無形_ソフトウエア仮勘定"], 2_333_000_000)
         self.assertEqual(summary["投資_銀行リース債権"], 13_667_000_000)
@@ -228,6 +228,55 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["固負_製品保証引当金"], 1_413_000_000)
         self.assertEqual(summary["固負_安全環境対策引当金"], 712_000_000)
         self.assertEqual(summary["固負_劣後特約付借入金"], 1_800_000_000)
+
+    def test_fifth_wave_presentation_lines_stay_in_distinct_categories(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AdvancePaymentsTrade": 1_256_000_000,
+            "AdvancesPaid": 3_894_000_000,
+            "DepositsPaid": 4_189_000_000,
+            "TrustBeneficiaryRightIOA": 3_046_000_000,
+            "RestrictedDepositsCAIFRS": 62_721_000_000,
+            "LeaseAssetsNetPPE": 7_116_800_000,
+            "RightOfUseAssetsNetPPE": 2_665_200_000,
+            "IntangibleAssetsIA": 2_931_000_000,
+            "IntangibleLeasedAssets": 184_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_前渡金"], 1_256_000_000)
+        self.assertEqual(summary["流動_立替金"], 3_894_000_000)
+        self.assertEqual(summary["流動_預け金"], 4_189_000_000)
+        self.assertEqual(summary["流動_信託受益権"], 3_046_000_000)
+        self.assertEqual(summary["流動_拘束性預金"], 62_721_000_000)
+        self.assertEqual(summary["有形_リース資産"], 7_116_800_000)
+        self.assertEqual(summary["有形_使用権資産"], 2_665_200_000)
+        self.assertEqual(summary["無形_無形資産"], 2_931_000_000)
+        self.assertEqual(summary["無形_賃貸資産"], 184_000_000)
+
+    def test_construction_contract_liability_note_is_not_double_counted(self):
+        raw_tags = {
+            "ContractLiabilities": 320_507_000_000,
+            "AdvancesReceivedOfContractLiabilities": 76_823_000_000,
+            "AdvancesReceivedOnUncompletedConstructionContractsCNS": 243_683_000_000,
+            "AdvancesReceived": 140_055_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("ContractLiabilities", raw_tags),
+            "contract_liability_note_skipped_because_reported_advance_lines_exist",
+        )
+
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "AdvancesReceived", raw_tags["AdvancesReceived"])
+        apply_mapped_tag(
+            summary,
+            "AdvancesReceivedOnUncompletedConstructionContractsCNS",
+            raw_tags["AdvancesReceivedOnUncompletedConstructionContractsCNS"],
+        )
+        self.assertEqual(summary["流負_前受金"], 140_055_000_000)
+        self.assertEqual(summary["流負_未成工事受入金"], 243_683_000_000)
 
     def test_combined_ifrs_debt_variants_replace_borrowing_and_lease_details(self):
         raw_tags = {
@@ -528,6 +577,7 @@ class MappingTests(unittest.TestCase):
         for tag, value in values.items():
             apply_mapped_tag(summary, tag, value)
         summary["流動_リース債権"] = 105_308_000_000
+        summary["流動_割賦売掛金"] = 1_384_050_000_000
 
         adjustments = reconcile_bank_presentation(
             summary,
@@ -537,8 +587,11 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(summary["流動_リース債権"], 0)
         self.assertEqual(summary["投資_銀行リース債権"], 105_308_000_000)
+        self.assertEqual(summary["流動_割賦売掛金"], 0)
+        self.assertEqual(summary["投資_銀行割賦債権"], 1_384_050_000_000)
         self.assertEqual(summary["投資_銀行貸倒引当金"], -535_920_000_000)
         self.assertEqual(adjustments[0]["reason"], "bank_statement_has_no_current_noncurrent_split")
+        self.assertEqual(len(adjustments), 2)
         self.assertEqual(
             should_skip_item_tag("CashAndCashEquivalents", values),
             "general_cash_skipped_because_bank_cash_exists",
