@@ -278,6 +278,67 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_前受金"], 140_055_000_000)
         self.assertEqual(summary["流負_未成工事受入金"], 243_683_000_000)
 
+    def test_sixth_wave_extensions_map_to_reported_sections(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "NotesAndAccountsRecieavableTradeCA": 4_363_000_000,
+            "LandForDevelopmentCA": 710_000_000,
+            "CustomerBaseIA": 3_491_000_000,
+            "CashPaidForOfferingCASEC": 3_122_000_000,
+            "ContractCancellationAdjustmentReserveCL": 2_653_000_000,
+            "ProvisionForLossOnLiquidationOfSubsidiariesAndAffiliatesCL": 2_325_000_000,
+            "ProvisionForProductCompensationCL": 300_000_000,
+            "ProvisionForProductCompensationNCL": 435_000_000,
+            "ReserveForReimbursementOfDeposits": 570_000_000,
+            "ReserveForReimbursementOfDebentures": 2_778_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_受取手形・売掛金(合算)"], 4_363_000_000)
+        self.assertEqual(summary["流動_販売用不動産"], 710_000_000)
+        self.assertEqual(summary["無形_顧客関連資産"], 3_491_000_000)
+        self.assertEqual(summary["流動_募集等払込金"], 3_122_000_000)
+        self.assertEqual(summary["流負_契約解約調整引当金"], 2_653_000_000)
+        self.assertEqual(summary["流負_関係会社整理損失引当金"], 2_325_000_000)
+        self.assertEqual(summary["流負_製品補償引当金"], 300_000_000)
+        self.assertEqual(summary["固負_製品補償引当金"], 435_000_000)
+        self.assertEqual(summary["固負_銀行預金払戻損失引当金"], 570_000_000)
+        self.assertEqual(summary["固負_銀行債券払戻損失引当金"], 2_778_000_000)
+
+    def test_construction_receivables_reconcile_after_face_inventory_lines_are_kept(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary.update({
+            "流動_現金及び預金": 434_371_000_000,
+            "流動_受取手形・売掛金(合算)": 552_672_000_000,
+            "流動_電子記録債権": 14_459_000_000,
+            "流動_契約資産": 252_421_000_000,
+            "流動_リース債権": 150_722_000_000,
+            "流動_金融債権": 39_743_000_000,
+            "流動_有価証券": 195_000_000,
+            "流動_未成工事支出金": 74_010_000_000,
+            "流動_販売用不動産": 3_064_378_000_000,
+            "流動_棚卸資産": 41_251_000_000,
+            "流動_その他流動資産": 348_538_000_000,
+            "流動_貸倒引当金": -3_188_000_000,
+        })
+        raw_tags = {
+            "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS": 552_672_000_000,
+            "ElectronicallyRecordedMonetaryClaims": 14_459_000_000,
+            "ContractAssets": 252_421_000_000,
+        }
+
+        result = reconcile_receivable_presentation(
+            summary,
+            {"CurrentAssets": 4_702_696_000_000},
+            raw_tags,
+        )
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertTrue(result["combined_includes_other_claims"])
+        self.assertEqual(summary["流動_電子記録債権"], 0)
+        self.assertEqual(sum(v for k, v in summary.items() if k.startswith("流動_")), 4_702_692_000_000)
+
     def test_combined_ifrs_debt_variants_replace_borrowing_and_lease_details(self):
         raw_tags = {
             "BondsBorrowingsAndLeaseLiabilitiesCLIFRS": 443_307_000_000,
@@ -596,6 +657,35 @@ class MappingTests(unittest.TestCase):
             should_skip_item_tag("CashAndCashEquivalents", values),
             "general_cash_skipped_because_bank_cash_exists",
         )
+
+    def test_bank_unsplit_statement_moves_generic_face_liabilities(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        raw_tags = {
+            "DepositsLiabilitiesBNK": 13_021_673_000_000,
+            "ShortTermBondsPayable": 105_500_000_000,
+            "ProvisionForBonuses": 12_468_000_000,
+            "ProvisionForDirectorsBonuses": 18_000_000,
+            "ReserveForReimbursementOfDeposits": 570_000_000,
+            "ReserveForReimbursementOfDebentures": 2_778_000_000,
+        }
+        for tag, value in raw_tags.items():
+            apply_mapped_tag(summary, tag, value)
+
+        adjustments = reconcile_bank_presentation(
+            summary,
+            {"CurrentAssets": 0, "CurrentLiabilities": 0},
+            raw_tags,
+        )
+
+        self.assertEqual(summary["流負_短期社債"], 0)
+        self.assertEqual(summary["固負_銀行短期社債"], 105_500_000_000)
+        self.assertEqual(summary["流負_賞与引当金"], 0)
+        self.assertEqual(summary["固負_銀行賞与引当金"], 12_468_000_000)
+        self.assertEqual(summary["流負_役員賞与引当金"], 0)
+        self.assertEqual(summary["固負_銀行役員賞与引当金"], 18_000_000)
+        self.assertEqual(summary["固負_銀行預金払戻損失引当金"], 570_000_000)
+        self.assertEqual(summary["固負_銀行債券払戻損失引当金"], 2_778_000_000)
+        self.assertEqual(len(adjustments), 3)
 
     def test_leasing_parent_aliases_are_skipped_for_preferred_totals(self):
         raw_tags = {
@@ -982,7 +1072,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流動_棚卸資産"], 1_335_000_000)
         self.assertEqual(summary["投資_投資有価証券"], 449_524_000_000)
 
-    def test_construction_materials_are_skipped_when_contract_costs_include_them(self):
+    def test_construction_materials_are_kept_separate_from_contract_costs(self):
         reason = should_skip_item_tag(
             "RawMaterialsAndSuppliesCNS",
             {
@@ -991,10 +1081,18 @@ class MappingTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(
-            reason,
-            "construction_materials_skipped_because_uncompleted_contract_costs_exist",
+        self.assertIsNone(reason)
+
+    def test_construction_contract_costs_are_skipped_when_inventory_total_exists(self):
+        reason = should_skip_item_tag(
+            "CostsOnUncompletedConstructionContractsCNS",
+            {
+                "Inventories": 23_283_500_000,
+                "CostsOnUncompletedConstructionContractsCNS": 362_300_000,
+            },
         )
+
+        self.assertEqual(reason, "inventory_detail_skipped_because_total_exists")
 
     def test_aggregate_accumulated_depreciation_is_used_when_it_reconciles_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
