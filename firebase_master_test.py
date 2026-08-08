@@ -992,6 +992,8 @@ TAG_MAPPING = {
     "CurrentReserveForLossOnDisasterCL": "流負_災害損失引当金",
     "NonCurrentReserveForLossOnDisasterNCL": "固負_災害損失引当金",
     "ProvisionForLossInConjunctionWithDiscontinuedOperationsOfNuclearPowerPlantsNCLELE": "固負_原子力発電所廃止損失引当金",
+    "HybridCapitalEquityIFRS": "純資_その他資本性金融商品",
+    "TrustBeneficiaryRightCA": "流動_信託受益権",
 }
 
 

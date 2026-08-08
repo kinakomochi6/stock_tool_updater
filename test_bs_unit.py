@@ -1462,6 +1462,8 @@ class MappingTests(unittest.TestCase):
             "ProvisionForLossOnClosingOfPlantsCL": 413_000_000,
             "NonCurrentReserveForLossOnDisasterNCL": 12_047_000_000,
             "ProvisionForLossInConjunctionWithDiscontinuedOperationsOfNuclearPowerPlantsNCLELE": 4_276_000_000,
+            "HybridCapitalEquityIFRS": 120_672_000_000,
+            "TrustBeneficiaryRightCA": 1_823_000_000,
         }
         for tag, value in values.items():
             apply_mapped_tag(summary, tag, value)
@@ -1478,6 +1480,8 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流負_工場閉鎖損失引当金"], 413_000_000)
         self.assertEqual(summary["固負_災害損失引当金"], 12_047_000_000)
         self.assertEqual(summary["固負_原子力発電所廃止損失引当金"], 4_276_000_000)
+        self.assertEqual(summary["純資_その他資本性金融商品"], 120_672_000_000)
+        self.assertEqual(summary["流動_信託受益権"], 1_823_000_000)
 
     def test_current_disaster_reserve_is_removed_when_included_in_other(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
