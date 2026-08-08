@@ -163,7 +163,7 @@ TAG_MAPPING = {
     "AccountsPayableOther": "流負_未払金", "AccruedExpenses": "流負_未払費用",
     "AccruedConsumptionTaxes": "流負_未払消費税等",
     "IncomeTaxesPayable": "流負_未払法人税等", "AdvancesReceived": "流負_前受金",
-    "UnearnedRevenue": "流負_前受金",
+    "UnearnedRevenue": "流負_繰延収益",
     "AdvancesReceivedOnUncompletedConstructionContracts": "流負_前受金", "ContractLiabilities": "流負_契約負債",
     "AdvancesReceivedOnUncompletedConstructionContractsCNS": "流負_前受金", "PrepaidFaresReceivedCLRWY": "流負_前受運賃", "InterLineFaresReceivedCLRWY": "流負_連絡運賃預り金", "DepositsReceived": "流負_預り金",
     "LeaseObligationsCurrent": "流負_リース債務", "LeaseObligationsCL": "流負_リース債務", "ProvisionForBonuses": "流負_賞与引当金",
@@ -772,7 +772,7 @@ TAG_MAPPING = {
     "LeasePaymentsReceivableCA": "流動_リース料債権",
     "OtherOperatingAssetsCALEA": "流動_リースその他営業資産",
     "AdvancesReceivedLeaseCLLEA": "流負_リース前受金",
-    "CurrentPortionOfLongTermPayablesUnderFluidityLeaseReceivablesCLLEA": "流負_リース債権流動化債務",
+    "CurrentPortionOfLongTermPayablesUnderFluidityLeaseReceivablesCLLEA": "流負_1年内返済リース債権流動化債務",
     "UnderwritingDebtPaymentCL": "流負_引受債務支払額",
     "ProvisionForAutomobileMaintenanceCostsNCL": "固負_自動車整備費用引当金",
     "LongTermInvestments": "投資_投資有価証券",
@@ -978,6 +978,20 @@ TAG_MAPPING = {
     "MetalMoldToolNet": "有形_金型・工具",
     "GuaranteeDepositsReceivedNCL": "固負_長期預り保証金",
     "NonRecourseLongTermLoansPayable": "固負_長期ノンリコース借入金",
+    # Ninth-wave aliases: presentation variants shared across multiple industries.
+    "ScDoqpsitsCA": "流動_預け金",
+    "ProvisionForShareBasedCompensationLiabilitiesBNK": "固負_株式報酬引当金",
+    "ElectronicallyRecordedObligationsNonOperatingCL": "流負_営業外電子記録債務",
+    "PowerProductionFacilitiesConcessionsIA": "無形_発電権",
+    "GuaranteeDepositsCA": "流動_短期差入保証金",
+    "TradeDateAccrualCASEC": "流動_約定見越",
+    "LandUseRightsIA": "無形_借地権",
+    "ProvisionForDecommissioningAndRemovalNCL": "固負_資産除去債務",
+    "NotesPayableAndElectronicallyRecordedObligationsOperatingCL": "流負_支払手形・電子記録債務",
+    "ProvisionForLossOnClosingOfPlantsCL": "流負_工場閉鎖損失引当金",
+    "CurrentReserveForLossOnDisasterCL": "流負_災害損失引当金",
+    "NonCurrentReserveForLossOnDisasterNCL": "固負_災害損失引当金",
+    "ProvisionForLossInConjunctionWithDiscontinuedOperationsOfNuclearPowerPlantsNCLELE": "固負_原子力発電所廃止損失引当金",
 }
 
 
@@ -991,13 +1005,13 @@ DISPLAY_ORDER = [
     "流負_支払手形・買掛金", "流負_支払手形", "流負_工事関係支払手形・買掛金", "流負_工事関係買掛金", "流負_電子記録債務", "流負_設備関係電子記録債務", "流負_設備関係支払手形", "流負_加盟店買掛金", "流負_短期借入金", "流負_関係会社短期借入金", "流負_1年内返済長期借入金", "流負_関係会社1年内返済長期借入金", "流負_1年内返済設備未払金", "流負_1年内返済固定負債", "流負_1年内償還社債", "流負_CP",
     "流負_未払金", "流負_営業未払金", "流負_売買取引債務", "流負_未払費用", "流負_未払消費税等", "流負_未払税金", "流負_未払石油諸税", "流負_未払法人税等", "流負_従業員給付未払金", "流負_前受金", "流負_未成工事受入金", "流負_リース前受金", "流負_契約負債", "流負_返品負債", "流負_前受運賃", "流負_連絡運賃預り金", "流負_繰延収益", "流負_割賦販売繰延利益", "流負_預り金", "流負_委託販売預り金", "流負_匿名組合出資預り金", "流負_集配金業務預り金", "流負_銀行預金", "流負_清算業務金融負債", "流負_清算参加者預り金", "流負_取引参加者保証金", "流負_法定保証基金", "流負_有価証券担保借入金", "流負_証券業トレーディング商品", "流負_約定見越", "流負_証券業預り金", "流負_証券業受入保証金", "流負_信用取引負債", "流負_金融事業短期預金", "流負_有価証券貸借受入担保金", "流負_コールマネー", "流負_リース債務", "流負_資産除去債務", "流負_森林再生債務", "流負_有利子負債", "流負_引受債務支払額", "流負_賞与引当金", "流負_役員賞与引当金", "流負_株式報酬引当金", "流負_役員株式報酬引当金", "流負_本社移転費用引当金", "流負_債務保証損失引当金", "流負_契約損失引当金", "流負_契約解約調整引当金", "流負_関係会社整理損失引当金", "流負_関係会社株式譲渡損失引当金", "流負_完成工事補償引当金", "流負_製品保証引当金", "流負_製品補償引当金", "流負_製品自主回収関連引当金", "流負_変動報酬引当金", "流負_利用者還元引当金", "流負_株主優待引当金", "流負_受注損失引当金", "流負_偶発損失引当金", "流負_災害損失引当金", "流負_修繕引当金", "流負_環境対策引当金", "流負_関税引当金", "流負_商品券回収損失引当金", "流負_将来不具合対策費用引当金", "流負_事業再編損失引当金", "流負_製品検査修理損失引当金", "流負_訴訟損失引当金", "流負_未使用商品券等引当金", "流負_短期ノンリコース借入金", "流負_1年内償還ノンリコース社債", "流負_引当金", "流負_ポイント引当金", "流負_関係会社事業損失引当金", "流負_販売促進引当金", "流負_工事損失引当金", "流負_製品保証負債", "流負_その他金融負債", "流負_デリバティブ負債", "流負_売却目的保有関連負債", "流負_映画分野参加負債", "流負_その他流動負債",
     "固負_社債", "固負_転換社債型新株予約権付社債", "固負_ノンリコース社債", "固負_長期借入金", "固負_劣後特約付借入金", "固負_有利子負債", "固負_中央新幹線建設長期借入金", "固負_関係会社長期借入金", "固負_長期ノンリコース借入金", "固負_リース債務", "固負_退職給付引当金", "固負_資産除去債務", "固負_長期預り金", "固負_銀行長期預金", "固負_契約負債", "固負_繰延税金負債", "固負_土地再評価繰延税金負債", "固負_引当金", "固負_利息返還損失引当金", "固負_製品保証引当金", "固負_製品補償引当金", "固負_ポイント引当金", "固負_役員退職慰労引当金", "固負_株式報酬引当金", "固負_株式給付引当金", "固負_従業員持株ESOP引当金", "固負_債務保証損失引当金", "固負_契約損失引当金", "固負_特別修繕引当金", "固負_業務災害補償引当金", "固負_商品券回収損引当金", "固負_長期設備未払金", "固負_大規模改修引当金", "固負_災害損失引当金", "固負_原子力廃炉関連未払金", "固負_原子力損害賠償引当金", "固負_炉心除去準備引当金", "固負_炉心除去引当金", "固負_特別法上準備金", "固負_価格変動準備金", "固負_長期営業債務", "固負_長期繰延収益", "固負_保険契約準備金", "固負_負ののれん", "固負_その他金融負債", "固負_SVF外部持分", "固負_デリバティブ負債", "固負_映画分野参加負債", "固負_内訳未分類", "固負_その他固定負債",
-    "流動_営業貸付金", "流動_顧客向けその他貸付金", "流動_引受出資持分", "流動_販売用航空機等", "流動_短期差入保証金", "流動_関係会社預け金", "流動_貸借暗号資産", "流動_自己保有暗号資産", "流動_補填請求権", "流動_為替予約資産",
+    "流動_営業貸付金", "流動_顧客向けその他貸付金", "流動_引受出資持分", "流動_販売用航空機等", "流動_短期差入保証金", "流動_関係会社預け金", "流動_貸借暗号資産", "流動_自己保有暗号資産", "流動_補填請求権", "流動_為替予約資産", "流動_約定見越",
     "有形_その他営業資産", "有形_自社使用資産", "有形_航空機部品", "有形_ATM設備", "有形_ゴルフ場", "有形_金型・工具",
     "有形_水力発電設備", "有形_火力発電設備", "有形_原子力発電設備", "有形_送電設備", "有形_変電設備", "有形_配電設備", "有形_電力一般設備", "有形_その他電気事業設備", "有形_原子力廃止仮勘定", "無形_賃貸資産", "無形_公共施設運営権",
     "流動_銀行現金預け金", "流動_銀行貸出金", "流動_銀行業有価証券", "流動_銀行買入金銭債権", "流動_銀行トレーディング資産", "流動_銀行金銭の信託", "流動_銀行外国為替", "流動_銀行支払承諾見返", "流動_銀行貸倒引当金", "流動_銀行その他資産",
     "投資_銀行現金預け金", "投資_銀行貸出金", "投資_銀行買入金銭債権", "投資_銀行トレーディング資産", "投資_銀行トレーディング有価証券", "投資_銀行金銭の信託", "投資_銀行外国為替", "投資_銀行支払承諾見返", "投資_銀行会員未収金", "投資_銀行ATM仮払金", "投資_銀行リース債権", "投資_銀行割賦債権", "投資_銀行貸倒引当金", "投資_銀行その他資産", "投資_為替予約資産",
-    "流負_短期社債", "流負_PFI等短期借入金", "流負_1年内返済預り保証金", "流負_設備未払金", "流負_商品券交換損失引当金", "流負_リース債権流動化債務", "流負_定期整備引当金", "流負_欧州事業損失引当金", "流負_クラウドファンディング預り金", "流負_未払委託手数料", "流負_商品先物取引顧客預り金", "流負_商品先物取引預り有価証券", "流負_銀行譲渡性預金", "流負_銀行コールマネー", "流負_銀行売現先勘定", "流負_銀行債券貸借取引受入担保金", "流負_銀行借用金", "流負_銀行信託勘定借", "流負_銀行トレーディング負債", "流負_銀行外国為替", "流負_銀行支払承諾", "流負_銀行偶発損失引当金", "流負_銀行睡眠預金払戻損失引当金", "流負_銀行その他負債",
-    "固負_長期未払金", "固負_鉄道建設機構長期未払金", "固負_PFI等長期借入金", "固負_未払法人税等", "固負_修繕引当金", "固負_長期預り保証金", "固負_償却性長期預り保証金", "固負_リース債権流動化債務", "固負_定期整備引当金", "固負_航空機返却引当金", "固負_自動車整備費用引当金", "固負_長期前受収益", "固負_長期前受金", "固負_匿名組合出資預り金", "固負_再生ファンド第三者持分", "固負_CEJファンド外部持分", "固負_企業結合関連引当金", "固負_長期勤続報奨引当金", "固負_環境対策引当金", "固負_鉱害防止引当金", "固負_安全環境対策引当金", "固負_火災損失引当金", "固負_森林再生債務", "固負_役員賞与引当金", "固負_事業清算損失引当金", "固負_欧州事業損失引当金", "固負_鉄道路線整理損失引当金", "固負_債務引受履行引当金", "固負_設備関係電子記録債務", "投資_保険積立資産", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行ATM仮受金", "固負_電子マネー預り金", "固負_カード事業未払金", "固負_銀行短期社債", "固負_銀行賞与引当金", "固負_銀行役員賞与引当金", "固負_銀行偶発損失引当金", "固負_銀行預金払戻損失引当金", "固負_銀行債券払戻損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債", "固負_保険責任準備金", "固負_契約者配当準備金", "固負_支払備金", "固負_保険売戻条件付債務", "固負_再保険借", "固負_保険その他金融負債", "固負_保険その他負債",
+    "流負_短期社債", "流負_PFI等短期借入金", "流負_1年内返済預り保証金", "流負_設備未払金", "流負_商品券交換損失引当金", "流負_リース債権流動化債務", "流負_1年内返済リース債権流動化債務", "流負_営業外電子記録債務", "流負_支払手形・電子記録債務", "流負_工場閉鎖損失引当金", "流負_定期整備引当金", "流負_欧州事業損失引当金", "流負_クラウドファンディング預り金", "流負_未払委託手数料", "流負_商品先物取引顧客預り金", "流負_商品先物取引預り有価証券", "流負_銀行譲渡性預金", "流負_銀行コールマネー", "流負_銀行売現先勘定", "流負_銀行債券貸借取引受入担保金", "流負_銀行借用金", "流負_銀行信託勘定借", "流負_銀行トレーディング負債", "流負_銀行外国為替", "流負_銀行支払承諾", "流負_銀行偶発損失引当金", "流負_銀行睡眠預金払戻損失引当金", "流負_銀行その他負債",
+    "固負_長期未払金", "固負_鉄道建設機構長期未払金", "固負_PFI等長期借入金", "固負_未払法人税等", "固負_修繕引当金", "固負_長期預り保証金", "固負_償却性長期預り保証金", "固負_リース債権流動化債務", "固負_定期整備引当金", "固負_航空機返却引当金", "固負_自動車整備費用引当金", "固負_長期前受収益", "固負_長期前受金", "固負_匿名組合出資預り金", "固負_再生ファンド第三者持分", "固負_CEJファンド外部持分", "固負_企業結合関連引当金", "固負_長期勤続報奨引当金", "固負_環境対策引当金", "固負_鉱害防止引当金", "固負_安全環境対策引当金", "固負_火災損失引当金", "固負_森林再生債務", "固負_役員賞与引当金", "固負_事業清算損失引当金", "固負_欧州事業損失引当金", "固負_鉄道路線整理損失引当金", "固負_債務引受履行引当金", "固負_原子力発電所廃止損失引当金", "固負_設備関係電子記録債務", "投資_保険積立資産", "固負_銀行預金", "固負_銀行譲渡性預金", "固負_銀行コールマネー", "固負_銀行売現先勘定", "固負_銀行債券貸借取引受入担保金", "固負_銀行借用金", "固負_銀行信託勘定借", "固負_銀行トレーディング負債", "固負_銀行外国為替", "固負_銀行支払承諾", "固負_銀行ATM仮受金", "固負_電子マネー預り金", "固負_カード事業未払金", "固負_銀行短期社債", "固負_銀行賞与引当金", "固負_銀行役員賞与引当金", "固負_銀行偶発損失引当金", "固負_銀行預金払戻損失引当金", "固負_銀行債券払戻損失引当金", "固負_銀行睡眠預金払戻損失引当金", "固負_銀行その他負債", "固負_保険責任準備金", "固負_契約者配当準備金", "固負_支払備金", "固負_保険売戻条件付債務", "固負_再保険借", "固負_保険その他金融負債", "固負_保険その他負債",
     "流動_助言報酬未収金", "流動_投資信託委託者報酬未収金", "流動_証券業預け金", "流動_商品先物取引差入保証金", "流動_商品先物取引保管有価証券", "流動_商品先物取引分離保管金", "流動_暗号資産",
     "純資_資本金", "純資_資本剰余金", "純資_その他資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_累積換算調整額", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_内訳未分類", "純資_その他純資産"
 ]
@@ -1701,6 +1715,7 @@ OTHER_CATEGORIES = [
 OTHER_DELTA_WARNING_CAP = 100_000_000_000  # 1,000億円。大会社でも絶対額の大きなズレを見逃さない。
 
 OPTIONAL_DUPLICATE_CATEGORIES = [
+    ("流動_契約資産", "流動_", "CurrentAssets", "流動_その他流動資産"),
     ("流負_前受金", "流負_", "CurrentLiabilities", "流負_その他流動負債"),
     ("流負_契約負債", "流負_", "CurrentLiabilities", "流負_その他流動負債"),
     ("固負_契約負債", "固負_", "NonCurrentLiabilities", "固負_その他固定負債"),
@@ -1719,6 +1734,8 @@ OPTIONAL_DUPLICATE_CATEGORIES = [
 REMOVE_WHEN_SECTION_FIT_IMPROVES = {
     # Some filers expose the current portion both as a separate line and in other liabilities.
     "流負_資産除去債務",
+    "流負_災害損失引当金",
+    "流負_工場閉鎖損失引当金",
 }
 
 COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS = {
@@ -1748,8 +1765,9 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
     detail_categories = {
         "流動_受取手形", "流動_売掛金", "流動_電子記録債権", "流動_契約資産",
     }
+    detail_values = {category: summary.get(category, 0) for category in detail_categories}
     combined_value = summary.get(combined_category, 0)
-    separate_value = sum(summary.get(k, 0) for k in detail_categories)
+    separate_value = sum(detail_values.values())
     if combined_value <= 0 or separate_value <= 0:
         return None
 
@@ -1794,11 +1812,44 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
                 if abs(delta_remove) + tolerance < abs(delta_keep):
                     summary["流動_電子記録債権"] = 0
                     includes_other_claims = True
+        restored_details = []
+        restored_delta_before = None
+        restored_delta_after = None
+        if current_assets:
+            restored_delta_before = current_assets - sum(
+                value for key, value in summary.items() if key.startswith("流動_")
+            )
+            restore_candidates = [
+                (category, value)
+                for category, value in detail_values.items()
+                if value > 0 and summary.get(category, 0) == 0
+            ]
+            best_combo = None
+            best_delta = restored_delta_before
+            for size in range(1, len(restore_candidates) + 1):
+                for combo in combinations(restore_candidates, size):
+                    delta_after = restored_delta_before - sum(value for _, value in combo)
+                    if abs(delta_after) < abs(best_delta):
+                        best_combo = combo
+                        best_delta = delta_after
+            tolerance = max(abs(current_assets) * 0.0001, 1_000_000)
+            if (
+                best_combo
+                and abs(best_delta) < abs(restored_delta_before) * 0.25
+                and abs(best_delta) + tolerance < abs(restored_delta_before)
+            ):
+                for category, value in best_combo:
+                    summary[category] = value
+                    restored_details.append(category)
+                restored_delta_after = best_delta
         selected = "combined"
     else:
         summary[combined_category] = 0
         selected = "separate"
         includes_other_claims = False
+        restored_details = []
+        restored_delta_before = None
+        restored_delta_after = None
 
     return {
         "selected": selected,
@@ -1806,33 +1857,13 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
         "separate_delta": separate_delta,
         "combined_includes_contract_assets": includes_contract_assets,
         "combined_includes_other_claims": includes_other_claims,
+        "restored_detail_categories": restored_details,
+        "restored_delta_before": restored_delta_before,
+        "restored_delta_after": restored_delta_after,
     }
 
 def reconcile_optional_duplicate_categories(summary, totals):
     adjustments = []
-    for category in REMOVE_WHEN_SECTION_FIT_IMPROVES:
-        value = summary.get(category, 0)
-        total = totals.get("CurrentLiabilities", 0)
-        if value <= 0 or total == 0:
-            continue
-        other_category = "流負_その他流動負債"
-        reported_other = summary.get(other_category, 0)
-        subtotal = sum(
-            amount for key, amount in summary.items()
-            if key.startswith("流負_") and key != other_category
-        )
-        delta_before = total - subtotal - reported_other
-        delta_after = delta_before + value
-        if abs(delta_after) < abs(delta_before):
-            summary[category] = 0
-            adjustments.append({
-                "category": category,
-                "value": value,
-                "reason": "section_total_indicates_ambiguous_current_detail_duplicate",
-                "delta_before": delta_before,
-                "delta_after": delta_after,
-            })
-
     groups = {}
     for category, prefix, total_key, other_category in OPTIONAL_DUPLICATE_CATEGORIES:
         value = summary.get(category, 0)
@@ -1868,6 +1899,31 @@ def reconcile_optional_duplicate_categories(summary, totals):
                     "delta_before": delta_before,
                     "delta_after": best_delta,
                 })
+
+    # Resolve broad parent/detail duplicates first, then test individually
+    # ambiguous current-liability lines against the updated section balance.
+    for category in REMOVE_WHEN_SECTION_FIT_IMPROVES:
+        value = summary.get(category, 0)
+        total = totals.get("CurrentLiabilities", 0)
+        if value <= 0 or total == 0:
+            continue
+        other_category = "流負_その他流動負債"
+        reported_other = summary.get(other_category, 0)
+        subtotal = sum(
+            amount for key, amount in summary.items()
+            if key.startswith("流負_") and key != other_category
+        )
+        delta_before = total - subtotal - reported_other
+        delta_after = delta_before + value
+        if abs(delta_after) < abs(delta_before):
+            summary[category] = 0
+            adjustments.append({
+                "category": category,
+                "value": value,
+                "reason": "section_total_indicates_ambiguous_current_detail_duplicate",
+                "delta_before": delta_before,
+                "delta_after": delta_after,
+            })
     return adjustments
 
 

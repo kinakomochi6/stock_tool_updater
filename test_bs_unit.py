@@ -1429,6 +1429,97 @@ class MappingTests(unittest.TestCase):
             "electric_utility_facility_detail_skipped_because_total_exists",
         )
 
+    def test_ninth_wave_presentation_lines_remain_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "AdvancesReceived": 107_803_000_000,
+            "UnearnedRevenue": 17_392_000_000,
+            "PayablesUnderFluidityLeaseReceivablesCLLEA": 12_500_000_000,
+            "CurrentPortionOfLongTermPayablesUnderFluidityLeaseReceivablesCLLEA": 5_070_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流負_前受金"], 107_803_000_000)
+        self.assertEqual(summary["流負_繰延収益"], 17_392_000_000)
+        self.assertEqual(summary["流負_リース債権流動化債務"], 12_500_000_000)
+        self.assertEqual(
+            summary["流負_1年内返済リース債権流動化債務"], 5_070_000_000
+        )
+
+    def test_ninth_wave_cross_industry_aliases_map_to_natural_sections(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "ScDoqpsitsCA": 318_700_000,
+            "ProvisionForShareBasedCompensationLiabilitiesBNK": 988_000_000,
+            "ElectronicallyRecordedObligationsNonOperatingCL": 951_000_000,
+            "PowerProductionFacilitiesConcessionsIA": 591_000_000,
+            "GuaranteeDepositsCA": 1_543_900_000,
+            "TradeDateAccrualCASEC": 1_332_100_000,
+            "LandUseRightsIA": 882_100_000,
+            "ProvisionForDecommissioningAndRemovalNCL": 503_000_000,
+            "NotesPayableAndElectronicallyRecordedObligationsOperatingCL": 113_300_000,
+            "ProvisionForLossOnClosingOfPlantsCL": 413_000_000,
+            "NonCurrentReserveForLossOnDisasterNCL": 12_047_000_000,
+            "ProvisionForLossInConjunctionWithDiscontinuedOperationsOfNuclearPowerPlantsNCLELE": 4_276_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_預け金"], 318_700_000)
+        self.assertEqual(summary["固負_株式報酬引当金"], 988_000_000)
+        self.assertEqual(summary["流負_営業外電子記録債務"], 951_000_000)
+        self.assertEqual(summary["無形_発電権"], 591_000_000)
+        self.assertEqual(summary["流動_短期差入保証金"], 1_543_900_000)
+        self.assertEqual(summary["流動_約定見越"], 1_332_100_000)
+        self.assertEqual(summary["無形_借地権"], 882_100_000)
+        self.assertEqual(summary["固負_資産除去債務"], 503_000_000)
+        self.assertEqual(summary["流負_支払手形・電子記録債務"], 113_300_000)
+        self.assertEqual(summary["流負_工場閉鎖損失引当金"], 413_000_000)
+        self.assertEqual(summary["固負_災害損失引当金"], 12_047_000_000)
+        self.assertEqual(summary["固負_原子力発電所廃止損失引当金"], 4_276_000_000)
+
+    def test_current_disaster_reserve_is_removed_when_included_in_other(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+        summary["流負_災害損失引当金"] = 20_000_000_000
+        summary["流負_その他流動負債"] = 50_000_000_000
+        totals = {"CurrentLiabilities": 150_000_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流負_災害損失引当金"], 0)
+        self.assertEqual(adjustments[0]["category"], "流負_災害損失引当金")
+
+    def test_contract_asset_is_removed_only_when_section_total_proves_duplication(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 100_000_000_000
+        summary["流動_契約資産"] = 30_000_000_000
+        summary["流動_その他流動資産"] = 120_000_000_000
+        totals = {"CurrentAssets": 220_000_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["流動_契約資産"], 0)
+        self.assertEqual(adjustments[0]["category"], "流動_契約資産")
+
+    def test_combined_receivable_restores_detail_required_by_section_total(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 100_000_000_000
+        summary["流動_受取手形・売掛金(合算)"] = 20_000_000_000
+        summary["流動_売掛金"] = 15_000_000_000
+        summary["流動_その他流動資産"] = 5_000_000_000
+        totals = {"CurrentAssets": 140_000_000_000}
+        raw_tags = {
+            "TradeReceivablesAndElectronicallyRecordedMonetaryClaimsCA": 20_000_000_000
+        }
+
+        result = reconcile_receivable_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertEqual(result["restored_detail_categories"], ["流動_売掛金"])
+        self.assertEqual(summary["流動_売掛金"], 15_000_000_000)
+
     def test_net_assets_total_is_preserved_when_details_are_missing(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         totals = {"NetAssets": 2_027_663_000_000}
