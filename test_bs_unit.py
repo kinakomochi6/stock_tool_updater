@@ -221,6 +221,55 @@ class TaxonomyRelationshipTests(unittest.TestCase):
 
         self.assertEqual(options[0]["section"], "CurrentAssets")
 
+    def test_taxonomy_inference_prefers_net_variant_over_gross_child(self):
+        parent_index = {
+            "RightOfUseAssets": [{
+                "parent": "NoncurrentAssets",
+                "child": "RightOfUseAssets",
+                "link_type": "calculation",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }],
+            "RightOfUseAssetsNet": [{
+                "parent": "NoncurrentAssets",
+                "child": "RightOfUseAssetsNet",
+                "link_type": "calculation",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }],
+        }
+        raw_tags = {
+            "RightOfUseAssets": 758_000_000,
+            "RightOfUseAssetsNet": 637_000_000,
+        }
+
+        gross = classify_taxonomy_bs_tag(
+            "RightOfUseAssets", parent_index, raw_tags, "CurrentYearInstant"
+        )
+        net = classify_taxonomy_bs_tag(
+            "RightOfUseAssetsNet", parent_index, raw_tags, "CurrentYearInstant"
+        )
+
+        self.assertEqual(gross, [])
+        self.assertEqual(net[0]["category"], "有形_使用権資産")
+
+    def test_trade_payable_extension_uses_trade_payable_category(self):
+        parent_index = {
+            "AccountsPayableTradeAndConstructionContractsCL": [{
+                "parent": "CurrentLiabilities",
+                "child": "AccountsPayableTradeAndConstructionContractsCL",
+                "link_type": "calculation",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }]
+        }
+
+        options = classify_taxonomy_bs_tag(
+            "AccountsPayableTradeAndConstructionContractsCL",
+            parent_index,
+            {"AccountsPayableTradeAndConstructionContractsCL": 2_000_000_000},
+            "CurrentYearInstant",
+        )
+
+        self.assertEqual(options[0]["category"], "流負_支払手形・買掛金")
+
 
 class BsQualityGateTests(unittest.TestCase):
     def setUp(self):

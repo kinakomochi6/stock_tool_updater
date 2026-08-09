@@ -2308,6 +2308,8 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
     if _has_semantic_suffix(tag, "CL"):
         if is_provision:
             add("CurrentLiabilities", "流負_引当金", "current_provision_suffix")
+        elif re.search(r"AccountsPayable.*Trade|Trade.*Payables", tag):
+            add("CurrentLiabilities", "流負_支払手形・買掛金", "current_trade_payable_suffix")
         elif re.search(r"ContractLiabilit|Advance.*Received", tag):
             add("CurrentLiabilities", "流負_契約負債", "current_contract_liability_suffix")
         elif re.search(r"Deposit|Margin|Collateral|CashReceived|Receipt", tag):
@@ -2424,7 +2426,9 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         # reconciliation choose between the two instead of guessing a duration.
         add("CurrentLiabilities", "流負_引当金", "unsplit_provision_meaning", 2)
         add("NonCurrentLiabilities", "固負_引当金", "unsplit_provision_meaning", 2)
-    elif re.search(r"RightOfUseAssets|RentalServiceAssets|AssetsForRent", tag):
+    elif re.search(r"RightOfUseAssets", tag):
+        add("NonCurrentAssets", "有形_使用権資産", "right_of_use_asset_meaning", 2)
+    elif re.search(r"RentalServiceAssets|AssetsForRent", tag):
         add("NonCurrentAssets", "有形_その他有形固定資産", "physical_asset_meaning", 2)
     elif re.search(r"LongTerm.*(?:Receivable|Loan|Deposit|AdvancePayment)", tag):
         add("NonCurrentAssets", "投資_その他金融資産", "long_term_asset_meaning", 2)
@@ -2634,6 +2638,8 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
     if tag in TAG_MAPPING or tag in TOTAL_TAG_LOOKUP:
         return []
     if any(pattern in tag for pattern in SEMANTIC_TAG_EXCLUSION_PATTERNS):
+        return []
+    if tag.startswith("Total") or tag.endswith("Total") or _net_variant_exists(tag, raw_tags):
         return []
 
     anchors = find_taxonomy_anchors(tag, parent_index, selected_context)
