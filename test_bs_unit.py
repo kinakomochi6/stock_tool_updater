@@ -43,9 +43,11 @@ from firebase_master_test import (
     classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
+    evaluate_bs_quality,
     is_tokyo_pro_market,
     load_edinet_code_map,
     parse_codes_arg,
+    remove_bs_values_for_quarantine,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
     reconcile_parent_component_overlaps,
@@ -54,9 +56,110 @@ from firebase_master_test import (
     reconcile_semantic_unmapped_tags,
     reconcile_skipped_section_summaries,
     serialize_reconciliation_adjustment,
+    select_other_or_unclassified,
     should_skip_item_tag,
     validate_tag_mapping,
 )
+
+
+class BsQualityGateTests(unittest.TestCase):
+    def setUp(self):
+        self.totals = {
+            "Assets": 100_000_000_000,
+            "CurrentAssets": 40_000_000_000,
+            "NonCurrentAssets": 60_000_000_000,
+            "Liabilities": 60_000_000_000,
+            "CurrentLiabilities": 20_000_000_000,
+            "NonCurrentLiabilities": 40_000_000_000,
+            "NetAssets": 40_000_000_000,
+        }
+
+    @staticmethod
+    def gap(value, total=40_000_000_000):
+        return {
+            "流動_その他流動資産": {
+                "total": total,
+                "delta_from_reported": value,
+            }
+        }
+
+    def test_small_rounding_gap_is_verified_and_can_fill_other(self):
+        selected, source = select_other_or_unclassified(0, 90_000_000)
+        quality = evaluate_bs_quality(self.totals, self.gap(90_000_000))
+
+        self.assertEqual(selected, 90_000_000)
+        self.assertEqual(source, "computed_small_gap")
+        self.assertEqual(quality["status"], "verified")
+        self.assertTrue(quality["publish_bs_values"])
+
+    def test_medium_gap_is_kept_unclassified_and_marked_partial(self):
+        selected, source = select_other_or_unclassified(0, 500_000_000)
+        quality = evaluate_bs_quality(self.totals, self.gap(-500_000_000))
+
+        self.assertEqual(selected, 0)
+        self.assertEqual(source, "unclassified_residual")
+        self.assertEqual(quality["status"], "partial")
+        self.assertEqual(quality["max_abs_unclassified_residual_oku"], 5.0)
+
+    def test_large_negative_gap_is_quarantined_by_absolute_magnitude(self):
+        quality = evaluate_bs_quality(
+            self.totals,
+            self.gap(-140_000_000_000),
+        )
+
+        self.assertEqual(quality["status"], "quarantined")
+        self.assertFalse(quality["publish_bs_values"])
+        self.assertEqual(quality["max_abs_unclassified_residual_oku"], 1400.0)
+
+    def test_material_gap_for_small_section_is_quarantined_by_ratio(self):
+        quality = evaluate_bs_quality(
+            self.totals,
+            self.gap(200_000_000, total=1_000_000_000),
+        )
+
+        self.assertEqual(quality["status"], "quarantined")
+        self.assertIn("比率が10%超", quality["reasons"][0])
+
+    def test_missing_primary_total_is_quarantined(self):
+        totals = {**self.totals, "Assets": 0}
+
+        quality = evaluate_bs_quality(totals, {})
+
+        self.assertEqual(quality["status"], "quarantined")
+        self.assertEqual(quality["missing_totals"], ["Assets"])
+
+    def test_large_but_immaterial_section_difference_is_partial(self):
+        totals = {
+            **self.totals,
+            "Assets": 10_000_000_000_000,
+            "CurrentAssets": 4_000_000_000_000,
+            "NonCurrentAssets": 5_980_000_000_000,
+            "Liabilities": 6_000_000_000_000,
+            "CurrentLiabilities": 2_000_000_000_000,
+            "NonCurrentLiabilities": 4_000_000_000_000,
+            "NetAssets": 4_000_000_000_000,
+        }
+
+        quality = evaluate_bs_quality(totals, {})
+
+        self.assertEqual(quality["status"], "partial")
+        self.assertTrue(quality["publish_bs_values"])
+
+    def test_quarantine_removes_only_bs_value_fields(self):
+        data = {
+            "★企業名": "Example",
+            "株価": 123,
+            "★資産合計": 100,
+            "流動_現金及び預金": 10,
+            "B/S_検証状態": "quarantined",
+        }
+
+        remove_bs_values_for_quarantine(data)
+
+        self.assertNotIn("★資産合計", data)
+        self.assertNotIn("流動_現金及び預金", data)
+        self.assertEqual(data["株価"], 123)
+        self.assertEqual(data["B/S_検証状態"], "quarantined")
 
 
 class EdinetDownloadTests(unittest.TestCase):
@@ -2234,6 +2337,7 @@ class DiagnosticsReportTests(unittest.TestCase):
         self.assertEqual(summary["rows"][0]["code"], "1111")
         self.assertEqual(summary["threshold_counts"]["over_1000_oku"], 1)
         self.assertEqual(summary["warning_count"], 1)
+        self.assertEqual(summary["quality_statuses"], {"unknown": 2})
         self.assertEqual(summary["candidate_unmapped_tags"][0]["tag"], "SpecialAsset")
         self.assertEqual(summary["candidate_unmapped_tags"][0]["company_count"], 2)
         self.assertEqual(summary["candidate_unmapped_tags"][0]["total_abs_value_oku"], 200.0)

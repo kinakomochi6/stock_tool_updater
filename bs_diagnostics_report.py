@@ -31,6 +31,7 @@ def summarize_diagnostics(records):
     semantic_inference_count = 0
     semantic_company_count = 0
     warning_count = 0
+    quality_statuses = Counter()
     failed_codes = []
     skipped_codes = []
     skipped_statuses = Counter()
@@ -53,6 +54,8 @@ def summarize_diagnostics(records):
         contexts[context_type] += 1
         warnings = record.get("warnings") or []
         warning_count += len(warnings)
+        quality_status = record.get("quality_status") or record.get("quality", {}).get("status") or "unknown"
+        quality_statuses[quality_status] += 1
         semantic_inferences = record.get("semantic_inferences") or []
         if semantic_inferences:
             semantic_company_count += 1
@@ -96,6 +99,7 @@ def summarize_diagnostics(records):
             "signed_residual_oku": round(signed_value, 3),
             "max_abs_residual_oku": round(max_abs_residual, 3),
             "warning_count": len(warnings),
+            "quality_status": quality_status,
             "semantic_inference_count": len(semantic_inferences),
         })
 
@@ -119,6 +123,7 @@ def summarize_diagnostics(records):
         "skipped_codes": sorted(skipped_codes),
         "skipped_statuses": dict(sorted(skipped_statuses.items())),
         "warning_count": warning_count,
+        "quality_statuses": dict(sorted(quality_statuses.items())),
         "semantic_company_count": semantic_company_count,
         "semantic_inference_count": semantic_inference_count,
         "semantic_tags": dict(semantic_tags.most_common()),
@@ -135,6 +140,7 @@ def summarize_diagnostics(records):
 def render_markdown(summary, row_limit=25):
     standards = ", ".join(f"{key}: {value}" for key, value in summary["accounting_standards"].items()) or "none"
     contexts = ", ".join(f"{key}: {value}" for key, value in summary["context_types"].items()) or "none"
+    quality = ", ".join(f"{key}: {value}" for key, value in summary["quality_statuses"].items()) or "none"
     threshold_text = ", ".join(
         f">{threshold} oku: {summary['threshold_counts'][f'over_{threshold}_oku']}"
         for threshold in THRESHOLDS_OKU
@@ -147,6 +153,7 @@ def render_markdown(summary, row_limit=25):
         f"- Not applicable: {len(summary['skipped_codes'])}",
         f"- Failed: {len(summary['failed_codes'])}",
         f"- Warnings: {summary['warning_count']}",
+        f"- Quality: {quality}",
         f"- Semantic fallback: {summary['semantic_inference_count']} tags in "
         f"{summary['semantic_company_count']} companies",
         f"- Accounting standards: {standards}",
@@ -154,12 +161,12 @@ def render_markdown(summary, row_limit=25):
         f"- Absolute residual counts: {threshold_text}",
         f"- Maximum absolute residual: {summary['max_abs_residual_oku']:.3f} oku",
         "",
-        "| Code | GAAP | Context | Worst category | Signed residual (oku) | Warnings |",
-        "|---|---|---|---|---:|---:|",
+        "| Code | GAAP | Context | Quality | Worst category | Signed residual (oku) | Warnings |",
+        "|---|---|---|---|---|---:|---:|",
     ]
     for row in summary["rows"][:row_limit]:
         lines.append(
-            f"| {row['code']} | {row['doc_type']} | {row['context_type']} | "
+            f"| {row['code']} | {row['doc_type']} | {row['context_type']} | {row['quality_status']} | "
             f"{row['worst_category']} | {row['signed_residual_oku']:.3f} | {row['warning_count']} |"
         )
     if summary["failed_codes"]:

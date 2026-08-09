@@ -1987,6 +1987,17 @@ OTHER_CATEGORIES = [
     "純資_その他純資産",
 ]
 OTHER_DELTA_WARNING_CAP = 100_000_000_000  # 1,000億円。大会社でも絶対額の大きなズレを見逃さない。
+BS_VERIFIED_RESIDUAL_LIMIT = 100_000_000  # 1億円以下はXBRLの丸め差として許容する。
+BS_QUARANTINE_RESIDUAL_LIMIT = 1_000_000_000  # 10億円超は既存B/Sを上書きしない。
+BS_QUARANTINE_RELATIVE_LIMIT = 0.10
+BS_QUARANTINE_BALANCE_RATIO_LIMIT = 0.01
+BS_VALUE_FIELDS = set(DISPLAY_ORDER) | {
+    "★資産合計",
+    "★負債合計",
+    "★純資産合計",
+    "B/S_取得書類",
+    "B/S_警告",
+}
 
 OPTIONAL_DUPLICATE_CATEGORIES = [
     ("流動_契約資産", "流動_", "CurrentAssets", "流動_その他流動資産"),
@@ -2785,6 +2796,141 @@ def build_bs_warnings(summary, totals, gap_diagnostics=None, reported_other_valu
     return warnings_list
 
 
+def select_other_or_unclassified(reported, gap):
+    """Use an explicit Other fact, or only auto-fill a small rounding residual."""
+    if reported != 0:
+        return reported, "reported_other_tag"
+    if abs(gap) <= BS_VERIFIED_RESIDUAL_LIMIT:
+        return gap, "computed_small_gap"
+    return 0, "unclassified_residual"
+
+
+def evaluate_bs_quality(totals, gap_diagnostics, warnings_list=None, section_fallbacks=None):
+    """Classify whether an extracted B/S is safe to publish to Firestore."""
+    warnings_list = warnings_list or []
+    section_fallbacks = section_fallbacks or []
+    reasons = []
+    hard_failures = []
+
+    missing_totals = [
+        key for key in ("Assets", "Liabilities", "NetAssets")
+        if totals.get(key, 0) == 0
+    ]
+    if missing_totals:
+        hard_failures.append(f"主要合計の欠落: {', '.join(missing_totals)}")
+
+    unclassified = {
+        key: info.get("delta_from_reported", 0)
+        for key, info in (gap_diagnostics or {}).items()
+        if info.get("delta_from_reported", 0) != 0
+    }
+    max_residual_key = max(unclassified, key=lambda key: abs(unclassified[key]), default="")
+    max_abs_residual = abs(unclassified.get(max_residual_key, 0))
+    residual_total = abs((gap_diagnostics or {}).get(max_residual_key, {}).get("total", 0))
+    max_residual_ratio = max_abs_residual / residual_total if residual_total else 0
+
+    if max_abs_residual > BS_QUARANTINE_RESIDUAL_LIMIT:
+        hard_failures.append(
+            f"未分類残差が10億円超: {max_residual_key} "
+            f"{unclassified[max_residual_key] / 1e8:,.3f}億円"
+        )
+    elif (
+        max_abs_residual > BS_VERIFIED_RESIDUAL_LIMIT
+        and max_residual_ratio > BS_QUARANTINE_RELATIVE_LIMIT
+    ):
+        hard_failures.append(
+            f"未分類残差の比率が10%超: {max_residual_key} "
+            f"{max_residual_ratio * 100:,.2f}%"
+        )
+    elif max_abs_residual > BS_VERIFIED_RESIDUAL_LIMIT:
+        reasons.append(
+            f"未分類残差が1億円超: {max_residual_key} "
+            f"{unclassified[max_residual_key] / 1e8:,.3f}億円"
+        )
+
+    balance_checks = []
+
+    def add_balance_check(label, total, subtotal):
+        if total == 0 or subtotal == 0:
+            return
+        difference = total - subtotal
+        ratio = abs(difference) / abs(total) if total else 0
+        balance_checks.append({
+            "label": label,
+            "difference": difference,
+            "ratio": ratio,
+        })
+
+    add_balance_check(
+        "資産合計 vs 流動資産+固定資産",
+        totals.get("Assets", 0),
+        totals.get("CurrentAssets", 0) + totals.get("NonCurrentAssets", 0),
+    )
+    add_balance_check(
+        "負債合計 vs 流動負債+固定負債",
+        totals.get("Liabilities", 0),
+        totals.get("CurrentLiabilities", 0) + totals.get("NonCurrentLiabilities", 0),
+    )
+    add_balance_check(
+        "資産合計 vs 負債合計+純資産合計",
+        totals.get("Assets", 0),
+        totals.get("Liabilities", 0) + totals.get("NetAssets", 0),
+    )
+    worst_balance = max(balance_checks, key=lambda item: abs(item["difference"]), default=None)
+    if worst_balance:
+        difference = abs(worst_balance["difference"])
+        if (
+            difference > BS_QUARANTINE_RESIDUAL_LIMIT
+            and worst_balance["ratio"] > BS_QUARANTINE_BALANCE_RATIO_LIMIT
+        ):
+            hard_failures.append(
+                f"貸借・合計不一致: {worst_balance['label']} "
+                f"{worst_balance['difference'] / 1e8:,.3f}億円"
+            )
+        elif difference > BS_VERIFIED_RESIDUAL_LIMIT:
+            reasons.append(
+                f"合計差が1億円超: {worst_balance['label']} "
+                f"{worst_balance['difference'] / 1e8:,.3f}億円"
+            )
+
+    if section_fallbacks:
+        reasons.append("内訳不足のため合計値を未分類項目として保持")
+    if warnings_list and not hard_failures:
+        reasons.append(f"解析警告あり: {len(warnings_list)}件")
+
+    if hard_failures:
+        status = "quarantined"
+        reasons = hard_failures + reasons
+    elif reasons:
+        status = "partial"
+    else:
+        status = "verified"
+
+    return {
+        "status": status,
+        "publish_bs_values": status != "quarantined",
+        "reasons": reasons,
+        "max_abs_unclassified_residual_oku": round(max_abs_residual / 1e8, 3),
+        "max_unclassified_residual_category": max_residual_key,
+        "max_unclassified_residual_ratio_pct": round(max_residual_ratio * 100, 3),
+        "unclassified_residuals_oku": {
+            key: round(value / 1e8, 3) for key, value in unclassified.items()
+        },
+        "missing_totals": missing_totals,
+        "max_abs_balance_difference_oku": round(
+            abs(worst_balance["difference"]) / 1e8 if worst_balance else 0,
+            3,
+        ),
+    }
+
+
+def remove_bs_values_for_quarantine(data):
+    """Keep non-B/S updates while preserving the last accepted B/S in Firestore."""
+    for key in BS_VALUE_FIELDS:
+        data.pop(key, None)
+    return data
+
+
 class BsAnalysisError(RuntimeError):
     def __init__(self, stage, message, details=None):
         super().__init__(message)
@@ -2829,7 +2975,7 @@ def download_edinet_xbrl_package(doc_id, attempts=4, timeout=20):
     )
 
 
-def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
+def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=False):
     try:
         z_data = download_edinet_xbrl_package(doc_id)
     except BsAnalysisError:
@@ -3013,12 +3159,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         s = sum(summary[k] for k in summary if k.startswith(p) and k != o)
         gap = totals[t] - s
         reported = reported_other_values.get(o, 0)
-        if reported != 0:
-            summary[o] = reported
-            source = "reported_other_tag"
-        else:
-            summary[o] = gap
-            source = "computed_gap"
+        summary[o], source = select_other_or_unclassified(reported, gap)
         gap_diagnostics[o] = {
             "total_key": t,
             "total": totals[t],
@@ -3036,12 +3177,9 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         sum_fixed = sum(summary[k] for k in summary if (k.startswith("有形_") or k.startswith("無形_") or k.startswith("投資_")) and k != "投資_その他固定資産")
         gap = totals["NonCurrentAssets"] - sum_fixed
         reported = reported_other_values.get("投資_その他固定資産", 0)
-        if reported != 0:
-            summary["投資_その他固定資産"] = reported
-            source = "reported_other_tag"
-        else:
-            summary["投資_その他固定資産"] = gap
-            source = "computed_gap"
+        summary["投資_その他固定資産"], source = select_other_or_unclassified(
+            reported, gap
+        )
         gap_diagnostics["投資_その他固定資産"] = {
             "total_key": "NonCurrentAssets",
             "total": totals["NonCurrentAssets"],
@@ -3058,12 +3196,9 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         sum_net = sum(summary[k] for k in summary if k.startswith("純資_") and k != "純資_その他純資産")
         gap = totals["NetAssets"] - sum_net
         reported = reported_other_values.get("純資_その他純資産", 0)
-        if reported != 0:
-            summary["純資_その他純資産"] = reported
-            source = "reported_other_tag"
-        else:
-            summary["純資_その他純資産"] = gap
-            source = "computed_gap"
+        summary["純資_その他純資産"], source = select_other_or_unclassified(
+            reported, gap
+        )
         gap_diagnostics["純資_その他純資産"] = {
             "total_key": "NetAssets",
             "total": totals["NetAssets"],
@@ -3081,6 +3216,21 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
     bs_warnings = build_bs_warnings(summary, totals, gap_diagnostics, reported_other_values)
     for fallback in section_fallbacks:
         bs_warnings.append(f"{fallback['section']}: 内訳タグがないため合計値を未分類として保持しました")
+    quality = evaluate_bs_quality(
+        totals,
+        gap_diagnostics,
+        warnings_list=bs_warnings,
+        section_fallbacks=section_fallbacks,
+    )
+    diagnostics["status"] = "ok"
+    diagnostics["quality_status"] = quality["status"]
+    diagnostics["quality"] = quality
+    diagnostics["gap_diagnostics"] = gap_diagnostics
+    diagnostics["warnings"] = bs_warnings
+    diagnostics["reported_other_values_oku"] = {
+        k: round(v / 100000000, 3) for k, v in reported_other_values.items() if v != 0
+    }
+    diagnostics["other_gap_delta_oku"] = quality["unclassified_residuals_oku"]
     if debug:
         skipped_numeric_tags = {
             tag for tag in best_raw_tags
@@ -3103,17 +3253,6 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
             item for item in unmapped_numeric_tags
             if item not in note_only_unmapped_tags
         ]
-        diagnostics["gap_diagnostics"] = gap_diagnostics
-        diagnostics["warnings"] = bs_warnings
-        diagnostics["reported_other_values_oku"] = {
-            k: round(v / 100000000, 3) for k, v in reported_other_values.items() if v != 0
-        }
-        diagnostics["other_gap_delta_oku"] = {
-            k: round(info.get("delta_from_reported", 0) / 100000000, 3)
-            for k in OTHER_CATEGORIES
-            for info in [gap_diagnostics.get(k, {})]
-            if info.get("delta_from_reported", 0) != 0
-        }
         diagnostics["unmapped_numeric_tags_over_1oku"] = unmapped_numeric_tags[:100]
         diagnostics["note_only_unmapped_tags_over_1oku"] = note_only_unmapped_tags[:100]
         diagnostics["mapping_candidate_unmapped_tags_over_1oku"] = mapping_candidate_unmapped_tags[:100]
@@ -3133,6 +3272,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         diagnostics["receivable_reconciliation"] = receivable_reconciliation
         diagnostics["summary_nonzero_oku"] = {k: round(v / 100000000, 3) for k, v in summary.items() if v != 0}
         diagnostics["totals_oku"] = {k: round(v / 100000000, 3) for k, v in totals.items()}
+    if debug or include_quality:
         return summary, totals, doc_type, best_raw_tags, diagnostics
     
     return summary, totals, doc_type, best_raw_tags
@@ -3868,6 +4008,14 @@ def main():
                 print(f" -> [警告] みんかぶからの情報補完に失敗しました: {e}")
 
         try:
+            bs_quality = {
+                "status": "quarantined",
+                "publish_bs_values": False,
+                "reasons": ["B/S書類または解析結果が未取得"],
+                "max_abs_unclassified_residual_oku": 0,
+                "unclassified_residuals_oku": {},
+            }
+            bs_validation_document = ""
             combined_data = {k: 0 for k in DISPLAY_ORDER}
             combined_data.update({
                 "★企業名": company_name,
@@ -3897,6 +4045,7 @@ def main():
                         bs_doc_id,
                         debug=args.debug_bs,
                         raise_on_error=args.debug_bs,
+                        include_quality=True,
                     )
                 except BsAnalysisError as exc:
                     ret = None
@@ -3906,6 +4055,8 @@ def main():
                     if len(ret) == 5:
                         summary, totals, doc_type, _, bs_diagnostics = ret
                         combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
+                        bs_validation_document = combined_data["B/S_取得書類"]
+                        bs_quality = bs_diagnostics.get("quality", bs_quality)
                     elif len(ret) == 4: # To handle new signature safely
                         summary, totals, doc_type, _ = ret
                         combined_data["B/S_取得書類"] = f"{bs_desc} ({doc_type})"
@@ -3925,10 +4076,13 @@ def main():
                     if bs_diagnostics:
                         warnings_text = bs_diagnostics.get("warnings", [])
                         combined_data["B/S_警告"] = warnings_text
-                        bs_diagnostics["status"] = "ok"
                         bs_diagnostics["code"] = code
-                        debug_path = write_bs_diagnostics(args.debug_dir, code, bs_diagnostics)
-                        print(f" -> [B/S診断] {debug_path} に出力しました。警告: {len(warnings_text)}件")
+                        if args.debug_bs:
+                            debug_path = write_bs_diagnostics(args.debug_dir, code, bs_diagnostics)
+                            print(
+                                f" -> [B/S診断] {debug_path} に出力しました。"
+                                f"品質: {bs_quality['status']} / 警告: {len(warnings_text)}件"
+                            )
                 elif args.debug_bs:
                     error_details = {}
                     if bs_analysis_error:
@@ -3945,17 +4099,19 @@ def main():
                         **error_details,
                     })
                     print(f" -> [B/S診断] {debug_path} に解析失敗情報を出力しました。")
-            elif args.debug_bs:
+            else:
                 document_status, source_note = classify_missing_bs_document(
                     market, bs_desc
                 )
-                debug_path = write_bs_diagnostics(args.debug_dir, code, {
-                    "status": document_status,
-                    "code": code,
-                    "doc_description": bs_desc,
-                    "source_note": source_note,
-                })
-                print(f" -> [B/S診断] {debug_path} に書類未取得情報を出力しました。")
+                bs_quality["reasons"] = [source_note or bs_desc or document_status]
+                if args.debug_bs:
+                    debug_path = write_bs_diagnostics(args.debug_dir, code, {
+                        "status": document_status,
+                        "code": code,
+                        "doc_description": bs_desc,
+                        "source_note": source_note,
+                    })
+                    print(f" -> [B/S診断] {debug_path} に書類未取得情報を出力しました。")
             
             if not args.bs_only:
                 time.sleep(2)  # API制限対策・待機
@@ -3969,14 +4125,39 @@ def main():
                     combined_data["不動産_取得書類"] = "有価証券報告書等より取得"
 
             # Firebaseへ保存
+            combined_data["B/S_検証状態"] = bs_quality["status"]
+            combined_data["B/S_検証理由"] = bs_quality.get("reasons", [])
+            combined_data["B/S_最大未分類残差_億"] = bs_quality.get(
+                "max_abs_unclassified_residual_oku", 0
+            )
+            combined_data["B/S_未分類残差_億"] = bs_quality.get(
+                "unclassified_residuals_oku", {}
+            )
+            combined_data["B/S_検証書類"] = bs_validation_document
+            if not bs_quality.get("publish_bs_values", False):
+                remove_bs_values_for_quarantine(combined_data)
+                print(
+                    " -> [B/S隔離] 精度基準を満たさないため、"
+                    "Firestoreの既存B/S値は上書きしません。"
+                )
             if args.dry_run:
                 print(" -> [DRY RUN] Firestore保存をスキップしました。")
             else:
                 combined_data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
+                combined_data["B/S_検証日時"] = firestore.SERVER_TIMESTAMP
                 collection_ref.document(str(code)).set(combined_data, merge=True)
             
             print(f" -> [{company_name}] 財務 ROE: {combined_data['ROE_pct']}% / 時価総額: {combined_data['時価総額_億']}億円 / 4年平均自社株買い: {combined_data['4年平均自社株買い_億']}億円")
-            print(f" -> [ B/S] 資産合計: {combined_data['★資産合計']}億円 ({combined_data['B/S_取得書類']})")
+            if bs_quality.get("publish_bs_values", False):
+                print(
+                    f" -> [ B/S] 資産合計: {combined_data.get('★資産合計', 0)}億円 "
+                    f"({combined_data.get('B/S_取得書類', 'なし')})"
+                )
+            else:
+                print(
+                    f" -> [ B/S] 既存値を保持 "
+                    f"(検証状態: {bs_quality['status']})"
+                )
             print(f" -> [隠し資産] 不動産含み益: {combined_data['不動産_含み益_億']}億円 / 有価証券含み益: {combined_data['有価証券_含み益_億']}億円")
             
         except Exception as e:
