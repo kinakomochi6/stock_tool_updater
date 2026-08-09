@@ -472,6 +472,8 @@ class TaxonomyRelationshipTests(unittest.TestCase):
         self.assertEqual(applied, {"OpaqueAdvance"})
         self.assertEqual(summary["流動_前渡金"], 2_000_000_000)
         self.assertEqual(adjustments[0]["delta_after"], 0)
+        self.assertEqual(adjustments[0]["taxonomy_label"], "前渡金")
+        self.assertEqual(adjustments[0]["taxonomy_labels"], ["前渡金"])
 
     def test_labeled_cash_extension_adds_only_with_residual_proof(self):
         tag = "TrustCash"

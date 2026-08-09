@@ -3299,6 +3299,9 @@ def reconcile_semantic_unmapped_tags(
                 "taxonomy_anchor": item.get("taxonomy_anchor"),
                 "taxonomy_path": item.get("taxonomy_path"),
                 "taxonomy_link_types": item.get("taxonomy_link_types"),
+                "taxonomy_arcroles": item.get("taxonomy_arcroles"),
+                "taxonomy_label": item.get("taxonomy_label"),
+                "taxonomy_labels": item.get("taxonomy_labels"),
             })
         for item in duplicate_adjustments:
             adjustments.append({
