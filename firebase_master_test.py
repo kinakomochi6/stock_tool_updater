@@ -1804,6 +1804,9 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
 
     includes_contract_assets = any(
         tag in raw_tags for tag in COMBINED_RECEIVABLE_TAGS_WITH_CONTRACT_ASSETS
+    ) or any(
+        "Receivable" in tag and "ContractAsset" in tag
+        for tag in raw_tags
     )
     electronic_value = summary.get("流動_電子記録債権", 0)
     contract_value = summary.get("流動_契約資産", 0)
@@ -1960,7 +1963,7 @@ def reconcile_optional_duplicate_categories(summary, totals):
 
 def _has_semantic_suffix(tag, marker):
     suffixes = {
-        "CA": r"CA(?:IFRS|[A-Z]{2,8})?$",
+        "CA": r"(?<!N)CA(?:IFRS|[A-Z]{2,8})?$",
         "NCA": r"(?:NCA|IOA)(?:IFRS|[A-Z]{2,8})?$",
         "CL": r"(?<!N)CL(?:IFRS|[A-Z]{2,8})?$",
         "NCL": r"NCL(?:IFRS|[A-Z]{2,8})?$",
@@ -1993,20 +1996,38 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
 
     options = []
 
-    def add(section, category, reason, confidence=3):
+    def add(section, category, reason, confidence=3, action="add"):
         options.append({
             "section": section,
             "category": category,
             "reason": reason,
             "confidence": confidence,
+            "action": action,
         })
 
-    is_provision = tag.startswith(("ProvisionFor", "AllowanceFor", "AccrualFor"))
+    is_provision = tag.startswith(
+        ("ProvisionFor", "AllowanceFor", "AccrualFor", "ReserveFor")
+    )
     is_unsplit_provision = tag.startswith(("ProvisionFor", "AccrualFor"))
+
+    if tag.endswith("AssetsBNK"):
+        if re.search(r"Receivable|Loan|Collateral|Deposit|Cash|Asset", tag):
+            add("CurrentAssets", "流動_銀行その他資産", "bank_asset_extension")
+            add("NonCurrentAssets", "投資_銀行その他資産", "bank_asset_extension")
+        return options
+
+    if tag.endswith("LiabilitiesBNK"):
+        if re.search(r"Money|Payable|Borrowing|Debt|Liabilit|Deposit|Collateral", tag):
+            add("CurrentLiabilities", "流負_銀行その他負債", "bank_liability_extension")
+            add("NonCurrentLiabilities", "固負_銀行その他負債", "bank_liability_extension")
+        return options
     if _has_semantic_suffix(tag, "NCL"):
         if is_provision:
             add("NonCurrentLiabilities", "固負_引当金", "noncurrent_provision_suffix")
-        elif re.search(r"Payable|Borrowing|Debt|Liabilit|Obligation|Deposit|Derivative", tag):
+        elif re.search(
+            r"Payable|Borrowing|Debt|Liabilit|Obligation|Deposit|Derivative|Receipt",
+            tag,
+        ):
             add("NonCurrentLiabilities", "固負_その他金融負債", "noncurrent_liability_suffix")
         return options
 
@@ -2015,7 +2036,7 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             add("CurrentLiabilities", "流負_引当金", "current_provision_suffix")
         elif re.search(r"ContractLiabilit|AdvancesReceived", tag):
             add("CurrentLiabilities", "流負_契約負債", "current_contract_liability_suffix")
-        elif re.search(r"Deposit|Margin|CashReceived|SuspenseReceipt", tag):
+        elif re.search(r"Deposit|Margin|Collateral|CashReceived|Receipt", tag):
             add("CurrentLiabilities", "流負_預り金", "current_deposit_liability_suffix")
         elif re.search(r"Borrowing|Loan|Debt|Bond", tag):
             add("CurrentLiabilities", "流負_その他金融負債", "current_debt_suffix")
@@ -2024,14 +2045,23 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         return options
 
     if _has_semantic_suffix(tag, "CA"):
-        if re.search(r"ContractAssets?", tag):
+        if re.search(r"Receivable", tag) and re.search(r"ContractAssets?", tag):
+            add(
+                "CurrentAssets", "流動_受取手形・売掛金(合算)",
+                "current_combined_receivable_suffix", action="receivable_parent",
+            )
+        elif re.search(r"ContractAssets?", tag):
             add("CurrentAssets", "流動_契約資産", "current_contract_asset_suffix")
-        elif re.search(r"Securit|Derivative|Trading", tag):
+        elif re.search(r"OperatingInvestments|JointBusinessInvestments", tag):
+            add("CurrentAssets", "流動_営業投資", "current_operating_investment_suffix")
+        elif re.search(r"Securit|Derivative|Trading|ShortTermInvestment", tag):
             add("CurrentAssets", "流動_その他金融資産", "current_security_asset_suffix")
         elif re.search(r"Cash|Deposit|Margin|Collateral", tag):
             add("CurrentAssets", "流動_預け金", "current_deposit_asset_suffix")
         elif re.search(r"Receivable|Loan|AdvancePayment", tag):
             add("CurrentAssets", "流動_金融債権", "current_receivable_asset_suffix")
+        elif re.search(r"ProgramRight|CurrentPortionOf.*Deposit", tag):
+            add("CurrentAssets", "流動_その他流動資産", "current_right_or_deposit_suffix")
         elif re.search(r"Inventor|Merchandise|WorkInProgress", tag):
             add("CurrentAssets", "流動_棚卸資産", "current_inventory_suffix")
         return options
@@ -2068,6 +2098,32 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
 
     if tag in {"SuspenseReceipt", "SuspenseReceipts", "TemporaryReceipt"}:
         add("CurrentLiabilities", "流負_預り金", "receipt_liability_meaning")
+    elif re.search(r"RetainedEarnings.*TranslationAdjustment.*IFRSTransition", tag):
+        add("NetAssets", "純資_累積換算調整額", "ifrs_transition_equity_adjustment")
+    elif re.search(r"TaxationLiabilitiesIFRS$", tag):
+        add("CurrentLiabilities", "流負_未払税金", "unsplit_ifrs_tax_liability", 2)
+        add("NonCurrentLiabilities", "固負_その他固定負債", "unsplit_ifrs_tax_liability", 2)
+    elif re.search(r"LongTerm.*(?:Payable|Borrowing|Debt|LoansPayable)", tag):
+        add("NonCurrentLiabilities", "固負_その他金融負債", "long_term_liability_meaning")
+    elif re.search(r"AnonymousPartnership.*Deposit", tag):
+        add("CurrentLiabilities", "流負_匿名組合出資預り金", "partnership_deposit_meaning", 2)
+        add("NonCurrentLiabilities", "固負_匿名組合出資預り金", "partnership_deposit_meaning", 2)
+    elif re.search(r"AccountsReceivableDueFrom|ReceivablesFromContractsWithCustomers", tag):
+        add("CurrentAssets", "流動_金融債権", "current_receivable_meaning", 2)
+    elif re.search(r"CurrentPortionOf.*Deposit", tag):
+        add("CurrentAssets", "流動_その他金融資産", "current_deposit_meaning", 2)
+    elif tag.startswith("DueTo"):
+        add("CurrentLiabilities", "流負_未払金", "current_payable_meaning", 2)
+    elif re.search(r"^AdvancePayments?", tag):
+        add("CurrentAssets", "流動_前渡金", "advance_payment_meaning", 2)
+        add("NonCurrentAssets", "投資_長期前払費用", "advance_payment_meaning", 2)
+    elif re.search(r"^CashAndDeposits.*IFRS$", tag):
+        add(
+            "CurrentAssets", "流動_現金及び預金", "ifrs_cash_deposits_meaning",
+            action="max",
+        )
+    elif re.search(r"OperatingLoans.*OperatingReceivables", tag):
+        add("CurrentAssets", "流動_金融債権", "operating_financial_asset_meaning", 2)
     elif is_unsplit_provision:
         # Older industry taxonomies sometimes omit CL/NCL. Let section-total
         # reconciliation choose between the two instead of guessing a duration.
@@ -2099,8 +2155,24 @@ def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
         if abs(value) < 100_000_000:
             continue
         for option in classify_unmapped_bs_tag(tag, raw_tags):
+            current = summary.get(option["category"], 0)
+            if option.get("action") == "max":
+                effective_value = max(current, value) - current
+            elif option.get("action") == "receivable_parent":
+                represented = sum(summary.get(category, 0) for category in {
+                    "流動_受取手形", "流動_売掛金", "流動_契約資産",
+                    "流動_受取手形・売掛金(合算)",
+                })
+                if "Electronically" in tag:
+                    represented += summary.get("流動_電子記録債権", 0)
+                effective_value = value - represented
+            else:
+                effective_value = value
+            if abs(effective_value) < 100_000_000:
+                continue
             candidates_by_section[option["section"]].append({
                 **option, "tag": tag, "value": value,
+                "effective_value": effective_value,
             })
 
     adjustments = []
@@ -2114,9 +2186,11 @@ def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
         candidates = [
             item for item in candidates_by_section[section]
             if item["tag"] not in applied_tags
-            and abs(item["value"]) <= abs(delta_before) * 2 + tolerance
+            and abs(item["effective_value"]) <= abs(delta_before) * 2 + tolerance
         ]
-        candidates.sort(key=lambda item: abs(abs(item["value"]) - abs(delta_before)))
+        candidates.sort(
+            key=lambda item: abs(abs(item["effective_value"]) - abs(delta_before))
+        )
         candidates = candidates[:14]
 
         best = None
@@ -2127,7 +2201,19 @@ def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
                     continue
                 trial = dict(summary)
                 for item in combo:
-                    trial[item["category"]] = trial.get(item["category"], 0) + item["value"]
+                    if item.get("action") in {"max", "receivable_parent"}:
+                        trial[item["category"]] = max(
+                            trial.get(item["category"], 0), item["value"]
+                        )
+                    else:
+                        trial[item["category"]] = (
+                            trial.get(item["category"], 0) + item["value"]
+                        )
+                if any(
+                    item["category"] == "流動_受取手形・売掛金(合算)"
+                    for item in combo
+                ):
+                    reconcile_receivable_presentation(trial, totals, raw_tags)
                 duplicate_adjustments = reconcile_optional_duplicate_categories(trial, totals)
                 delta_after = _semantic_section_delta(trial, totals, section)
                 rank = (
@@ -2155,7 +2241,8 @@ def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
             adjustments.append({
                 "tag": item["tag"],
                 "category": item["category"],
-                "value": item["value"],
+                "value": item["effective_value"],
+                "raw_value": item["value"],
                 "reason": f"semantic_fallback:{item['reason']}",
                 "confidence": item["confidence"],
                 "delta_before": delta_before,

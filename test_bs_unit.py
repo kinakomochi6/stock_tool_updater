@@ -1610,6 +1610,81 @@ class MappingTests(unittest.TestCase):
             classify_unmapped_bs_tag("BuildingsAcquisitionCostPPEXYZ", raw_tags), []
         )
 
+    def test_noncurrent_suffix_is_not_consumed_by_current_asset_suffix(self):
+        options = classify_unmapped_bs_tag(
+            "InvestmentsInEquityInstrumentsNCAIFRS", {}
+        )
+
+        self.assertEqual(options[0]["section"], "NonCurrentAssets")
+        self.assertEqual(options[0]["category"], "投資_投資有価証券")
+
+    def test_unknown_bank_assets_reconcile_as_a_group(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 100_000_000_000
+        summary["流動_その他流動資産"] = 5_000_000_000
+        totals = {"CurrentAssets": 225_000_000_000}
+        raw_tags = {
+            "ReceivablesUnderNewAgreementsAssetsBNK": 70_000_000_000,
+            "CollateralMoneyForNewTransactionsCA": 50_000_000_000,
+        }
+
+        adjustments, applied_tags = reconcile_semantic_unmapped_tags(
+            summary, totals, raw_tags
+        )
+
+        self.assertEqual(len(applied_tags), 2)
+        self.assertEqual(
+            summary["流動_銀行その他資産"] + summary["流動_預け金"],
+            120_000_000_000,
+        )
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
+    def test_semantic_max_uses_only_cash_parent_remainder(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 390_000_000_000
+        summary["流動_その他流動資産"] = 10_000_000_000
+        totals = {"CurrentAssets": 446_000_000_000}
+        raw_tags = {"CashAndDepositsNewIFRS": 436_000_000_000}
+
+        adjustments, applied_tags = reconcile_semantic_unmapped_tags(
+            summary, totals, raw_tags
+        )
+
+        self.assertEqual(applied_tags, {"CashAndDepositsNewIFRS"})
+        self.assertEqual(summary["流動_現金及び預金"], 436_000_000_000)
+        self.assertEqual(adjustments[0]["value"], 46_000_000_000)
+
+    def test_negative_ifrs_transition_adjustment_reconciles_equity(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["純資_資本金"] = 100_000_000_000
+        summary["純資_利益剰余金"] = 80_000_000_000
+        totals = {"NetAssets": 160_000_000_000}
+        raw_tags = {
+            "RetainedEarningsTranslationAdjustmentAtTheIFRSTransitionDateIFRS":
+                -20_000_000_000,
+        }
+
+        _, applied_tags = reconcile_semantic_unmapped_tags(summary, totals, raw_tags)
+
+        self.assertEqual(len(applied_tags), 1)
+        self.assertEqual(summary["純資_累積換算調整額"], -20_000_000_000)
+
+    def test_unknown_combined_receivable_replaces_known_contract_detail(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 80_000_000_000
+        summary["流動_契約資産"] = 98_000_000_000
+        summary["流動_電子記録債権"] = 16_000_000_000
+        summary["流動_その他流動資産"] = 10_000_000_000
+        totals = {"CurrentAssets": 274_000_000_000}
+        tag = "NotesReceivableAccountsReceivableAndContractAssetsCA"
+        raw_tags = {tag: 168_000_000_000}
+
+        _, applied_tags = reconcile_semantic_unmapped_tags(summary, totals, raw_tags)
+
+        self.assertEqual(applied_tags, {tag})
+        self.assertEqual(summary["流動_受取手形・売掛金(合算)"], 168_000_000_000)
+        self.assertEqual(summary["流動_契約資産"], 0)
+
 
 class TestSetTests(unittest.TestCase):
     def test_curated_set_sizes_and_overlap(self):
