@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 THRESHOLDS_OKU = (1, 10, 100, 1000)
+NON_FAILURE_STATUSES = {"source_not_applicable"}
 
 
 def load_diagnostics(directory):
@@ -31,10 +32,16 @@ def summarize_diagnostics(records):
     semantic_company_count = 0
     warning_count = 0
     failed_codes = []
+    skipped_codes = []
+    skipped_statuses = Counter()
 
     for record in records:
         code = str(record.get("code") or Path(record["_path"]).stem[-4:])
         status = record.get("status", "unknown")
+        if status in NON_FAILURE_STATUSES:
+            skipped_codes.append(code)
+            skipped_statuses[status] += 1
+            continue
         if status != "ok":
             failed_codes.append(code)
             failure_statuses[status] += 1
@@ -109,6 +116,8 @@ def summarize_diagnostics(records):
         "ok_count": len(rows),
         "failed_codes": sorted(failed_codes),
         "failure_statuses": dict(sorted(failure_statuses.items())),
+        "skipped_codes": sorted(skipped_codes),
+        "skipped_statuses": dict(sorted(skipped_statuses.items())),
         "warning_count": warning_count,
         "semantic_company_count": semantic_company_count,
         "semantic_inference_count": semantic_inference_count,
@@ -135,6 +144,7 @@ def render_markdown(summary, row_limit=25):
         "",
         f"- Files: {summary['file_count']}",
         f"- Successful: {summary['ok_count']}",
+        f"- Not applicable: {len(summary['skipped_codes'])}",
         f"- Failed: {len(summary['failed_codes'])}",
         f"- Warnings: {summary['warning_count']}",
         f"- Semantic fallback: {summary['semantic_inference_count']} tags in "
@@ -158,6 +168,12 @@ def render_markdown(summary, row_limit=25):
         )
         lines.extend(["", f"Failed codes: {', '.join(summary['failed_codes'])}"])
         lines.append(f"Failure statuses: {failure_text}")
+    if summary["skipped_codes"]:
+        skipped_text = ", ".join(
+            f"{status}: {count}" for status, count in summary["skipped_statuses"].items()
+        )
+        lines.extend(["", f"Not applicable codes: {', '.join(summary['skipped_codes'])}"])
+        lines.append(f"Not applicable statuses: {skipped_text}")
 
     candidate_tags = summary.get("candidate_unmapped_tags") or []
     if candidate_tags:

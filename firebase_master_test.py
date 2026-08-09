@@ -1021,9 +1021,100 @@ DISPLAY_ORDER = [
 # ==========================================
 # 2. 書類検索クラス
 # ==========================================
+EDINET_CODE_LIST_URL = (
+    "https://disclosure2dl.edinet-fsa.go.jp/"
+    "searchdocument/codelist/Edinetcode.zip"
+)
+PERIODIC_BS_DOC_TYPES = {"120", "130", "140", "150", "160", "170"}
+REGISTRATION_BS_DOC_TYPES = {"030", "040"}
+ANNUAL_REPORT_DOC_TYPES = {"120", "130"}
+CORRECTION_DOC_TYPES = {"040", "130", "150", "170"}
+
+
+def normalize_security_code(code):
+    value = str(code or "").strip().upper()
+    return value[:4] if len(value) >= 4 else value
+
+
+def load_edinet_code_map():
+    """Load the official security-code to EDINET-code correspondence table."""
+    try:
+        response = requests.get(EDINET_CODE_LIST_URL, timeout=30)
+        response.raise_for_status()
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            csv_name = next(
+                name for name in archive.namelist()
+                if name.lower().endswith(".csv")
+            )
+            frame = pd.read_csv(
+                archive.open(csv_name), encoding="cp932", skiprows=1,
+                dtype=str, keep_default_na=False,
+            )
+    except Exception as exc:
+        print(f"[警告] EDINETコード一覧を取得できませんでした: {exc}")
+        return {}
+
+    if frame.shape[1] < 12:
+        print("[警告] EDINETコード一覧の列構成を確認できませんでした。")
+        return {}
+
+    result = {}
+    for _, row in frame.iterrows():
+        edinet_code = str(row.iloc[0]).strip()
+        security_code = normalize_security_code(row.iloc[11])
+        if len(security_code) == 4 and edinet_code:
+            result.setdefault(security_code, set()).add(edinet_code)
+    print(f"EDINETコード一覧を読み込みました: {len(result)} 証券コード")
+    return result
+
+
+def is_tokyo_pro_market(market):
+    return "PRO Market" in str(market or "")
+
+
 class EdinetSearcher:
-    def __init__(self):
+    def __init__(self, edinet_code_map=None):
         self.df_docs = pd.DataFrame()
+        self.edinet_code_map = {
+            normalize_security_code(code): set(edinet_codes)
+            for code, edinet_codes in (edinet_code_map or {}).items()
+        }
+        self.security_codes_by_edinet = {}
+        for security_code, edinet_codes in self.edinet_code_map.items():
+            for edinet_code in edinet_codes:
+                self.security_codes_by_edinet.setdefault(edinet_code, set()).add(
+                    security_code
+                )
+
+    def _codes_for_document(self, item):
+        codes = set()
+        security_code = normalize_security_code(item.get("secCode", ""))
+        if len(security_code) == 4:
+            codes.add(security_code)
+        edinet_code = str(item.get("edinetCode", "")).strip()
+        codes.update(self.security_codes_by_edinet.get(edinet_code, set()))
+        return codes
+
+    def _candidates_for_code(self, code):
+        if self.df_docs.empty:
+            return self.df_docs.copy()
+        target_code = normalize_security_code(code)
+        search_code = target_code + "0"
+        sec_codes = self.df_docs["secCode"].fillna("").astype(str)
+        mask = sec_codes.eq(search_code)
+        if "edinetCode" in self.df_docs:
+            mapped = self.edinet_code_map.get(target_code, set())
+            if mapped:
+                mask |= self.df_docs["edinetCode"].fillna("").isin(mapped)
+        return self.df_docs[mask].copy()
+
+    @staticmethod
+    def _exclude_withdrawn(candidates):
+        if "withdrawalStatus" not in candidates:
+            return candidates
+        return candidates[
+            candidates["withdrawalStatus"].fillna("").astype(str) != "1"
+        ].copy()
 
     def fetch_list(self, target_codes, days_back=365, require_real_estate=True):
         today = datetime.date.today()
@@ -1053,26 +1144,37 @@ class EdinetSearcher:
                     if "results" in js:
                         count = 0
                         for item in js["results"]:
-                            doc_type = item['docTypeCode']
-                            sec_code = str(item.get('secCode', ''))[:4]
-                            xbrl_flag = item['xbrlFlag']
+                            doc_type = str(item.get('docTypeCode', ''))
+                            xbrl_flag = str(item.get('xbrlFlag', ''))
                             
                             all_docs.append({
                                 'date': target_date,
                                 'secCode': str(item.get('secCode', '')), 
+                                'edinetCode': str(item.get('edinetCode', '')),
                                 'filerName': item.get('filerName', ''),
                                 'docID': item['docID'],
-                                'docDescription': item['docDescription'],
+                                'docDescription': item.get('docDescription', ''),
                                 'docTypeCode': doc_type,
-                                'xbrlFlag': xbrl_flag
+                                'xbrlFlag': xbrl_flag,
+                                'periodEnd': str(item.get('periodEnd', '')),
+                                'submitDateTime': str(item.get('submitDateTime', '')),
+                                'withdrawalStatus': str(item.get('withdrawalStatus', '')),
                             })
                             count += 1
-                            
-                            if sec_code in target_set:
-                                if doc_type in ['120', '130', '140', '150', '160'] and xbrl_flag == '1':
-                                    if sec_code in needs_bs: needs_bs.remove(sec_code)
-                                if doc_type == '120':
-                                    if sec_code in needs_re: needs_re.remove(sec_code)
+
+                            matched_codes = self._codes_for_document(item) & target_set
+                            if (
+                                doc_type in PERIODIC_BS_DOC_TYPES
+                                and xbrl_flag == '1'
+                                and str(item.get('withdrawalStatus', '')) != '1'
+                            ):
+                                needs_bs.difference_update(matched_codes)
+                            if (
+                                doc_type in ANNUAL_REPORT_DOC_TYPES
+                                and xbrl_flag == '1'
+                                and str(item.get('withdrawalStatus', '')) != '1'
+                            ):
+                                needs_re.difference_update(matched_codes)
 
                         if i % 10 == 0: print(f" -> {count}件")
             except Exception as e: 
@@ -1084,36 +1186,58 @@ class EdinetSearcher:
 
     def find_best_bs_doc(self, code):
         if self.df_docs.empty: return None, "リストが空です", ""
-        target_str = str(code).strip()
-        search_code = target_str + '0' if len(target_str) == 4 else target_str
-        candidates = self.df_docs[self.df_docs['secCode'] == search_code].copy()
+        candidates = self._exclude_withdrawn(self._candidates_for_code(code))
         
         if candidates.empty: return None, "コード一致なし", ""
-        
-        def calculate_score(row):
-            score = 0
-            dtype = row['docTypeCode']
-            if dtype in ['120', '140', '160']: score += 10000
-            elif dtype in ['130', '150']: score += 5000
-            if row['xbrlFlag'] == '1': score += 1000
-            return score
 
-        candidates['score'] = candidates.apply(calculate_score, axis=1)
-        candidates = candidates.sort_values(by=['score', 'date', 'docID'], ascending=[False, False, False])
-        best = candidates.iloc[0]
-        
-        if best['score'] < 5000: return None, f"決算書類なし", best['filerName']
-        if best['xbrlFlag'] != '1': return None, f"XBRLなし", best['filerName']
+        supported = candidates[
+            candidates['docTypeCode'].isin(
+                PERIODIC_BS_DOC_TYPES | REGISTRATION_BS_DOC_TYPES
+            )
+        ].copy()
+        if supported.empty:
+            return None, "決算書類なし", candidates.iloc[0]['filerName']
+        xbrl_candidates = supported[supported['xbrlFlag'] == '1'].copy()
+        if xbrl_candidates.empty:
+            return None, "XBRLなし", supported.iloc[0]['filerName']
+
+        xbrl_candidates['familyRank'] = xbrl_candidates['docTypeCode'].map(
+            lambda value: 2 if value in PERIODIC_BS_DOC_TYPES else 1
+        )
+        xbrl_candidates['correctionRank'] = xbrl_candidates['docTypeCode'].map(
+            lambda value: 1 if value in CORRECTION_DOC_TYPES else 0
+        )
+        for column in ('periodEnd', 'submitDateTime'):
+            if column not in xbrl_candidates:
+                xbrl_candidates[column] = ''
+        xbrl_candidates = xbrl_candidates.sort_values(
+            by=[
+                'familyRank', 'periodEnd', 'date', 'submitDateTime',
+                'correctionRank', 'docID',
+            ],
+            ascending=[False, False, False, False, False, False],
+        )
+        best = xbrl_candidates.iloc[0]
         return best['docID'], best['docDescription'], best['filerName']
 
     def find_best_re_doc(self, code):
         if self.df_docs.empty: return None
-        target_str = str(code).strip()
-        search_code = target_str + '0' if len(target_str) == 4 else target_str
-        candidates = self.df_docs[(self.df_docs['secCode'] == search_code) & (self.df_docs['docTypeCode'] == '120')].copy()
+        candidates = self._exclude_withdrawn(self._candidates_for_code(code))
+        candidates = candidates[
+            candidates['docTypeCode'].isin(ANNUAL_REPORT_DOC_TYPES)
+            & (candidates['xbrlFlag'] == '1')
+        ].copy()
         
         if candidates.empty: return None
-        candidates = candidates.sort_values(by='date', ascending=False)
+        candidates['correctionRank'] = candidates['docTypeCode'].map(
+            lambda value: 1 if value in CORRECTION_DOC_TYPES else 0
+        )
+        if 'periodEnd' not in candidates:
+            candidates['periodEnd'] = ''
+        candidates = candidates.sort_values(
+            by=['periodEnd', 'date', 'correctionRank', 'docID'],
+            ascending=[False, False, False, False],
+        )
         return candidates.iloc[0]['docID']
 
 # ==========================================
@@ -1504,7 +1628,11 @@ def should_skip_item_tag(tag, raw_tags):
         return "trade_payable_detail_skipped_because_combined_total_exists"
     if tag in PPE_SUMMARY_TAGS and any(k in raw_tags for k in PPE_DETAIL_TAGS):
         return "ppe_summary_skipped_because_details_exist"
-    if tag in ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS and "ElectricUtilityPlantAndEquipmentAssetsELE" in raw_tags:
+    is_electric_facility_detail = (
+        tag in ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS
+        or re.search(r"FacilitiesNCAElectricELE$", tag) is not None
+    )
+    if is_electric_facility_detail and "ElectricUtilityPlantAndEquipmentAssetsELE" in raw_tags:
         return "electric_utility_facility_detail_skipped_because_total_exists"
     non_goodwill_details = INTANGIBLE_DETAIL_TAGS - {"Goodwill", "GoodwillIFRS"}
     if tag in INTANGIBLE_EX_GOODWILL_SUMMARY_TAGS and any(k in raw_tags for k in non_goodwill_details):
@@ -2005,8 +2133,10 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             "action": action,
         })
 
-    is_provision = tag.startswith(
-        ("ProvisionFor", "AllowanceFor", "AccrualFor", "ReserveFor")
+    is_provision = (
+        tag.startswith(("ProvisionFor", "AllowanceFor", "AccrualFor", "ReserveFor"))
+        or re.search(r"(?:Provision|Reserve)(?:Fund)?(?:CL|NCL)(?:IFRS|[A-Z]{2,8})?$", tag)
+        is not None
     )
     is_unsplit_provision = tag.startswith(("ProvisionFor", "AccrualFor"))
 
@@ -2054,13 +2184,13 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             add("CurrentAssets", "流動_契約資産", "current_contract_asset_suffix")
         elif re.search(r"OperatingInvestments|JointBusinessInvestments", tag):
             add("CurrentAssets", "流動_営業投資", "current_operating_investment_suffix")
-        elif re.search(r"Securit|Derivative|Trading|ShortTermInvestment", tag):
+        elif re.search(r"Securit|Derivative|Trading|ShortTermInvestment|CryptoAsset", tag):
             add("CurrentAssets", "流動_その他金融資産", "current_security_asset_suffix")
         elif re.search(r"Cash|Deposit|Margin|Collateral", tag):
             add("CurrentAssets", "流動_預け金", "current_deposit_asset_suffix")
         elif re.search(r"Receivable|Loan|AdvancePayment", tag):
             add("CurrentAssets", "流動_金融債権", "current_receivable_asset_suffix")
-        elif re.search(r"ProgramRight|CurrentPortionOf.*Deposit", tag):
+        elif re.search(r"ProgramRight|CurrentPortionOf.*Deposit|Capitalized.*ContractCost", tag):
             add("CurrentAssets", "流動_その他流動資産", "current_right_or_deposit_suffix")
         elif re.search(r"Inventor|Merchandise|WorkInProgress", tag):
             add("CurrentAssets", "流動_棚卸資産", "current_inventory_suffix")
@@ -2075,12 +2205,15 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         return options
 
     if _has_semantic_suffix(tag, "IA"):
-        if re.search(r"Asset|Concession|Content|License|Patent|Right|Software|Trademark", tag):
+        if re.search(
+            r"Asset|Concession|Content|License|Patent|Relationship|Right|Software|Trademark",
+            tag,
+        ):
             add("NonCurrentAssets", "無形_その他無形固定資産", "intangible_extension_suffix")
         return options
 
     if _has_semantic_suffix(tag, "NCA"):
-        if re.search(r"Receivable|Loan", tag):
+        if re.search(r"Receivable|Loan|ContractAsset", tag):
             add("NonCurrentAssets", "投資_金融債権", "noncurrent_receivable_suffix")
         elif re.search(r"Deposit|AdvancePayment|FinancialAsset", tag):
             add("NonCurrentAssets", "投資_その他金融資産", "noncurrent_financial_asset_suffix")
@@ -2090,16 +2223,23 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             add("NonCurrentAssets", "投資_その他固定資産", "noncurrent_asset_suffix", 2)
         return options
 
-    if _has_semantic_suffix(tag, "EQUITY") and re.search(
-        r"AcquisitionRights|SubscriptionRights", tag
-    ):
-        add("NetAssets", "純資_新株予約権", "equity_rights_suffix")
+    if _has_semantic_suffix(tag, "EQUITY"):
+        if re.search(r"AcquisitionRights|SubscriptionRights", tag):
+            add("NetAssets", "純資_新株予約権", "equity_rights_suffix")
+        elif re.search(r"OtherComprehensiveIncome", tag):
+            add("NetAssets", "純資_評価換算差額金", "equity_oci_suffix")
+        elif re.search(r"OtherComponentsOfCapital", tag):
+            add("NetAssets", "純資_その他純資産", "other_equity_component_suffix")
         return options
 
     if tag in {"SuspenseReceipt", "SuspenseReceipts", "TemporaryReceipt"}:
         add("CurrentLiabilities", "流負_預り金", "receipt_liability_meaning")
     elif re.search(r"RetainedEarnings.*TranslationAdjustment.*IFRSTransition", tag):
         add("NetAssets", "純資_累積換算調整額", "ifrs_transition_equity_adjustment")
+    elif re.search(r"OtherComprehensiveIncome.*Equity", tag):
+        add("NetAssets", "純資_評価換算差額金", "equity_oci_meaning")
+    elif re.search(r"OtherComponentsOfCapital.*Equity", tag):
+        add("NetAssets", "純資_その他純資産", "other_equity_component_meaning")
     elif re.search(r"TaxationLiabilitiesIFRS$", tag):
         add("CurrentLiabilities", "流負_未払税金", "unsplit_ifrs_tax_liability", 2)
         add("NonCurrentLiabilities", "固負_その他固定負債", "unsplit_ifrs_tax_liability", 2)
@@ -2110,6 +2250,11 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         add("NonCurrentLiabilities", "固負_匿名組合出資預り金", "partnership_deposit_meaning", 2)
     elif re.search(r"AccountsReceivableDueFrom|ReceivablesFromContractsWithCustomers", tag):
         add("CurrentAssets", "流動_金融債権", "current_receivable_meaning", 2)
+    elif re.search(r"^NotesAndAccountsReceivable.*(?:Net|CA)", tag):
+        add(
+            "CurrentAssets", "流動_受取手形・売掛金(合算)",
+            "combined_receivable_meaning", 2, action="receivable_parent",
+        )
     elif re.search(r"CurrentPortionOf.*Deposit", tag):
         add("CurrentAssets", "流動_その他金融資産", "current_deposit_meaning", 2)
     elif tag.startswith("DueTo"):
@@ -2131,8 +2276,10 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         add("NonCurrentLiabilities", "固負_引当金", "unsplit_provision_meaning", 2)
     elif re.search(r"RightOfUseAssets|RentalServiceAssets|AssetsForRent", tag):
         add("NonCurrentAssets", "有形_その他有形固定資産", "physical_asset_meaning", 2)
-    elif re.search(r"LongTerm(?:Receivable|Loan|Deposit|AdvancePayment)", tag):
+    elif re.search(r"LongTerm.*(?:Receivable|Loan|Deposit|AdvancePayment)", tag):
         add("NonCurrentAssets", "投資_その他金融資産", "long_term_asset_meaning", 2)
+    elif re.search(r"MarginForForeignExchange", tag):
+        add("CurrentAssets", "流動_その他金融資産", "foreign_exchange_margin_meaning", 2)
     return options
 
 
@@ -2785,7 +2932,14 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
     for fallback in section_fallbacks:
         bs_warnings.append(f"{fallback['section']}: 内訳タグがないため合計値を未分類として保持しました")
     if debug:
-        known_numeric_tags = set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP) | semantically_mapped_tags
+        skipped_numeric_tags = {
+            tag for tag in best_raw_tags
+            if should_skip_item_tag(tag, best_raw_tags)
+        }
+        known_numeric_tags = (
+            set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP) | semantically_mapped_tags
+            | skipped_numeric_tags
+        )
         unmapped_numeric_tags = [
             {"tag": tag, "value_oku": round(val / 100000000, 3)}
             for tag, val in sorted(best_raw_tags.items(), key=lambda item: abs(item[1]), reverse=True)
@@ -3455,19 +3609,32 @@ def main():
         return
 
     jpx_codes = {c["code"]: c for c in companies_list}
+    edinet_code_map = load_edinet_code_map()
 
     if requested_codes:
         companies_list = [
             jpx_codes.get(code, {"code": code, "name": "名称不明(指定銘柄)", "market": "不明", "sector": "不明"})
             for code in requested_codes
         ]
-        target_codes_for_scan = requested_codes
+        target_codes_for_scan = [
+            code for code in requested_codes
+            if not (
+                is_tokyo_pro_market(jpx_codes.get(code, {}).get("market", ""))
+                and code not in edinet_code_map
+            )
+        ]
         print(f"\n単体更新モード: {', '.join(requested_codes)} のみ更新します。")
     else:
         # 先にEdinetSearcherで過去書類をスキャンし、東証以外の銘柄を洗い出す
-        target_codes_for_scan = list(jpx_codes.keys()) + ["0000"] # 確実に365日スキャンさせるためのダミーコード
+        target_codes_for_scan = [
+            code for code, company in jpx_codes.items()
+            if not (
+                is_tokyo_pro_market(company.get("market", ""))
+                and code not in edinet_code_map
+            )
+        ] + ["0000"] # 確実に365日スキャンさせるためのダミーコード
     
-    searcher = EdinetSearcher()
+    searcher = EdinetSearcher(edinet_code_map)
     searcher.fetch_list(
         target_codes_for_scan,
         days_back=args.days_back,
@@ -3629,10 +3796,20 @@ def main():
                     })
                     print(f" -> [B/S診断] {debug_path} に解析失敗情報を出力しました。")
             elif args.debug_bs:
+                if is_tokyo_pro_market(market):
+                    document_status = "source_not_applicable"
+                    source_note = (
+                        "TOKYO PRO Market銘柄のため、EDINETの継続開示書類が"
+                        "存在しない場合があります"
+                    )
+                else:
+                    document_status = "document_not_found"
+                    source_note = ""
                 debug_path = write_bs_diagnostics(args.debug_dir, code, {
-                    "status": "document_not_found",
+                    "status": document_status,
                     "code": code,
                     "doc_description": bs_desc,
+                    "source_note": source_note,
                 })
                 print(f" -> [B/S診断] {debug_path} に書類未取得情報を出力しました。")
             

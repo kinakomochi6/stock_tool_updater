@@ -3,6 +3,8 @@ import unittest
 import zipfile
 from unittest.mock import Mock, patch
 
+import pandas as pd
+
 from bs_diagnostics_report import summarize_diagnostics
 from bs_test_sets import (
     BREADTH_100,
@@ -14,6 +16,7 @@ from bs_test_sets import (
     MARKET_500,
     MARKET_700,
     MARKET_900,
+    MARKET_1100,
     REGRESSION_40,
     STRESS_100,
     WAVE_A_100,
@@ -22,6 +25,8 @@ from bs_test_sets import (
     WAVE_D_100,
     WAVE_E_100,
     WAVE_F_100,
+    WAVE_G_100,
+    WAVE_H_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -33,6 +38,8 @@ from firebase_master_test import (
     classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
+    is_tokyo_pro_market,
+    load_edinet_code_map,
     parse_codes_arg,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
@@ -112,6 +119,106 @@ class EdinetSearcherTests(unittest.TestCase):
 
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(len(searcher.df_docs), 1)
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_edinet_code_match_finds_registration_statement_without_sec_code(
+        self, mock_get, _mock_sleep
+    ):
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "results": [{
+                "docTypeCode": "030",
+                "secCode": None,
+                "edinetCode": "E40000",
+                "xbrlFlag": "1",
+                "filerName": "Newly Listed Company",
+                "docID": "S100IPO",
+                "docDescription": "Securities registration statement",
+                "periodEnd": "2026-03-31",
+            }],
+        }
+        mock_get.return_value = response
+
+        searcher = EdinetSearcher({"542A": {"E40000"}})
+        searcher.fetch_list(["542A"], days_back=0, require_real_estate=False)
+        doc_id, _, _ = searcher.find_best_bs_doc("542A")
+
+        self.assertEqual(mock_get.call_count, 1)
+        self.assertEqual(doc_id, "S100IPO")
+
+    def test_periodic_report_is_preferred_to_newer_registration_statement(self):
+        searcher = EdinetSearcher({"542A": {"E40000"}})
+        searcher.df_docs = pd.DataFrame([
+            {
+                "date": "2026-07-01", "secCode": "", "edinetCode": "E40000",
+                "docTypeCode": "030", "xbrlFlag": "1", "docID": "S100IPO",
+                "docDescription": "Registration", "filerName": "Test",
+                "periodEnd": "2026-03-31", "withdrawalStatus": "",
+            },
+            {
+                "date": "2026-06-01", "secCode": "542A0", "edinetCode": "E40000",
+                "docTypeCode": "160", "xbrlFlag": "1", "docID": "S100HALF",
+                "docDescription": "Half-year report", "filerName": "Test",
+                "periodEnd": "2026-03-31", "withdrawalStatus": "",
+            },
+        ])
+
+        doc_id, _, _ = searcher.find_best_bs_doc("542A")
+
+        self.assertEqual(doc_id, "S100HALF")
+
+    def test_corrected_half_year_report_is_supported_and_withdrawn_doc_is_ignored(self):
+        searcher = EdinetSearcher()
+        searcher.df_docs = pd.DataFrame([
+            {
+                "date": "2026-06-01", "secCode": "72030", "edinetCode": "E00000",
+                "docTypeCode": "160", "xbrlFlag": "1", "docID": "S100BASE",
+                "docDescription": "Half-year report", "filerName": "Test",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-01 10:00",
+                "withdrawalStatus": "",
+            },
+            {
+                "date": "2026-06-02", "secCode": "72030", "edinetCode": "E00000",
+                "docTypeCode": "170", "xbrlFlag": "1", "docID": "S100FIX",
+                "docDescription": "Correction", "filerName": "Test",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-02 10:00",
+                "withdrawalStatus": "",
+            },
+            {
+                "date": "2026-06-03", "secCode": "72030", "edinetCode": "E00000",
+                "docTypeCode": "170", "xbrlFlag": "1", "docID": "S100WITHDRAWN",
+                "docDescription": "Withdrawn correction", "filerName": "Test",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-03 10:00",
+                "withdrawalStatus": "1",
+            },
+        ])
+
+        doc_id, _, _ = searcher.find_best_bs_doc("7203")
+
+        self.assertEqual(doc_id, "S100FIX")
+
+    @patch("firebase_master_test.requests.get")
+    def test_official_edinet_code_list_is_parsed_by_column_position(self, mock_get):
+        csv_text = (
+            "download,date,count,1\n"
+            "c0,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11\n"
+            "E40000,type,listed,yes,1,0331,name,en,kana,address,industry,542A0\n"
+        )
+        payload = io.BytesIO()
+        with zipfile.ZipFile(payload, "w") as archive:
+            archive.writestr("EdinetcodeDlInfo.csv", csv_text.encode("cp932"))
+        response = Mock(content=payload.getvalue())
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        result = load_edinet_code_map()
+
+        self.assertEqual(result, {"542A": {"E40000"}})
+
+    def test_tokyo_pro_market_is_identified_as_a_separate_source(self):
+        self.assertTrue(is_tokyo_pro_market("PRO Market"))
+        self.assertFalse(is_tokyo_pro_market("グロース（内国株式）"))
 
 
 class MappingTests(unittest.TestCase):
@@ -1685,6 +1792,60 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["流動_受取手形・売掛金(合算)"], 168_000_000_000)
         self.assertEqual(summary["流動_契約資産"], 0)
 
+    def test_unknown_noncurrent_reserve_reconciles_as_provision(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["固負_長期借入金"] = 100_000_000_000
+        summary["固負_その他固定負債"] = 20_000_000_000
+        totals = {"NonCurrentLiabilities": 122_377_000_000}
+        raw_tags = {"FactoryMoveCostReserveNCL": 2_377_000_000}
+
+        _, applied_tags = reconcile_semantic_unmapped_tags(summary, totals, raw_tags)
+
+        self.assertEqual(applied_tags, {"FactoryMoveCostReserveNCL"})
+        self.assertEqual(summary["固負_引当金"], 2_377_000_000)
+
+    def test_customer_relationship_extension_uses_intangible_suffix(self):
+        options = classify_unmapped_bs_tag("CustomerRelationshipsIA", {})
+
+        self.assertEqual(options[0]["section"], "NonCurrentAssets")
+        self.assertEqual(options[0]["category"], "無形_その他無形固定資産")
+
+    def test_crypto_asset_extension_uses_current_financial_asset_section(self):
+        options = classify_unmapped_bs_tag("CryptoAssetCAIFRS", {})
+
+        self.assertEqual(options[0]["section"], "CurrentAssets")
+        self.assertEqual(options[0]["category"], "流動_その他金融資産")
+
+    def test_long_term_time_deposit_is_a_noncurrent_financial_asset_candidate(self):
+        options = classify_unmapped_bs_tag("LongTermTimeDeposits", {})
+
+        self.assertEqual(options[0]["section"], "NonCurrentAssets")
+        self.assertEqual(options[0]["category"], "投資_その他金融資産")
+
+    def test_disposal_group_oci_is_an_equity_adjustment_candidate(self):
+        options = classify_unmapped_bs_tag(
+            "OtherComprehensiveIncomeDirectlyAssociatedWithAssetsHeldForSaleEquityIFRS",
+            {},
+        )
+
+        self.assertEqual(options[0]["section"], "NetAssets")
+        self.assertEqual(options[0]["category"], "純資_評価換算差額金")
+
+    def test_unknown_electric_facility_detail_is_skipped_under_reported_parent(self):
+        raw_tags = {
+            "ElectricUtilityPlantAndEquipmentAssetsELE": 1_000_000_000_000,
+            "InternalCombustionEnginePowerProductionFacilitiesNCAElectricELE":
+                36_825_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag(
+                "InternalCombustionEnginePowerProductionFacilitiesNCAElectricELE",
+                raw_tags,
+            ),
+            "electric_utility_facility_detail_skipped_because_total_exists",
+        )
+
 
 class TestSetTests(unittest.TestCase):
     def test_curated_set_sizes_and_overlap(self):
@@ -1716,6 +1877,12 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(MARKET_700) & set(WAVE_F_100))
         self.assertFalse(set(WAVE_E_100) & set(WAVE_F_100))
         self.assertEqual(len(MARKET_900), 900)
+        self.assertEqual(len(WAVE_G_100), 100)
+        self.assertEqual(len(WAVE_H_100), 100)
+        self.assertFalse(set(MARKET_900) & set(WAVE_G_100))
+        self.assertFalse(set(MARKET_900) & set(WAVE_H_100))
+        self.assertFalse(set(WAVE_G_100) & set(WAVE_H_100))
+        self.assertEqual(len(MARKET_1100), 1100)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
@@ -1729,7 +1896,10 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(BS_TEST_SETS["market-700"], MARKET_700)
         self.assertEqual(BS_TEST_SETS["wave-e-100"], WAVE_E_100)
         self.assertEqual(BS_TEST_SETS["wave-f-100"], WAVE_F_100)
+        self.assertEqual(BS_TEST_SETS["wave-g-100"], WAVE_G_100)
+        self.assertEqual(BS_TEST_SETS["wave-h-100"], WAVE_H_100)
         self.assertEqual(BS_TEST_SETS["market-900"], MARKET_900)
+        self.assertEqual(BS_TEST_SETS["market-1100"], MARKET_1100)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])
@@ -1741,6 +1911,17 @@ class TestSetTests(unittest.TestCase):
 
 
 class DiagnosticsReportTests(unittest.TestCase):
+    def test_source_not_applicable_is_reported_as_skipped_not_failed(self):
+        summary = summarize_diagnostics([{
+            "_path": "debug_bs_132A.json",
+            "code": "132A",
+            "status": "source_not_applicable",
+        }])
+
+        self.assertEqual(summary["failed_codes"], [])
+        self.assertEqual(summary["skipped_codes"], ["132A"])
+        self.assertEqual(summary["skipped_statuses"], {"source_not_applicable": 1})
+
     def test_residuals_use_absolute_magnitude_for_ranking(self):
         records = [
             {
