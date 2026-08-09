@@ -36,6 +36,7 @@ from firebase_master_test import (
     EdinetSearcher,
     TAG_MAPPING,
     BsAnalysisError,
+    apply_derived_net_tag_pairs,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
     classify_missing_bs_document,
@@ -44,6 +45,7 @@ from firebase_master_test import (
     empty_financial_data,
     is_tokyo_pro_market,
     load_edinet_code_map,
+    normalize_separately_reported_asset_sections,
     parse_codes_arg,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
@@ -2026,6 +2028,86 @@ class MappingTests(unittest.TestCase):
         reconcile_skipped_section_summaries(summary, totals, raw_tags)
 
         self.assertEqual(summary["有形_減価償却累計額"], -111_268_000_000)
+
+    def test_unseen_ifrs_investments_and_intangibles_are_independent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "DebtAndEquityInstrumentsNCAIFRS": 1_649_512_000_000,
+            "InvestmentsAccountedForUsingTheEquityMethodIFRS": 231_941_000_000,
+            "NonPatentTechnologyIFRS": 32_977_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["投資_投資有価証券"], 1_649_512_000_000)
+        self.assertEqual(summary["投資_持分法投資"], 231_941_000_000)
+        self.assertEqual(summary["無形_技術関連資産"], 32_977_000_000)
+
+    def test_pfi_inventory_parent_replaces_its_inventory_subdetails(self):
+        raw_tags = {
+            "PFIProjectsAndOtherInventoriesCA": 4_494_000_000,
+            "Merchandise": 119_800_000,
+            "RawMaterialsAndSuppliesCNS": 281_100_000,
+            "CostsOnUncompletedConstructionContractsCNS": 40_342_000_000,
+        }
+
+        self.assertIsNotNone(should_skip_item_tag("Merchandise", raw_tags))
+        self.assertIsNotNone(should_skip_item_tag("RawMaterialsAndSuppliesCNS", raw_tags))
+        self.assertIsNone(
+            should_skip_item_tag("CostsOnUncompletedConstructionContractsCNS", raw_tags)
+        )
+
+    def test_gross_jgaap_ppe_can_be_reduced_by_matching_accumulated_value(self):
+        raw_tags = {
+            "Buildings": 1_000_000_000,
+            "AccumulatedDepreciationAndImpairmentLossBuildings": -700_000_000,
+        }
+        summary = {key: 0 for key in DISPLAY_ORDER}
+
+        self.assertIsNotNone(should_skip_item_tag("Buildings", raw_tags))
+        applied = []
+        apply_derived_net_tag_pairs(summary, raw_tags, applied)
+
+        self.assertEqual(summary["有形_建物・構築物"], 300_000_000)
+        self.assertEqual(applied[0]["action"], "derived_net_add")
+
+    def test_unsplit_bank_moves_generic_current_financial_receivables(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_金融債権"] = 302_000_000_000
+        summary["投資_金融債権"] = 390_286_000_000
+
+        reconcile_bank_presentation(
+            summary,
+            {"CurrentAssets": 0},
+            {"LoansAndBillsDiscountedAssetsBNK": 5_943_070_000_000},
+        )
+
+        self.assertEqual(summary["流動_金融債権"], 0)
+        self.assertEqual(summary["投資_金融債権"], 692_286_000_000)
+
+    def test_separately_reported_deferred_assets_expand_broad_noncurrent_total(self):
+        totals = {
+            "Assets": 4_240_400_000,
+            "CurrentAssets": 313_600_000,
+            "NonCurrentAssets": 3_836_100_000,
+        }
+
+        adjustments = normalize_separately_reported_asset_sections(
+            totals, {"DeferredAssets": 90_700_000}
+        )
+
+        self.assertEqual(totals["NonCurrentAssets"], 3_926_800_000)
+        self.assertEqual(len(adjustments), 1)
+
+    def test_unseen_tag_targets_remain_displayable(self):
+        for tag in (
+            "AssetsHeldForSaleCAIFRS",
+            "AssetsRelatedToPaidTransactionsCA",
+            "GoodsInTransit",
+            "ContainersNet",
+            "CashAndDepositsInTrustINV",
+        ):
+            self.assertIn(TAG_MAPPING[tag], DISPLAY_ORDER)
 
 
 class TestSetTests(unittest.TestCase):
