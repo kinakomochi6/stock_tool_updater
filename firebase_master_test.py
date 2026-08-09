@@ -2298,6 +2298,8 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
     if _has_semantic_suffix(tag, "NCL"):
         if is_provision:
             add("NonCurrentLiabilities", "固負_引当金", "noncurrent_provision_suffix")
+        elif re.search(r"ContractLiabilit", tag):
+            add("NonCurrentLiabilities", "固負_契約負債", "noncurrent_contract_liability_suffix")
         elif re.search(
             r"Payable|Borrowing|Debt|Liabilit|Obligation|Deposit|Derivative|Receipt",
             tag,
@@ -2308,6 +2310,8 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
     if _has_semantic_suffix(tag, "CL"):
         if is_provision:
             add("CurrentLiabilities", "流負_引当金", "current_provision_suffix")
+        elif re.search(r"LiabilitiesDirectlyAssociatedWithAssetsHeldForSale", tag):
+            add("CurrentLiabilities", "流負_売却目的保有関連負債", "held_for_sale_liability_suffix")
         elif re.search(r"AccountsPayable.*Trade|Trade.*Payables", tag):
             add("CurrentLiabilities", "流負_支払手形・買掛金", "current_trade_payable_suffix")
         elif re.search(r"ContractLiabilit|Advance.*Received", tag):
@@ -2321,7 +2325,13 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         return options
 
     if _has_semantic_suffix(tag, "CA"):
-        if re.search(r"Receivable", tag) and re.search(r"ContractAssets?", tag):
+        if re.search(r"(?:Trade)?NotesAndAccountsReceivable", tag):
+            add(
+                "CurrentAssets", "流動_受取手形・売掛金(合算)",
+                "current_combined_trade_receivable_suffix",
+                action="receivable_parent",
+            )
+        elif re.search(r"Receivable", tag) and re.search(r"ContractAssets?", tag):
             add(
                 "CurrentAssets", "流動_受取手形・売掛金(合算)",
                 "current_combined_receivable_suffix", action="receivable_parent",
@@ -2334,7 +2344,9 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             add("CurrentAssets", "流動_その他金融資産", "current_security_asset_suffix")
         elif re.search(r"Cash|Deposit|Margin|Collateral", tag):
             add("CurrentAssets", "流動_預け金", "current_deposit_asset_suffix")
-        elif re.search(r"Receivable|Loan|AdvancePayment|AdvancesPaid|InCustody", tag):
+        elif re.search(r"AdvancePayment|AdvancesPaid", tag):
+            add("CurrentAssets", "流動_前渡金", "current_advance_payment_suffix")
+        elif re.search(r"Receivable|Loan|InCustody", tag):
             add("CurrentAssets", "流動_金融債権", "current_receivable_asset_suffix")
         elif re.search(r"InvestmentLossReserve", tag):
             add("CurrentAssets", "流動_貸倒引当金", "current_investment_allowance_suffix")
@@ -2695,6 +2707,14 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
             if section in provision_categories:
                 category = provision_categories[section]
                 reason = "taxonomy_section_provision_or_allowance"
+        if re.search(r"Deposits?Received|DepositReceived", tag):
+            deposit_categories = {
+                "CurrentLiabilities": "流負_預り金",
+                "NonCurrentLiabilities": "固負_長期預り金",
+            }
+            if section in deposit_categories:
+                category = deposit_categories[section]
+                reason = "taxonomy_section_deposit_received"
         categories = [{
             "section": section,
             "category": category,

@@ -270,6 +270,52 @@ class TaxonomyRelationshipTests(unittest.TestCase):
 
         self.assertEqual(options[0]["category"], "流負_支払手形・買掛金")
 
+    def test_taxonomy_section_refines_deposit_received_category(self):
+        tag = "DepositReceivedRealEstate"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [{
+                "parent": "CurrentLiabilities",
+                "child": tag,
+                "link_type": "calculation",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }]},
+            {tag: 2_000_000_000},
+            "CurrentYearInstant",
+        )
+
+        self.assertEqual(options[0]["category"], "流負_預り金")
+
+    def test_structural_section_refines_common_bs_categories(self):
+        cases = [
+            ("LongTermContractLiabilitiesNCL", "NoncurrentLiabilities", "固負_契約負債"),
+            (
+                "LiabilitiesDirectlyAssociatedWithAssetsHeldForSaleCLIFRS",
+                "CurrentLiabilities",
+                "流負_売却目的保有関連負債",
+            ),
+            (
+                "TradeNotesAndAccountsReceivableCA",
+                "CurrentAssets",
+                "流動_受取手形・売掛金(合算)",
+            ),
+            ("AdvancesPaidOfTariffCA", "CurrentAssets", "流動_前渡金"),
+        ]
+        for tag, parent, expected in cases:
+            with self.subTest(tag=tag):
+                options = classify_taxonomy_bs_tag(
+                    tag,
+                    {tag: [{
+                        "parent": parent,
+                        "child": tag,
+                        "link_type": "calculation",
+                        "role": "http://example.com/role/ConsolidatedBalanceSheet",
+                    }]},
+                    {tag: 2_000_000_000},
+                    "CurrentYearInstant",
+                )
+                self.assertEqual(options[0]["category"], expected)
+
 
 class BsQualityGateTests(unittest.TestCase):
     def setUp(self):
