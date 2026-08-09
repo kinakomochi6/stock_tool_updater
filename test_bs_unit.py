@@ -40,6 +40,7 @@ from firebase_master_test import (
     apply_mapped_tag,
     apply_summary_only_fallbacks,
     classify_missing_bs_document,
+    classify_taxonomy_bs_tag,
     classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
@@ -47,6 +48,7 @@ from firebase_master_test import (
     is_tokyo_pro_market,
     load_edinet_code_map,
     parse_codes_arg,
+    parse_taxonomy_relationships,
     remove_bs_values_for_quarantine,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
@@ -60,6 +62,164 @@ from firebase_master_test import (
     should_skip_item_tag,
     validate_tag_mapping,
 )
+
+
+class TaxonomyRelationshipTests(unittest.TestCase):
+    @staticmethod
+    def make_taxonomy_zip():
+        payload = io.BytesIO()
+        xsd = b'''<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="ProvisionForOpaqueRisk" id="company_ProvisionForOpaqueRisk" />
+</xsd:schema>'''
+        pre = b'''<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <link:presentationLink xlink:type="extended"
+  xlink:role="http://example.com/role/ConsolidatedBalanceSheet">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_CurrentLiabilities" xlink:label="current" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_ProvisionForOpaqueRisk" xlink:label="reserve" />
+  <link:presentationArc xlink:type="arc" xlink:from="current" xlink:to="reserve" order="1" />
+ </link:presentationLink>
+ <link:presentationLink xlink:type="extended"
+  xlink:role="http://example.com/role/NotesBalanceSheet">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_CurrentAssets" xlink:label="assets" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_ProvisionForOpaqueRisk" xlink:label="reserve-note" />
+  <link:presentationArc xlink:type="arc" xlink:from="assets" xlink:to="reserve-note" order="1" />
+ </link:presentationLink>
+</link:linkbase>'''
+        cal = b'''<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <link:calculationLink xlink:type="extended"
+  xlink:role="http://example.com/role/ConsolidatedBalanceSheet">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_CurrentLiabilities" xlink:label="current" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_ProvisionForOpaqueRisk" xlink:label="reserve" />
+  <link:calculationArc xlink:type="arc" xlink:from="current" xlink:to="reserve" order="1" weight="1" />
+ </link:calculationLink>
+</link:linkbase>'''
+        with zipfile.ZipFile(payload, "w") as archive:
+            archive.writestr("XBRL/PublicDoc/company.xsd", xsd)
+            archive.writestr("XBRL/PublicDoc/company_pre.xml", pre)
+            archive.writestr("XBRL/PublicDoc/company_cal.xml", cal)
+        payload.seek(0)
+        return payload
+
+    def test_linkbases_resolve_extension_ids_and_ignore_note_roles(self):
+        with zipfile.ZipFile(self.make_taxonomy_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+
+        self.assertEqual(info["errors"], [])
+        self.assertEqual(len(info["files"]), 2)
+        self.assertEqual(len(info["relationships"]), 2)
+        self.assertEqual(
+            {item["link_type"] for item in info["relationships"]},
+            {"presentation", "calculation"},
+        )
+        self.assertTrue(all(
+            item["child"] == "ProvisionForOpaqueRisk"
+            for item in info["relationships"]
+        ))
+
+    def test_both_linkbases_support_the_same_current_liability_section(self):
+        with zipfile.ZipFile(self.make_taxonomy_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        parent_index = {
+            "ProvisionForOpaqueRisk": [
+                item for item in info["relationships"]
+                if item["child"] == "ProvisionForOpaqueRisk"
+            ]
+        }
+
+        options = classify_taxonomy_bs_tag(
+            "ProvisionForOpaqueRisk",
+            parent_index,
+            {"ProvisionForOpaqueRisk": 2_000_000_000},
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(options[0]["section"], "CurrentLiabilities")
+        self.assertEqual(options[0]["category"], "流負_引当金")
+        self.assertEqual(
+            options[0]["taxonomy_link_types"],
+            ["calculation", "presentation"],
+        )
+
+    def test_taxonomy_candidate_still_requires_section_total_reconciliation(self):
+        with zipfile.ZipFile(self.make_taxonomy_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+        totals = {"CurrentLiabilities": 102_000_000_000}
+        raw_tags = {"ProvisionForOpaqueRisk": 2_000_000_000}
+
+        adjustments, applied = reconcile_semantic_unmapped_tags(
+            summary,
+            totals,
+            raw_tags,
+            taxonomy_relationships=info["relationships"],
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(applied, {"ProvisionForOpaqueRisk"})
+        self.assertEqual(summary["流負_引当金"], 2_000_000_000)
+        self.assertEqual(adjustments[0]["inference_source"], "taxonomy")
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
+    def test_taxonomy_candidate_is_rejected_when_it_does_not_close_total(self):
+        with zipfile.ZipFile(self.make_taxonomy_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+
+        adjustments, applied = reconcile_semantic_unmapped_tags(
+            summary,
+            {"CurrentLiabilities": 101_000_000_000},
+            {"ProvisionForOpaqueRisk": 20_000_000_000},
+            taxonomy_relationships=info["relationships"],
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(adjustments, [])
+        self.assertEqual(applied, set())
+
+    def test_taxonomy_section_classifies_opaque_reserve_as_provision(self):
+        parent_index = {
+            "ReserveForUnspecifiedRisk": [{
+                "parent": "CurrentLiabilities",
+                "child": "ReserveForUnspecifiedRisk",
+                "link_type": "calculation",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }]
+        }
+
+        options = classify_taxonomy_bs_tag(
+            "ReserveForUnspecifiedRisk",
+            parent_index,
+            {"ReserveForUnspecifiedRisk": 2_000_000_000},
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(options[0]["category"], "流負_引当金")
+
+    def test_nonconsolidated_role_is_not_mistaken_for_consolidated_role(self):
+        parent_index = {
+            "OpaqueAsset": [{
+                "parent": "CurrentAssets",
+                "child": "OpaqueAsset",
+                "link_type": "calculation",
+                "role": "http://example.com/role/NonConsolidatedBalanceSheet",
+            }]
+        }
+
+        options = classify_taxonomy_bs_tag(
+            "OpaqueAsset",
+            parent_index,
+            {"OpaqueAsset": 2_000_000_000},
+            selected_context="CurrentYearInstant_NonConsolidatedMember",
+        )
+
+        self.assertEqual(options[0]["section"], "CurrentAssets")
 
 
 class BsQualityGateTests(unittest.TestCase):

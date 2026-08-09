@@ -17,6 +17,8 @@ import os
 import argparse
 from itertools import combinations
 import json
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlparse
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
@@ -1613,6 +1615,16 @@ SEMANTIC_SECTION_SPECS = {
     },
 }
 
+TAXONOMY_SECTION_TOTALS = {
+    "CurrentAssets", "NonCurrentAssets", "CurrentLiabilities",
+    "NonCurrentLiabilities", "NetAssets",
+}
+TAXONOMY_LINKBASE_SUFFIXES = {
+    "_pre.xml": "presentation",
+    "_cal.xml": "calculation",
+}
+XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+
 DERIVED_NET_TAG_PAIRS = [
     ("BuildingsAndStructures", "AccumulatedDepreciationBuildings", "有形_建物・構築物", ["BuildingsAndStructuresNet", "BuildingsNet"]),
     ("Buildings", "AccumulatedDepreciationAndImpairmentLossBuildings", "有形_建物・構築物", ["BuildingsNet"]),
@@ -2423,6 +2435,279 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
     return options
 
 
+def _xml_local_name(name):
+    return name.rsplit("}", 1)[-1]
+
+
+def _taxonomy_concept_from_href(href, concept_ids):
+    fragment = unquote(urlparse(href or "").fragment)
+    if not fragment:
+        return ""
+    if fragment in concept_ids:
+        return concept_ids[fragment]
+    known_concepts = set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP)
+    matches = [
+        concept for concept in known_concepts
+        if fragment == concept or fragment.endswith(f"_{concept}")
+    ]
+    if matches:
+        return max(matches, key=len)
+    return fragment.rsplit("_", 1)[-1]
+
+
+def parse_taxonomy_relationships(archive):
+    """Read balance-sheet parent-child relationships from an EDINET package."""
+    concept_ids = {}
+    errors = []
+    parsed_files = []
+    relationships = []
+
+    for name in archive.namelist():
+        if "publicdoc" not in name.lower() or not name.lower().endswith(".xsd"):
+            continue
+        try:
+            root = ET.fromstring(archive.read(name))
+            for element in root.iter():
+                if _xml_local_name(element.tag) != "element":
+                    continue
+                concept_id = element.get("id")
+                concept_name = element.get("name")
+                if concept_id and concept_name:
+                    concept_ids[concept_id] = concept_name
+        except (ET.ParseError, KeyError, OSError) as exc:
+            errors.append({"file": name, "error": repr(exc)})
+
+    for name in archive.namelist():
+        lower_name = name.lower()
+        link_type = next(
+            (kind for suffix, kind in TAXONOMY_LINKBASE_SUFFIXES.items()
+             if lower_name.endswith(suffix)),
+            None,
+        )
+        if not link_type or "publicdoc" not in name.lower():
+            continue
+        try:
+            root = ET.fromstring(archive.read(name))
+        except (ET.ParseError, KeyError, OSError) as exc:
+            errors.append({"file": name, "error": repr(exc)})
+            continue
+
+        parsed_files.append(name)
+        link_element_name = f"{link_type}Link"
+        arc_element_name = f"{link_type}Arc"
+        for link in root.iter():
+            if _xml_local_name(link.tag) != link_element_name:
+                continue
+            role = link.get(f"{{{XLINK_NAMESPACE}}}role", "")
+            role_lower = role.lower()
+            if (
+                not any(token in role_lower for token in ("balancesheet", "financialposition"))
+                or "note" in role_lower
+            ):
+                continue
+
+            locators = {}
+            for child in link:
+                if _xml_local_name(child.tag) != "loc":
+                    continue
+                label = child.get(f"{{{XLINK_NAMESPACE}}}label", "")
+                href = child.get(f"{{{XLINK_NAMESPACE}}}href", "")
+                concept = _taxonomy_concept_from_href(href, concept_ids)
+                if label and concept:
+                    locators[label] = concept
+
+            for child in link:
+                if _xml_local_name(child.tag) != arc_element_name:
+                    continue
+                if child.get("use") == "prohibited":
+                    continue
+                parent = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}from", ""))
+                concept = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}to", ""))
+                if not parent or not concept or parent == concept:
+                    continue
+                relationships.append({
+                    "parent": parent,
+                    "child": concept,
+                    "link_type": link_type,
+                    "role": role,
+                    "weight": child.get("weight"),
+                    "order": child.get("order"),
+                    "source_file": name,
+                })
+
+    unique = {}
+    for item in relationships:
+        key = (
+            item["parent"], item["child"], item["link_type"],
+            item["role"], item.get("weight"),
+        )
+        unique[key] = item
+    return {
+        "relationships": list(unique.values()),
+        "files": parsed_files,
+        "concept_id_count": len(concept_ids),
+        "errors": errors,
+    }
+
+
+def _taxonomy_section_for_category(category):
+    for section, spec in SEMANTIC_SECTION_SPECS.items():
+        if category.startswith(spec["prefix"]):
+            return section
+    return None
+
+
+def build_taxonomy_parent_index(relationships):
+    parent_index = {}
+    for item in relationships or []:
+        parent_index.setdefault(item["child"], []).append(item)
+    return parent_index
+
+
+def _taxonomy_role_is_consolidated(role):
+    normalized = (role or "").lower().replace("-", "")
+    return "consolidated" in normalized and "nonconsolidated" not in normalized
+
+
+def _taxonomy_anchor(parent):
+    total_section = TOTAL_TAG_LOOKUP.get(parent)
+    if total_section in TAXONOMY_SECTION_TOTALS:
+        return total_section, SEMANTIC_SECTION_SPECS[total_section]["other"]
+    category = TAG_MAPPING.get(parent)
+    section = _taxonomy_section_for_category(category) if category else None
+    if section:
+        return section, category
+    return None
+
+
+def find_taxonomy_anchors(tag, parent_index, selected_context=None, max_depth=6):
+    """Find nearest known B/S ancestors without crossing link roles."""
+    direct_edges = list(parent_index.get(tag, []))
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    if is_nonconsolidated:
+        direct_edges = [
+            edge for edge in direct_edges
+            if not _taxonomy_role_is_consolidated(edge["role"])
+        ]
+    else:
+        consolidated_edges = [
+            edge for edge in direct_edges
+            if _taxonomy_role_is_consolidated(edge["role"])
+        ]
+        if consolidated_edges:
+            direct_edges = consolidated_edges
+
+    anchors = []
+    for first in direct_edges:
+        queue = [(first["parent"], 1, [first["parent"]])]
+        visited = {tag}
+        while queue:
+            concept, depth, path = queue.pop(0)
+            if concept in visited or depth > max_depth:
+                continue
+            visited.add(concept)
+            anchor = _taxonomy_anchor(concept)
+            if anchor:
+                section, category = anchor
+                anchors.append({
+                    "section": section,
+                    "category": category,
+                    "anchor": concept,
+                    "depth": depth,
+                    "path": path,
+                    "link_type": first["link_type"],
+                    "role": first["role"],
+                })
+                continue
+            for edge in parent_index.get(concept, []):
+                if (
+                    edge["link_type"] == first["link_type"]
+                    and edge["role"] == first["role"]
+                ):
+                    queue.append((edge["parent"], depth + 1, path + [edge["parent"]]))
+    return anchors
+
+
+def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=None):
+    """Infer an unknown concept from its nearest known taxonomy ancestors."""
+    raw_tags = raw_tags or {}
+    if tag in TAG_MAPPING or tag in TOTAL_TAG_LOOKUP:
+        return []
+    if any(pattern in tag for pattern in SEMANTIC_TAG_EXCLUSION_PATTERNS):
+        return []
+
+    anchors = find_taxonomy_anchors(tag, parent_index, selected_context)
+    if not anchors:
+        return []
+
+    evidence_by_section = {}
+    for anchor in anchors:
+        stats = evidence_by_section.setdefault(anchor["section"], {
+            "anchors": [], "link_types": set(), "score": 0,
+        })
+        stats["anchors"].append(anchor)
+        stats["link_types"].add(anchor["link_type"])
+        base = 7 if anchor["link_type"] == "calculation" else 5
+        stats["score"] = max(stats["score"], base - min(anchor["depth"] - 1, 3))
+    for stats in evidence_by_section.values():
+        if len(stats["link_types"]) > 1:
+            stats["score"] += 3
+
+    ranked_sections = sorted(
+        evidence_by_section.items(),
+        key=lambda item: (-item[1]["score"], item[0]),
+    )
+    if len(ranked_sections) > 1 and ranked_sections[0][1]["score"] == ranked_sections[1][1]["score"]:
+        return []
+    section, stats = ranked_sections[0]
+
+    semantic_options = [
+        option for option in classify_unmapped_bs_tag(tag, raw_tags)
+        if option["section"] == section
+    ]
+    section_other = SEMANTIC_SECTION_SPECS[section]["other"]
+    nearest = min(
+        stats["anchors"],
+        key=lambda item: (
+            item["category"] == section_other,
+            item["depth"],
+            item["link_type"] != "calculation",
+        ),
+    )
+    if semantic_options:
+        categories = semantic_options
+    else:
+        category = nearest["category"]
+        reason = "nearest_known_taxonomy_parent"
+        if re.search(r"Provision|Allowance|Accrual|Reserve", tag):
+            provision_categories = {
+                "CurrentAssets": "流動_貸倒引当金",
+                "NonCurrentAssets": "投資_貸倒引当金",
+                "CurrentLiabilities": "流負_引当金",
+                "NonCurrentLiabilities": "固負_引当金",
+            }
+            if section in provision_categories:
+                category = provision_categories[section]
+                reason = "taxonomy_section_provision_or_allowance"
+        categories = [{
+            "section": section,
+            "category": category,
+            "reason": reason,
+            "confidence": 1,
+            "action": "add",
+        }]
+    support = "+".join(sorted(stats["link_types"]))
+    return [{
+        **option,
+        "confidence": option.get("confidence", 1) + stats["score"],
+        "reason": f"taxonomy_{support}:{nearest['anchor']}:{option['reason']}",
+        "inference_source": "taxonomy",
+        "taxonomy_anchor": nearest["anchor"],
+        "taxonomy_path": nearest["path"],
+        "taxonomy_link_types": sorted(stats["link_types"]),
+    } for option in categories]
+
+
 def _semantic_section_delta(summary, totals, section):
     spec = SEMANTIC_SECTION_SPECS[section]
     total = totals.get(section, 0)
@@ -2435,13 +2720,28 @@ def _semantic_section_delta(summary, totals, section):
     return total - subtotal - summary.get(spec["other"], 0)
 
 
-def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
+def reconcile_semantic_unmapped_tags(
+    summary, totals, raw_tags, taxonomy_relationships=None, selected_context=None,
+):
     """Apply unknown concepts only when meaning and section totals both agree."""
     candidates_by_section = {section: [] for section in SEMANTIC_SECTION_SPECS}
+    taxonomy_parent_index = build_taxonomy_parent_index(taxonomy_relationships)
     for tag, value in raw_tags.items():
         if abs(value) < 100_000_000:
             continue
-        for option in classify_unmapped_bs_tag(tag, raw_tags):
+        taxonomy_options = classify_taxonomy_bs_tag(
+            tag, taxonomy_parent_index, raw_tags, selected_context,
+        )
+        semantic_options = (
+            [] if taxonomy_options else classify_unmapped_bs_tag(tag, raw_tags)
+        )
+        option_map = {
+            (option["section"], option["category"]): option
+            for option in semantic_options
+        }
+        for option in taxonomy_options:
+            option_map[(option["section"], option["category"])] = option
+        for option in option_map.values():
             current = summary.get(option["category"], 0)
             if option.get("action") == "max":
                 effective_value = max(current, value) - current
@@ -2525,15 +2825,20 @@ def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
         summary.update(trial)
         for item in combo:
             applied_tags.add(item["tag"])
+            inference_source = item.get("inference_source", "semantic")
             adjustments.append({
                 "tag": item["tag"],
                 "category": item["category"],
                 "value": item["effective_value"],
                 "raw_value": item["value"],
-                "reason": f"semantic_fallback:{item['reason']}",
+                "reason": f"{inference_source}_fallback:{item['reason']}",
                 "confidence": item["confidence"],
                 "delta_before": delta_before,
                 "delta_after": delta_after,
+                "inference_source": inference_source,
+                "taxonomy_anchor": item.get("taxonomy_anchor"),
+                "taxonomy_path": item.get("taxonomy_path"),
+                "taxonomy_link_types": item.get("taxonomy_link_types"),
             })
         for item in duplicate_adjustments:
             adjustments.append({
@@ -2999,6 +3304,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
         return None
 
     with archive as z:
+        taxonomy_info = parse_taxonomy_relationships(z)
         xbrl_file = next((n for n in z.namelist() if n.endswith(".xbrl") and "PublicDoc" in n), None)
         if not xbrl_file:
             error = BsAnalysisError(
@@ -3116,6 +3422,12 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                 "selected_rank": best_rank,
                 "contexts": debug_contexts,
                 "duplicate_tags_in_selected_context": {k: v for k, v in best_raw_tag_candidates.items() if len(v) > 1},
+                "taxonomy_linkbase": {
+                    "files": taxonomy_info["files"],
+                    "relationship_count": len(taxonomy_info["relationships"]),
+                    "concept_id_count": taxonomy_info["concept_id_count"],
+                    "errors": taxonomy_info["errors"],
+                },
             }
 
     receivable_reconciliation = reconcile_receivable_presentation(
@@ -3143,7 +3455,11 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
         reconcile_optional_duplicate_categories(summary, totals)
     )
     semantic_adjustments, semantically_mapped_tags = reconcile_semantic_unmapped_tags(
-        summary, totals, best_raw_tags
+        summary,
+        totals,
+        best_raw_tags,
+        taxonomy_relationships=taxonomy_info["relationships"],
+        selected_context=best_cid,
     )
     reconciliation_adjustments.extend(semantic_adjustments)
     section_fallbacks = apply_summary_only_fallbacks(summary, totals)
@@ -3263,7 +3579,15 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
         diagnostics["semantic_inferences"] = [
             serialize_reconciliation_adjustment(item)
             for item in semantic_adjustments
-            if item.get("tag") in semantically_mapped_tags
+            if (
+                item.get("tag") in semantically_mapped_tags
+                and item.get("inference_source") != "taxonomy"
+            )
+        ]
+        diagnostics["taxonomy_inferences"] = [
+            serialize_reconciliation_adjustment(item)
+            for item in semantic_adjustments
+            if item.get("inference_source") == "taxonomy"
         ]
         diagnostics["section_fallbacks"] = [
             {**item, "value_oku": round(item["value"] / 100000000, 3)}

@@ -30,6 +30,8 @@ def summarize_diagnostics(records):
     semantic_tags = Counter()
     semantic_inference_count = 0
     semantic_company_count = 0
+    taxonomy_inference_count = 0
+    taxonomy_company_count = 0
     warning_count = 0
     quality_statuses = Counter()
     failed_codes = []
@@ -63,6 +65,10 @@ def summarize_diagnostics(records):
         for inference in semantic_inferences:
             if inference.get("tag"):
                 semantic_tags[inference["tag"]] += 1
+        taxonomy_inferences = record.get("taxonomy_inferences") or []
+        if taxonomy_inferences:
+            taxonomy_company_count += 1
+        taxonomy_inference_count += len(taxonomy_inferences)
 
         residuals = record.get("other_gap_delta_oku") or {}
         if residuals:
@@ -126,6 +132,8 @@ def summarize_diagnostics(records):
         "quality_statuses": dict(sorted(quality_statuses.items())),
         "semantic_company_count": semantic_company_count,
         "semantic_inference_count": semantic_inference_count,
+        "taxonomy_company_count": taxonomy_company_count,
+        "taxonomy_inference_count": taxonomy_inference_count,
         "semantic_tags": dict(semantic_tags.most_common()),
         "accounting_standards": dict(sorted(standards.items())),
         "context_types": dict(sorted(contexts.items())),
@@ -156,6 +164,8 @@ def render_markdown(summary, row_limit=25):
         f"- Quality: {quality}",
         f"- Semantic fallback: {summary['semantic_inference_count']} tags in "
         f"{summary['semantic_company_count']} companies",
+        f"- Taxonomy fallback: {summary['taxonomy_inference_count']} tags in "
+        f"{summary['taxonomy_company_count']} companies",
         f"- Accounting standards: {standards}",
         f"- Contexts: {contexts}",
         f"- Absolute residual counts: {threshold_text}",

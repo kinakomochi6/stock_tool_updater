@@ -72,6 +72,8 @@ python firebase_master_test.py --codes 9366,3123 --debug-bs --debug-dir diagnost
 
 診断JSONには、採用されたcontext、contextごとのスコア、重複タグ、採用タグ、除外タグ、合計との差額、その他タグとの差額、1億円以上の未マッピング数値タグ、B/S警告、品質判定が出力されます。
 
+未知の企業拡張タグについては、XBRLパッケージ内のPresentation Linkbase（表示上の親子関係）とCalculation Linkbase（加減算関係）を解析します。既知の親科目から分類候補を作り、選択contextの連結・単体区分と一致し、かつB/S区分合計の残差を大きく改善する場合だけ補完分類として採用します。辞書に明示されたタグは常に構造推論より優先されます。
+
 ## B/Sの保存安全策
 
 B/S解析結果は次の3段階で判定します。
