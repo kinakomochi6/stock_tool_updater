@@ -2106,8 +2106,26 @@ class MappingTests(unittest.TestCase):
             "GoodsInTransit",
             "ContainersNet",
             "CashAndDepositsInTrustINV",
+            "DepositsLiabilities",
+            "ReceivablesUnderResaleAgreementsAssetsBNK",
+            "ReserveForReimbursementOfInactiveDepositsLiabilities",
         ):
             self.assertIn(TAG_MAPPING[tag], DISPLAY_ORDER)
+
+    def test_unsplit_financial_group_maps_repo_and_deposit_lines(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(
+            summary, "ReceivablesUnderResaleAgreementsAssetsBNK", 9_139_746_000_000
+        )
+        apply_mapped_tag(summary, "DepositsLiabilities", 186_594_581_000_000)
+        apply_mapped_tag(
+            summary, "ReserveForReimbursementOfInactiveDepositsLiabilities",
+            41_574_000_000,
+        )
+
+        self.assertEqual(summary["投資_銀行買現先勘定"], 9_139_746_000_000)
+        self.assertEqual(summary["固負_銀行預金"], 186_594_581_000_000)
+        self.assertEqual(summary["固負_銀行預金払戻損失引当金"], 41_574_000_000)
 
 
 class TestSetTests(unittest.TestCase):
