@@ -1930,31 +1930,6 @@ def reconcile_bank_presentation(summary, totals, raw_tags):
     return adjustments
 
 
-def normalize_separately_reported_asset_sections(totals, raw_tags):
-    """Include separately presented deferred assets in the broad noncurrent bucket."""
-    assets = totals.get("Assets", 0)
-    current = totals.get("CurrentAssets", 0)
-    noncurrent = totals.get("NonCurrentAssets", 0)
-    deferred = raw_tags.get("DeferredAssets", 0)
-    if not all(value > 0 for value in (assets, current, noncurrent, deferred)):
-        return []
-
-    section_gap = assets - current - noncurrent
-    tolerance = max(abs(assets) * 0.0001, 1_000_000)
-    if abs(section_gap - deferred) > tolerance:
-        return []
-
-    totals["NonCurrentAssets"] += deferred
-    return [{
-        "tag": "DeferredAssets",
-        "category": "NonCurrentAssets",
-        "value": deferred,
-        "reason": "deferred_assets_reported_separately_from_noncurrent_assets",
-        "delta_before": section_gap,
-        "delta_after": assets - current - totals["NonCurrentAssets"],
-    }]
-
-
 def reconcile_insurance_presentation(summary, totals, raw_tags):
     markers = (
         "AssetsINS", "LiabilitiesINS", "InsuranceContractAssetsAssetsIFRS",
@@ -3006,12 +2981,9 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
     if totals["NonCurrentLiabilities"] == 0 and totals["Liabilities"] != 0:
         totals["NonCurrentLiabilities"] = totals["Liabilities"] - totals["CurrentLiabilities"]
 
-    reconciliation_adjustments = normalize_separately_reported_asset_sections(
-        totals, best_raw_tags
-    )
-    reconciliation_adjustments.extend(reconcile_parent_component_overlaps(
+    reconciliation_adjustments = reconcile_parent_component_overlaps(
         summary, totals, best_raw_tags
-    ))
+    )
     reconciliation_adjustments.extend(
         reconcile_bank_presentation(summary, totals, best_raw_tags)
     )

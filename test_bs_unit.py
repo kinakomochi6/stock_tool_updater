@@ -45,7 +45,6 @@ from firebase_master_test import (
     empty_financial_data,
     is_tokyo_pro_market,
     load_edinet_code_map,
-    normalize_separately_reported_asset_sections,
     parse_codes_arg,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
@@ -2084,20 +2083,6 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(summary["流動_金融債権"], 0)
         self.assertEqual(summary["投資_金融債権"], 692_286_000_000)
-
-    def test_separately_reported_deferred_assets_expand_broad_noncurrent_total(self):
-        totals = {
-            "Assets": 4_240_400_000,
-            "CurrentAssets": 313_600_000,
-            "NonCurrentAssets": 3_836_100_000,
-        }
-
-        adjustments = normalize_separately_reported_asset_sections(
-            totals, {"DeferredAssets": 90_700_000}
-        )
-
-        self.assertEqual(totals["NonCurrentAssets"], 3_926_800_000)
-        self.assertEqual(len(adjustments), 1)
 
     def test_unseen_tag_targets_remain_displayable(self):
         for tag in (
