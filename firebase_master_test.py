@@ -1622,8 +1622,99 @@ TAXONOMY_SECTION_TOTALS = {
 TAXONOMY_LINKBASE_SUFFIXES = {
     "_pre.xml": "presentation",
     "_cal.xml": "calculation",
+    "_def.xml": "definition",
 }
+TAXONOMY_DEFINITION_ARCROLES = {"domain-member", "general-special"}
 XLINK_NAMESPACE = "http://www.w3.org/1999/xlink"
+
+TAXONOMY_ABSTRACT_SECTION_ANCHORS = {
+    "CurrentAssetsAbstract": "CurrentAssets",
+    "NoncurrentAssetsAbstract": "NonCurrentAssets",
+    "NonCurrentAssetsAbstract": "NonCurrentAssets",
+    "CurrentLiabilitiesAbstract": "CurrentLiabilities",
+    "NoncurrentLiabilitiesAbstract": "NonCurrentLiabilities",
+    "NonCurrentLiabilitiesAbstract": "NonCurrentLiabilities",
+    "NetAssetsAbstract": "NetAssets",
+    "EquityAbstract": "NetAssets",
+    "ShareholdersEquityAbstract": "NetAssets",
+}
+
+TAXONOMY_LABEL_SECTION_PATTERNS = {
+    "CurrentAssets": (r"^(?:流動資産|currentassets)(?:合計|total)?$",),
+    "NonCurrentAssets": (r"^(?:固定資産|非流動資産|noncurrentassets)(?:合計|total)?$",),
+    "CurrentLiabilities": (r"^(?:流動負債|currentliabilities)(?:合計|total)?$",),
+    "NonCurrentLiabilities": (r"^(?:固定負債|非流動負債|noncurrentliabilities)(?:合計|total)?$",),
+    "NetAssets": (r"^(?:純資産|資本|netassets|equity)(?:合計|total)?$",),
+}
+
+# Labels only refine a category after a taxonomy relationship fixes its B/S
+# section. Ordered, specific patterns prevent broad words from winning first.
+TAXONOMY_LABEL_CATEGORY_RULES = {
+    "CurrentAssets": (
+        (r"電子記録債権|electronicallyrecorded.*claim", "流動_電子記録債権", "add"),
+        (r"契約資産|contractassets?", "流動_契約資産", "add"),
+        (r"受取手形|売掛金|営業債権|売上債権|tradereceiv|accountsreceiv", "流動_受取手形・売掛金(合算)", "receivable_parent"),
+        (r"現金|預金|現金同等物|cash|cashanddeposits?|bankdeposits?|timedeposits?", "流動_現金及び預金", "max"),
+        (r"棚卸資産|商品及び製品|仕掛品|原材料|貯蔵品|inventor", "流動_棚卸資産", "add"),
+        (r"短期.*貸付|shorttermloan", "流動_短期貸付金", "add"),
+        (r"前渡金|前払金|advancepayment", "流動_前渡金", "add"),
+        (r"前払費用|prepaidexpense", "流動_前払費用", "add"),
+        (r"未収入金|otherreceivable", "流動_未収入金", "add"),
+        (r"有価証券|marketablesecurit|shortterminvestment", "流動_有価証券", "add"),
+    ),
+    "NonCurrentAssets": (
+        (r"使用権資産|rightofuse", "有形_使用権資産", "add"),
+        (r"建設仮勘定|constructioninprogress", "有形_建設仮勘定", "add"),
+        (r"建物|構築物|buildings?|structures?", "有形_建物・構築物", "add"),
+        (r"機械|装置|車両|machiner|equipment|vehicles?", "有形_機械・運搬具", "add"),
+        (r"土地|land", "有形_土地", "add"),
+        (r"工具|器具|備品|furniture|fixtures?|tools?", "有形_工具器具備品", "add"),
+        (r"ソフトウエア|software", "無形_ソフトウエア", "add"),
+        (r"のれん|goodwill", "無形_のれん", "add"),
+        (r"投資有価証券|investmentsecurit", "投資_投資有価証券", "add"),
+        (r"関係会社株式|subsidiar|associate", "投資_関係会社株式", "add"),
+        (r"投資不動産|investmentpropert", "投資_投資不動産", "add"),
+        (r"長期.*貸付|longtermloan", "投資_長期貸付金", "add"),
+        (r"差入保証金|敷金|guaranteedeposit|leasedeposit", "投資_差入保証金", "add"),
+        (r"長期前払費用|longtermprepaid", "投資_長期前払費用", "add"),
+        (r"繰延税金資産|deferredtaxasset", "投資_繰延税金資産", "add"),
+        (r"退職給付.*資産|retirementbenefitasset", "投資_退職給付資産", "add"),
+    ),
+    "CurrentLiabilities": (
+        (r"一年内.*社債|1年内.*社債|currentportion.*bonds?", "流負_1年内償還社債", "add"),
+        (r"一年内.*長期借入|1年内.*長期借入|currentportion.*longterm.*loan", "流負_1年内返済長期借入金", "add"),
+        (r"支払手形|買掛金|営業債務|tradepayable|accountspayabletrade", "流負_支払手形・買掛金", "add"),
+        (r"短期借入|shorttermborrow", "流負_短期借入金", "add"),
+        (r"未払費用|accruedexpense", "流負_未払費用", "add"),
+        (r"未払法人税|未払税金|incometax.*payable|taxationliabil", "流負_未払法人税等", "add"),
+        (r"未払金|accountspayableother", "流負_未払金", "add"),
+        (r"契約負債|contractliabil", "流負_契約負債", "add"),
+        (r"前受金|advancesreceived", "流負_前受金", "add"),
+        (r"預り金|depositreceived|customersdeposit", "流負_預り金", "add"),
+        (r"リース債務|leaseobligation|leaseliabil", "流負_リース債務", "add"),
+        (r"引当金|provision|allowance|reserve", "流負_引当金", "add"),
+    ),
+    "NonCurrentLiabilities": (
+        (r"長期借入|longterm.*borrow|longtermdebt", "固負_長期借入金", "add"),
+        (r"社債|bondspayable|corporatebonds", "固負_社債", "add"),
+        (r"リース債務|leaseobligation|leaseliabil", "固負_リース債務", "add"),
+        (r"退職給付|retirementbenefit", "固負_退職給付引当金", "add"),
+        (r"資産除去債務|assetretirement", "固負_資産除去債務", "add"),
+        (r"長期.*預り|longterm.*depositreceived", "固負_長期預り金", "add"),
+        (r"繰延税金負債|deferredtaxliabil", "固負_繰延税金負債", "add"),
+        (r"契約負債|contractliabil", "固負_契約負債", "add"),
+        (r"引当金|provision|allowance|reserve", "固負_引当金", "add"),
+    ),
+    "NetAssets": (
+        (r"資本金|sharecapital|capitalstock", "純資_資本金", "add"),
+        (r"資本剰余金|capitalsurplus", "純資_資本剰余金", "add"),
+        (r"利益剰余金|retainedearnings", "純資_利益剰余金", "add"),
+        (r"自己株式|treasuryshares?|treasurystock", "純資_自己株式", "add"),
+        (r"評価.*換算|その他包括利益|othercomprehensiveincome", "純資_評価換算差額金", "add"),
+        (r"新株予約権|subscriptionrights", "純資_新株予約権", "add"),
+        (r"非支配株主持分|noncontrollinginterest", "純資_非支配株主持分", "add"),
+    ),
+}
 
 DERIVED_NET_TAG_PAIRS = [
     ("BuildingsAndStructures", "AccumulatedDepreciationBuildings", "有形_建物・構築物", ["BuildingsAndStructuresNet", "BuildingsNet"]),
@@ -2471,12 +2562,23 @@ def _taxonomy_concept_from_href(href, concept_ids):
     return fragment.rsplit("_", 1)[-1]
 
 
+def _taxonomy_label_file(name):
+    lower_name = name.lower()
+    return lower_name.endswith("_lab.xml") or lower_name.endswith("_lab-en.xml")
+
+
+def _taxonomy_arcrole_name(arcrole):
+    return (arcrole or "").rstrip("/").rsplit("/", 1)[-1]
+
+
 def parse_taxonomy_relationships(archive):
-    """Read balance-sheet parent-child relationships from an EDINET package."""
+    """Read B/S relationships and extension labels from an EDINET package."""
     concept_ids = {}
     errors = []
     parsed_files = []
+    label_files = []
     relationships = []
+    concept_labels = {}
 
     for name in archive.namelist():
         if "publicdoc" not in name.lower() or not name.lower().endswith(".xsd"):
@@ -2537,6 +2639,13 @@ def parse_taxonomy_relationships(archive):
                     continue
                 if child.get("use") == "prohibited":
                     continue
+                arcrole = child.get(f"{{{XLINK_NAMESPACE}}}arcrole", "")
+                arcrole_name = _taxonomy_arcrole_name(arcrole)
+                if (
+                    link_type == "definition"
+                    and arcrole_name not in TAXONOMY_DEFINITION_ARCROLES
+                ):
+                    continue
                 parent = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}from", ""))
                 concept = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}to", ""))
                 if not parent or not concept or parent == concept:
@@ -2546,21 +2655,72 @@ def parse_taxonomy_relationships(archive):
                     "child": concept,
                     "link_type": link_type,
                     "role": role,
+                    "arcrole": arcrole_name,
                     "weight": child.get("weight"),
                     "order": child.get("order"),
                     "source_file": name,
                 })
 
+    for name in archive.namelist():
+        if "publicdoc" not in name.lower() or not _taxonomy_label_file(name):
+            continue
+        try:
+            root = ET.fromstring(archive.read(name))
+        except (ET.ParseError, KeyError, OSError) as exc:
+            errors.append({"file": name, "error": repr(exc)})
+            continue
+
+        label_files.append(name)
+        for link in root.iter():
+            if _xml_local_name(link.tag) != "labelLink":
+                continue
+            locators = {}
+            resources = {}
+            for child in link:
+                local_name = _xml_local_name(child.tag)
+                xlink_label = child.get(f"{{{XLINK_NAMESPACE}}}label", "")
+                if local_name == "loc":
+                    concept = _taxonomy_concept_from_href(
+                        child.get(f"{{{XLINK_NAMESPACE}}}href", ""), concept_ids,
+                    )
+                    if xlink_label and concept:
+                        locators[xlink_label] = concept
+                elif local_name == "label" and xlink_label:
+                    text = "".join(child.itertext()).strip()
+                    if text:
+                        resources[xlink_label] = {
+                            "text": text,
+                            "lang": child.get("{http://www.w3.org/XML/1998/namespace}lang", ""),
+                            "role": child.get(f"{{{XLINK_NAMESPACE}}}role", ""),
+                            "source_file": name,
+                        }
+            for child in link:
+                if _xml_local_name(child.tag) != "labelArc":
+                    continue
+                concept = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}from", ""))
+                resource = resources.get(child.get(f"{{{XLINK_NAMESPACE}}}to", ""))
+                if concept and resource:
+                    concept_labels.setdefault(concept, []).append(resource)
+
     unique = {}
     for item in relationships:
         key = (
             item["parent"], item["child"], item["link_type"],
-            item["role"], item.get("weight"),
+            item["role"], item.get("arcrole"), item.get("weight"),
         )
         unique[key] = item
+    for concept, labels in concept_labels.items():
+        deduplicated = {}
+        for label in labels:
+            key = (label["text"], label["lang"], label["role"])
+            deduplicated[key] = label
+        concept_labels[concept] = list(deduplicated.values())
     return {
         "relationships": list(unique.values()),
         "files": parsed_files,
+        "label_files": label_files,
+        "labels": concept_labels,
+        "label_count": sum(len(labels) for labels in concept_labels.values()),
         "concept_id_count": len(concept_ids),
         "errors": errors,
     }
@@ -2585,7 +2745,95 @@ def _taxonomy_role_is_consolidated(role):
     return "consolidated" in normalized and "nonconsolidated" not in normalized
 
 
-def _taxonomy_anchor(parent):
+def _normalize_taxonomy_label(text):
+    normalized = unicodedata.normalize("NFKC", str(text or "")).lower()
+    normalized = re.sub(r"[\s\u3000,，・･()（）\[\]［］【】]", "", normalized)
+    return normalized
+
+
+def _preferred_taxonomy_labels(labels):
+    def priority(label):
+        role = (label.get("role") or "").lower().rstrip("/")
+        role_rank = 0 if role.endswith("/label") else 1
+        lang_rank = 0 if (label.get("lang") or "").lower().startswith("ja") else 1
+        return role_rank, lang_rank, label.get("text", "")
+
+    texts = []
+    for label in sorted(labels or [], key=priority):
+        text = _normalize_taxonomy_label(label.get("text"))
+        if text and text not in texts:
+            texts.append(text)
+    standard = [
+        _normalize_taxonomy_label(label.get("text"))
+        for label in labels or []
+        if (label.get("role") or "").lower().rstrip("/").endswith("/label")
+    ]
+    standard = [text for text in standard if text]
+    return list(dict.fromkeys(standard or texts))
+
+
+def classify_taxonomy_labels(labels, section=None):
+    """Return unambiguous category hints from standard Japanese/English labels."""
+    texts = _preferred_taxonomy_labels(labels)
+    if not texts:
+        return []
+    sections = [section] if section else list(TAXONOMY_LABEL_CATEGORY_RULES)
+    matches = {}
+    for text in texts:
+        if re.search(r"(?:合計|総計|subtotal|total)$", text):
+            continue
+        for target_section in sections:
+            for pattern, category, action in TAXONOMY_LABEL_CATEGORY_RULES[target_section]:
+                if re.search(pattern, text, flags=re.IGNORECASE):
+                    matches.setdefault((target_section, category), {
+                        "section": target_section,
+                        "category": category,
+                        "action": action,
+                        "reason": "taxonomy_standard_label",
+                        "confidence": 2,
+                        "taxonomy_label": text,
+                    })
+                    break
+    if len(matches) != 1:
+        return []
+    return list(matches.values())
+
+
+def _taxonomy_labels_indicate_total(labels):
+    return any(
+        re.search(r"合計|総計|subtotal|total", text, flags=re.IGNORECASE)
+        for text in _preferred_taxonomy_labels(labels)
+    )
+
+
+def _taxonomy_labels_indicate_noncarrying_component(labels):
+    return any(
+        re.search(
+            r"取得原価|取得価額|減価償却累計|減損損失累計|"
+            r"acquisitioncost|accumulateddepreciation|grosscarrying",
+            text,
+            flags=re.IGNORECASE,
+        )
+        for text in _preferred_taxonomy_labels(labels)
+    )
+
+
+def _taxonomy_label_section_anchor(labels):
+    matched_sections = set()
+    for text in _preferred_taxonomy_labels(labels):
+        for section, patterns in TAXONOMY_LABEL_SECTION_PATTERNS.items():
+            if any(re.search(pattern, text, flags=re.IGNORECASE) for pattern in patterns):
+                matched_sections.add(section)
+    if len(matched_sections) == 1:
+        section = next(iter(matched_sections))
+        return section, SEMANTIC_SECTION_SPECS[section]["other"]
+    return None
+
+
+def _taxonomy_anchor(parent, concept_labels=None):
+    abstract_section = TAXONOMY_ABSTRACT_SECTION_ANCHORS.get(parent)
+    if abstract_section:
+        return abstract_section, SEMANTIC_SECTION_SPECS[abstract_section]["other"]
     total_section = TOTAL_TAG_LOOKUP.get(parent)
     if total_section in TAXONOMY_SECTION_TOTALS:
         return total_section, SEMANTIC_SECTION_SPECS[total_section]["other"]
@@ -2593,10 +2841,20 @@ def _taxonomy_anchor(parent):
     section = _taxonomy_section_for_category(category) if category else None
     if section:
         return section, category
+    labels = (concept_labels or {}).get(parent, [])
+    section_anchor = _taxonomy_label_section_anchor(labels)
+    if section_anchor:
+        return section_anchor
+    label_options = classify_taxonomy_labels(labels)
+    if len(label_options) == 1:
+        option = label_options[0]
+        return option["section"], option["category"]
     return None
 
 
-def find_taxonomy_anchors(tag, parent_index, selected_context=None, max_depth=6):
+def find_taxonomy_anchors(
+    tag, parent_index, selected_context=None, max_depth=6, concept_labels=None,
+):
     """Find nearest known B/S ancestors without crossing link roles."""
     direct_edges = list(parent_index.get(tag, []))
     is_nonconsolidated = "NonConsolidated" in (selected_context or "")
@@ -2622,7 +2880,7 @@ def find_taxonomy_anchors(tag, parent_index, selected_context=None, max_depth=6)
             if concept in visited or depth > max_depth:
                 continue
             visited.add(concept)
-            anchor = _taxonomy_anchor(concept)
+            anchor = _taxonomy_anchor(concept, concept_labels)
             if anchor:
                 section, category = anchor
                 anchors.append({
@@ -2632,6 +2890,7 @@ def find_taxonomy_anchors(tag, parent_index, selected_context=None, max_depth=6)
                     "depth": depth,
                     "path": path,
                     "link_type": first["link_type"],
+                    "arcrole": first.get("arcrole"),
                     "role": first["role"],
                 })
                 continue
@@ -2644,7 +2903,9 @@ def find_taxonomy_anchors(tag, parent_index, selected_context=None, max_depth=6)
     return anchors
 
 
-def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=None):
+def classify_taxonomy_bs_tag(
+    tag, parent_index, raw_tags=None, selected_context=None, concept_labels=None,
+):
     """Infer an unknown concept from its nearest known taxonomy ancestors."""
     raw_tags = raw_tags or {}
     if tag in TAG_MAPPING or tag in TOTAL_TAG_LOOKUP:
@@ -2653,19 +2914,36 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
         return []
     if tag.startswith("Total") or tag.endswith("Total") or _net_variant_exists(tag, raw_tags):
         return []
+    tag_labels = (concept_labels or {}).get(tag, [])
+    if (
+        _taxonomy_labels_indicate_total(tag_labels)
+        or _taxonomy_labels_indicate_noncarrying_component(tag_labels)
+    ):
+        return []
 
-    anchors = find_taxonomy_anchors(tag, parent_index, selected_context)
+    anchors = find_taxonomy_anchors(
+        tag, parent_index, selected_context, concept_labels=concept_labels,
+    )
     if not anchors:
         return []
 
     evidence_by_section = {}
     for anchor in anchors:
         stats = evidence_by_section.setdefault(anchor["section"], {
-            "anchors": [], "link_types": set(), "score": 0,
+            "anchors": [], "link_types": set(), "arcroles": set(), "score": 0,
         })
         stats["anchors"].append(anchor)
         stats["link_types"].add(anchor["link_type"])
-        base = 7 if anchor["link_type"] == "calculation" else 5
+        if anchor["link_type"] == "calculation":
+            base = 7
+        elif anchor.get("arcrole") == "general-special":
+            base = 8
+        elif anchor["link_type"] == "definition":
+            base = 6
+        else:
+            base = 5
+        if anchor.get("arcrole"):
+            stats["arcroles"].add(anchor["arcrole"])
         stats["score"] = max(stats["score"], base - min(anchor["depth"] - 1, 3))
     for stats in evidence_by_section.values():
         if len(stats["link_types"]) > 1:
@@ -2683,6 +2961,9 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
         option for option in classify_unmapped_bs_tag(tag, raw_tags)
         if option["section"] == section
     ]
+    label_options = classify_taxonomy_labels(
+        tag_labels, section=section,
+    )
     section_other = SEMANTIC_SECTION_SPECS[section]["other"]
     nearest = min(
         stats["anchors"],
@@ -2692,7 +2973,9 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
             item["link_type"] != "calculation",
         ),
     )
-    if semantic_options:
+    if label_options:
+        categories = label_options
+    elif semantic_options:
         categories = semantic_options
     else:
         category = nearest["category"]
@@ -2731,6 +3014,10 @@ def classify_taxonomy_bs_tag(tag, parent_index, raw_tags=None, selected_context=
         "taxonomy_anchor": nearest["anchor"],
         "taxonomy_path": nearest["path"],
         "taxonomy_link_types": sorted(stats["link_types"]),
+        "taxonomy_arcroles": sorted(stats["arcroles"]),
+        "taxonomy_labels": _preferred_taxonomy_labels(
+            tag_labels,
+        ),
     } for option in categories]
 
 
@@ -2746,8 +3033,90 @@ def _semantic_section_delta(summary, totals, section):
     return total - subtotal - summary.get(spec["other"], 0)
 
 
+def reconcile_taxonomy_aggregate_overlaps(
+    summary, totals, raw_tags, taxonomy_relationships, selected_context=None,
+):
+    """Replace a mapped aggregate with mapped children when calculation proves overlap."""
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    grouped = {}
+    for edge in taxonomy_relationships or []:
+        if edge.get("link_type") != "calculation":
+            continue
+        role = edge.get("role", "")
+        if is_nonconsolidated and _taxonomy_role_is_consolidated(role):
+            continue
+        parent = edge.get("parent")
+        child = edge.get("child")
+        if parent not in raw_tags or child not in raw_tags:
+            continue
+        try:
+            weight = float(edge.get("weight") or 1)
+        except (TypeError, ValueError):
+            continue
+        if weight != 1 or raw_tags[child] < 0:
+            continue
+        grouped.setdefault((parent, role), {})[child] = raw_tags[child]
+
+    adjustments = []
+    processed = set()
+    for (parent, role), child_values in grouped.items():
+        child_key = (parent, tuple(sorted(child_values)))
+        if child_key in processed or len(child_values) < 2:
+            continue
+        processed.add(child_key)
+        if parent not in TAG_MAPPING or any(child not in TAG_MAPPING for child in child_values):
+            continue
+        parent_category = TAG_MAPPING[parent]
+        section = _taxonomy_section_for_category(parent_category)
+        if (
+            not section
+            or parent_category == SEMANTIC_SECTION_SPECS[section]["other"]
+            or parent_category in ADDITIVE_CATS
+        ):
+            continue
+
+        parent_value = raw_tags[parent]
+        children_total = sum(child_values.values())
+        tolerance = max(1_000_000, abs(parent_value) * 0.001)
+        if abs(parent_value - children_total) > tolerance:
+            continue
+        if abs(summary.get(parent_category, 0) - parent_value) > tolerance:
+            continue
+
+        child_summary = {key: 0 for key in summary}
+        applied_children = []
+        for child, value in child_values.items():
+            if should_skip_item_tag(child, raw_tags):
+                continue
+            apply_mapped_tag(child_summary, child, value)
+            applied_children.append(child)
+        replacement = child_summary.get(parent_category, 0)
+        before = _semantic_section_delta(summary, totals, section)
+        if before is None or replacement == summary.get(parent_category, 0):
+            continue
+        original = summary[parent_category]
+        summary[parent_category] = replacement
+        after = _semantic_section_delta(summary, totals, section)
+        if after is None or abs(after) + 1_000_000 >= abs(before):
+            summary[parent_category] = original
+            continue
+        adjustments.append({
+            "tag": parent,
+            "category": parent_category,
+            "value": replacement - original,
+            "raw_value": parent_value,
+            "reason": "calculation_parent_replaced_by_mapped_children",
+            "children": sorted(applied_children),
+            "role": role,
+            "delta_before": before,
+            "delta_after": after,
+        })
+    return adjustments
+
+
 def reconcile_semantic_unmapped_tags(
     summary, totals, raw_tags, taxonomy_relationships=None, selected_context=None,
+    taxonomy_labels=None,
 ):
     """Apply unknown concepts only when meaning and section totals both agree."""
     candidates_by_section = {section: [] for section in SEMANTIC_SECTION_SPECS}
@@ -2757,6 +3126,7 @@ def reconcile_semantic_unmapped_tags(
             continue
         taxonomy_options = classify_taxonomy_bs_tag(
             tag, taxonomy_parent_index, raw_tags, selected_context,
+            concept_labels=taxonomy_labels,
         )
         semantic_options = (
             [] if taxonomy_options else classify_unmapped_bs_tag(tag, raw_tags)
@@ -3451,6 +3821,9 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                 "taxonomy_linkbase": {
                     "files": taxonomy_info["files"],
                     "relationship_count": len(taxonomy_info["relationships"]),
+                    "label_files": taxonomy_info["label_files"],
+                    "label_count": taxonomy_info["label_count"],
+                    "labeled_concept_count": len(taxonomy_info["labels"]),
                     "concept_id_count": taxonomy_info["concept_id_count"],
                     "errors": taxonomy_info["errors"],
                 },
@@ -3480,11 +3853,21 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
     reconciliation_adjustments.extend(
         reconcile_optional_duplicate_categories(summary, totals)
     )
+    reconciliation_adjustments.extend(
+        reconcile_taxonomy_aggregate_overlaps(
+            summary,
+            totals,
+            best_raw_tags,
+            taxonomy_info["relationships"],
+            selected_context=best_cid,
+        )
+    )
     semantic_adjustments, semantically_mapped_tags = reconcile_semantic_unmapped_tags(
         summary,
         totals,
         best_raw_tags,
         taxonomy_relationships=taxonomy_info["relationships"],
+        taxonomy_labels=taxonomy_info["labels"],
         selected_context=best_cid,
     )
     reconciliation_adjustments.extend(semantic_adjustments)

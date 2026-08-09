@@ -43,6 +43,7 @@ from firebase_master_test import (
     apply_summary_only_fallbacks,
     classify_missing_bs_document,
     classify_taxonomy_bs_tag,
+    classify_taxonomy_labels,
     classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
@@ -59,6 +60,7 @@ from firebase_master_test import (
     reconcile_optional_duplicate_categories,
     reconcile_semantic_unmapped_tags,
     reconcile_skipped_section_summaries,
+    reconcile_taxonomy_aggregate_overlaps,
     serialize_reconciliation_adjustment,
     select_other_or_unclassified,
     should_skip_item_tag,
@@ -104,6 +106,64 @@ class TaxonomyRelationshipTests(unittest.TestCase):
             archive.writestr("XBRL/PublicDoc/company.xsd", xsd)
             archive.writestr("XBRL/PublicDoc/company_pre.xml", pre)
             archive.writestr("XBRL/PublicDoc/company_cal.xml", cal)
+        payload.seek(0)
+        return payload
+
+    @staticmethod
+    def make_definition_label_zip():
+        payload = io.BytesIO()
+        xsd = b'''<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="OpaqueAdvance" id="company_OpaqueAdvance" />
+  <xsd:element name="IndustryReceivablesAbstract" id="company_IndustryReceivablesAbstract" />
+  <xsd:element name="OpaqueIndustryBalance" id="company_OpaqueIndustryBalance" />
+  <xsd:element name="OpaqueReserve" id="company_OpaqueReserve" />
+</xsd:schema>'''
+        definition = b'''<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <link:definitionLink xlink:type="extended"
+  xlink:role="http://example.com/role/ConsolidatedBalanceSheet">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_CurrentAssetsAbstract" xlink:label="current" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_OpaqueAdvance" xlink:label="advance" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_IndustryReceivablesAbstract" xlink:label="industry" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_OpaqueIndustryBalance" xlink:label="balance" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://xbrl.org/int/dim/arcrole/domain-member" xlink:from="current" xlink:to="advance" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://xbrl.org/int/dim/arcrole/domain-member" xlink:from="current" xlink:to="industry" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://xbrl.org/int/dim/arcrole/domain-member" xlink:from="industry" xlink:to="balance" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://xbrl.org/int/dim/arcrole/hypercube-dimension" xlink:from="current" xlink:to="balance" />
+ </link:definitionLink>
+ <link:definitionLink xlink:type="extended"
+  xlink:role="http://example.com/role/cai_BalanceSheet-ListOfAccounts">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_CurrentLiabilitiesAbstract" xlink:label="liabilities" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_OpaqueReserve" xlink:label="reserve" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/general-special" xlink:from="liabilities" xlink:to="reserve" />
+ </link:definitionLink>
+ <link:definitionLink xlink:type="extended"
+  xlink:role="http://example.com/role/NotesBalanceSheet">
+  <link:loc xlink:type="locator" xlink:href="base.xsd#jppfs_cor_NoncurrentAssetsAbstract" xlink:label="notes-assets" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_OpaqueAdvance" xlink:label="notes-advance" />
+  <link:definitionArc xlink:type="arc" xlink:arcrole="http://xbrl.org/int/dim/arcrole/domain-member" xlink:from="notes-assets" xlink:to="notes-advance" />
+ </link:definitionLink>
+</link:linkbase>'''
+        labels = '''<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase"
+ xmlns:xlink="http://www.w3.org/1999/xlink">
+ <link:labelLink xlink:type="extended" xlink:role="http://www.xbrl.org/2003/role/link">
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_OpaqueAdvance" xlink:label="advance" />
+  <link:loc xlink:type="locator" xlink:href="company.xsd#company_IndustryReceivablesAbstract" xlink:label="industry" />
+  <link:label xlink:type="resource" xlink:label="advance-label" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="ja">前渡金</link:label>
+  <link:label xlink:type="resource" xlink:label="advance-verbose" xlink:role="http://www.xbrl.org/2003/role/verboseLabel" xml:lang="ja">資産合計 [冗長ラベル]</link:label>
+  <link:label xlink:type="resource" xlink:label="industry-label" xlink:role="http://www.xbrl.org/2003/role/label" xml:lang="ja">営業債権</link:label>
+  <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" xlink:from="advance" xlink:to="advance-label" />
+  <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" xlink:from="advance" xlink:to="advance-verbose" />
+  <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" xlink:from="industry" xlink:to="industry-label" />
+ </link:labelLink>
+</link:linkbase>'''.encode("utf-8")
+        with zipfile.ZipFile(payload, "w") as archive:
+            archive.writestr("XBRL/PublicDoc/company.xsd", xsd)
+            archive.writestr("XBRL/PublicDoc/company_def.xml", definition)
+            archive.writestr("XBRL/PublicDoc/company_lab.xml", labels)
         payload.seek(0)
         return payload
 
@@ -317,6 +377,232 @@ class TaxonomyRelationshipTests(unittest.TestCase):
                     "CurrentYearInstant",
                 )
                 self.assertEqual(options[0]["category"], expected)
+
+    def test_definition_parser_keeps_only_bs_item_relationships(self):
+        with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+
+        self.assertEqual(info["errors"], [])
+        self.assertEqual(len(info["files"]), 1)
+        self.assertEqual(len(info["label_files"]), 1)
+        self.assertEqual(len(info["relationships"]), 4)
+        self.assertEqual(
+            {item["arcrole"] for item in info["relationships"]},
+            {"domain-member", "general-special"},
+        )
+        self.assertEqual(info["label_count"], 3)
+
+    def test_definition_and_standard_label_classify_opaque_extension(self):
+        with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        parent_index = {}
+        for item in info["relationships"]:
+            parent_index.setdefault(item["child"], []).append(item)
+
+        options = classify_taxonomy_bs_tag(
+            "OpaqueAdvance",
+            parent_index,
+            {"OpaqueAdvance": 2_000_000_000},
+            "CurrentYearInstant",
+            concept_labels=info["labels"],
+        )
+
+        self.assertEqual(options[0]["section"], "CurrentAssets")
+        self.assertEqual(options[0]["category"], "流動_前渡金")
+        self.assertEqual(options[0]["taxonomy_link_types"], ["definition"])
+        self.assertEqual(options[0]["taxonomy_arcroles"], ["domain-member"])
+        self.assertEqual(options[0]["taxonomy_labels"], ["前渡金"])
+
+    def test_definition_label_candidate_still_requires_residual_proof(self):
+        with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 100_000_000_000
+
+        adjustments, applied = reconcile_semantic_unmapped_tags(
+            summary,
+            {"CurrentAssets": 102_000_000_000},
+            {"OpaqueAdvance": 2_000_000_000},
+            taxonomy_relationships=info["relationships"],
+            taxonomy_labels=info["labels"],
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(applied, {"OpaqueAdvance"})
+        self.assertEqual(summary["流動_前渡金"], 2_000_000_000)
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
+    def test_labeled_intermediate_parent_refines_opaque_child(self):
+        with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        parent_index = {}
+        for item in info["relationships"]:
+            parent_index.setdefault(item["child"], []).append(item)
+
+        options = classify_taxonomy_bs_tag(
+            "OpaqueIndustryBalance",
+            parent_index,
+            {"OpaqueIndustryBalance": 2_000_000_000},
+            "CurrentYearInstant",
+            concept_labels=info["labels"],
+        )
+
+        self.assertEqual(options[0]["category"], "流動_受取手形・売掛金(合算)")
+        self.assertEqual(options[0]["taxonomy_anchor"], "IndustryReceivablesAbstract")
+
+    def test_general_special_definition_positions_custom_reserve(self):
+        with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
+            info = parse_taxonomy_relationships(archive)
+        parent_index = {}
+        for item in info["relationships"]:
+            parent_index.setdefault(item["child"], []).append(item)
+
+        options = classify_taxonomy_bs_tag(
+            "OpaqueReserve",
+            parent_index,
+            {"OpaqueReserve": 2_000_000_000},
+            "CurrentYearInstant",
+            concept_labels=info["labels"],
+        )
+
+        self.assertEqual(options[0]["category"], "流負_引当金")
+        self.assertEqual(options[0]["taxonomy_arcroles"], ["general-special"])
+
+    def test_conflicting_standard_labels_are_rejected(self):
+        labels = [
+            {"text": "前渡金", "lang": "ja", "role": "http://www.xbrl.org/2003/role/label"},
+            {"text": "棚卸資産", "lang": "ja", "role": "http://www.xbrl.org/2003/role/label"},
+        ]
+
+        self.assertEqual(classify_taxonomy_labels(labels, "CurrentAssets"), [])
+
+    def test_standard_label_refines_broad_extension_name(self):
+        tag = "OpaqueReserve"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [{
+                "parent": "CurrentLiabilitiesAbstract",
+                "child": tag,
+                "link_type": "definition",
+                "arcrole": "general-special",
+                "role": "http://example.com/role/cai_BalanceSheet-ListOfAccounts",
+            }]},
+            {tag: 2_000_000_000},
+            "CurrentYearInstant",
+            concept_labels={tag: [{
+                "text": "前受金",
+                "lang": "ja",
+                "role": "http://www.xbrl.org/2003/role/label",
+            }]},
+        )
+
+        self.assertEqual(options[0]["category"], "流負_前受金")
+        self.assertEqual(options[0]["taxonomy_label"], "前受金")
+
+    def test_opaque_total_label_is_not_used_as_other_category(self):
+        tag = "OpaqueCompanyMetric"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [{
+                "parent": "CurrentAssetsAbstract",
+                "child": tag,
+                "link_type": "definition",
+                "arcrole": "domain-member",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }]},
+            {tag: 20_000_000_000},
+            "CurrentYearInstant",
+            concept_labels={tag: [{
+                "text": "流動資産合計",
+                "lang": "ja",
+                "role": "http://www.xbrl.org/2003/role/label",
+            }]},
+        )
+
+        self.assertEqual(options, [])
+
+    def test_opaque_acquisition_cost_label_is_not_used_as_carrying_value(self):
+        tag = "OpaquePropertyMetric"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [{
+                "parent": "NoncurrentAssetsAbstract",
+                "child": tag,
+                "link_type": "definition",
+                "arcrole": "domain-member",
+                "role": "http://example.com/role/ConsolidatedBalanceSheet",
+            }]},
+            {tag: 20_000_000_000},
+            "CurrentYearInstant",
+            concept_labels={tag: [{
+                "text": "建物及び構築物（取得原価）",
+                "lang": "ja",
+                "role": "http://www.xbrl.org/2003/role/label",
+            }]},
+        )
+
+        self.assertEqual(options, [])
+
+    def test_calculation_aggregate_is_replaced_by_mapped_children(self):
+        parent = "CostsOnUncompletedConstructionContractsAndOtherCNS"
+        children = {
+            "CostsOnUncompletedConstructionContractsCNS": 1_545_500_000,
+            "CostsOnUncompletedServices": 338_800_000,
+            "MerchandiseAndFinishedGoods": 975_200_000,
+            "RawMaterialsAndSuppliesCNS": 1_509_300_000,
+        }
+        parent_value = sum(children.values())
+        raw_tags = {parent: parent_value, **children}
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_未成工事支出金"] = parent_value
+        summary["流動_棚卸資産"] = sum(list(children.values())[1:])
+        totals = {"CurrentAssets": parent_value}
+        relationships = [{
+            "parent": parent,
+            "child": child,
+            "link_type": "calculation",
+            "weight": "1",
+            "role": "http://example.com/role/ConsolidatedBalanceSheet",
+        } for child in children]
+
+        adjustments = reconcile_taxonomy_aggregate_overlaps(
+            summary, totals, raw_tags, relationships, "CurrentYearInstant",
+        )
+
+        self.assertEqual(summary["流動_未成工事支出金"], 1_545_500_000)
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+        self.assertEqual(
+            adjustments[0]["reason"],
+            "calculation_parent_replaced_by_mapped_children",
+        )
+
+    def test_calculation_aggregate_is_kept_without_value_proof(self):
+        parent = "CostsOnUncompletedConstructionContractsAndOtherCNS"
+        children = {
+            "CostsOnUncompletedConstructionContractsCNS": 1_500_000_000,
+            "MerchandiseAndFinishedGoods": 900_000_000,
+        }
+        raw_tags = {parent: 4_000_000_000, **children}
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_未成工事支出金"] = 4_000_000_000
+        relationships = [{
+            "parent": parent,
+            "child": child,
+            "link_type": "calculation",
+            "weight": "1",
+            "role": "http://example.com/role/ConsolidatedBalanceSheet",
+        } for child in children]
+
+        adjustments = reconcile_taxonomy_aggregate_overlaps(
+            summary,
+            {"CurrentAssets": 4_900_000_000},
+            raw_tags,
+            relationships,
+            "CurrentYearInstant",
+        )
+
+        self.assertEqual(adjustments, [])
+        self.assertEqual(summary["流動_未成工事支出金"], 4_000_000_000)
 
 
 class BsQualityGateTests(unittest.TestCase):
@@ -2578,6 +2864,11 @@ class DiagnosticsReportTests(unittest.TestCase):
                 "semantic_inferences": [
                     {"tag": "ProvisionForNewRiskCL", "value_oku": 12.0},
                 ],
+                "taxonomy_inferences": [{
+                    "tag": "OpaqueAdvance",
+                    "taxonomy_link_types": ["definition"],
+                    "taxonomy_label": "前渡金",
+                }],
             },
             {
                 "_path": "debug_bs_2222.json",
@@ -2606,6 +2897,10 @@ class DiagnosticsReportTests(unittest.TestCase):
         self.assertEqual(summary["semantic_company_count"], 1)
         self.assertEqual(summary["semantic_inference_count"], 1)
         self.assertEqual(summary["semantic_tags"], {"ProvisionForNewRiskCL": 1})
+        self.assertEqual(summary["definition_inference_count"], 1)
+        self.assertEqual(summary["definition_company_count"], 1)
+        self.assertEqual(summary["label_inference_count"], 1)
+        self.assertEqual(summary["label_company_count"], 1)
 
 
 if __name__ == "__main__":

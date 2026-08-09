@@ -32,6 +32,10 @@ def summarize_diagnostics(records):
     semantic_company_count = 0
     taxonomy_inference_count = 0
     taxonomy_company_count = 0
+    definition_inference_count = 0
+    definition_company_count = 0
+    label_inference_count = 0
+    label_company_count = 0
     warning_count = 0
     quality_statuses = Counter()
     failed_codes = []
@@ -69,6 +73,20 @@ def summarize_diagnostics(records):
         if taxonomy_inferences:
             taxonomy_company_count += 1
         taxonomy_inference_count += len(taxonomy_inferences)
+        definition_inferences = [
+            item for item in taxonomy_inferences
+            if "definition" in (item.get("taxonomy_link_types") or [])
+        ]
+        label_inferences = [
+            item for item in taxonomy_inferences
+            if item.get("taxonomy_label")
+        ]
+        if definition_inferences:
+            definition_company_count += 1
+        if label_inferences:
+            label_company_count += 1
+        definition_inference_count += len(definition_inferences)
+        label_inference_count += len(label_inferences)
 
         residuals = record.get("other_gap_delta_oku") or {}
         if residuals:
@@ -134,6 +152,10 @@ def summarize_diagnostics(records):
         "semantic_inference_count": semantic_inference_count,
         "taxonomy_company_count": taxonomy_company_count,
         "taxonomy_inference_count": taxonomy_inference_count,
+        "definition_company_count": definition_company_count,
+        "definition_inference_count": definition_inference_count,
+        "label_company_count": label_company_count,
+        "label_inference_count": label_inference_count,
         "semantic_tags": dict(semantic_tags.most_common()),
         "accounting_standards": dict(sorted(standards.items())),
         "context_types": dict(sorted(contexts.items())),
@@ -166,6 +188,10 @@ def render_markdown(summary, row_limit=25):
         f"{summary['semantic_company_count']} companies",
         f"- Taxonomy fallback: {summary['taxonomy_inference_count']} tags in "
         f"{summary['taxonomy_company_count']} companies",
+        f"- Definition-backed fallback: {summary['definition_inference_count']} tags in "
+        f"{summary['definition_company_count']} companies",
+        f"- Label-backed fallback: {summary['label_inference_count']} tags in "
+        f"{summary['label_company_count']} companies",
         f"- Accounting standards: {standards}",
         f"- Contexts: {contexts}",
         f"- Absolute residual counts: {threshold_text}",
