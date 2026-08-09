@@ -994,6 +994,27 @@ TAG_MAPPING = {
     "ProvisionForLossInConjunctionWithDiscontinuedOperationsOfNuclearPowerPlantsNCLELE": "固負_原子力発電所廃止損失引当金",
     "HybridCapitalEquityIFRS": "純資_その他資本性金融商品",
     "TrustBeneficiaryRightCA": "流動_信託受益権",
+    # Unsplit IFRS statements used by mixed financial conglomerates.
+    "LoansForBankingBusinessAssetsIFRS": "投資_銀行貸出金",
+    "InvestmentSecuritiesForBankingBusinessAssetsIFRS": "投資_銀行業有価証券",
+    "DepositsForBankingBusinessLiabilitiesIFRS": "固負_銀行預金",
+    "BondsAndBorrowingsLiabilitiesIFRS": "固負_銀行借用金",
+    "AssetsRelatedToSecuritiesBusinessAssetsIFRS": "投資_銀行その他資産",
+    "LiabilitiesRelatedToSecuritiesBusinessLiabilitiesIFRS": "固負_銀行その他負債",
+    "TradeAndOtherReceivablesAssetsIFRS": "投資_その他金融資産",
+    "InventoriesAssetsIFRS": "流動_棚卸資産",
+    "MarketableSecuritiesAssetsIFRS": "投資_銀行トレーディング有価証券",
+    "TradeAndOtherPayablesLiabilitiesIFRS": "固負_その他金融負債",
+    # Reusable extension concepts found across custody, construction, and IP.
+    "GoldBullionInCustodyCA": "流動_その他金融資産",
+    "CryptoassetsHeldForCustomersCA": "流動_暗号資産",
+    "TravelAdvanceReceivedCL": "流負_前受金",
+    "CurrentPortionOfConvertibleBondTypeBondsWithShareAcquisitionRights": "流負_1年内償還社債",
+    "DepositsReceivedOfSubsidy": "流負_預り金",
+    "AdvancesPaidOfCollectionCA": "流動_金融債権",
+    "Distributorship": "無形_販売権",
+    "InProcessResearchAndDevelopmentIA": "無形_仕掛研究開発",
+    "InvestmentLossReservesCA": "流動_貸倒引当金",
 }
 
 
@@ -1732,7 +1753,11 @@ def apply_derived_net_tag_pairs(summary, raw_tags, applied_tags):
 
 
 def reconcile_bank_presentation(summary, totals, raw_tags):
-    if not any(tag.endswith("BNK") for tag in raw_tags):
+    bank_markers = ("BankingBusinessAssetsIFRS", "BankingBusinessLiabilitiesIFRS")
+    if not any(
+        tag.endswith("BNK") or any(marker in tag for marker in bank_markers)
+        for tag in raw_tags
+    ):
         return []
 
     adjustments = []
@@ -1762,8 +1787,11 @@ def reconcile_bank_presentation(summary, totals, raw_tags):
                 })
     else:
         unsplit_asset_categories = {
+            "流動_現金及び預金": "投資_銀行現金預け金",
+            "流動_棚卸資産": "投資_銀行その他資産",
             "流動_リース債権": "投資_銀行リース債権",
             "流動_割賦売掛金": "投資_銀行割賦債権",
+            "流動_売却目的保有資産": "投資_銀行その他資産",
         }
         for source, destination in unsplit_asset_categories.items():
             value = summary.get(source, 0)
@@ -1923,6 +1951,7 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
     combined_category = "流動_受取手形・売掛金(合算)"
     detail_categories = {
         "流動_受取手形", "流動_売掛金", "流動_電子記録債権", "流動_契約資産",
+        "流動_完成工事未収入金", "流動_完成工事未収入金・契約資産",
     }
     detail_values = {category: summary.get(category, 0) for category in detail_categories}
     combined_value = summary.get(combined_category, 0)
@@ -1960,6 +1989,8 @@ def reconcile_receivable_presentation(summary, totals, raw_tags):
     if use_combined:
         summary["流動_受取手形"] = 0
         summary["流動_売掛金"] = 0
+        summary["流動_完成工事未収入金"] = 0
+        summary["流動_完成工事未収入金・契約資産"] = 0
         if includes_contract_assets:
             summary["流動_契約資産"] = 0
         includes_other_claims = False
@@ -2164,7 +2195,7 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
     if _has_semantic_suffix(tag, "CL"):
         if is_provision:
             add("CurrentLiabilities", "流負_引当金", "current_provision_suffix")
-        elif re.search(r"ContractLiabilit|AdvancesReceived", tag):
+        elif re.search(r"ContractLiabilit|Advance.*Received", tag):
             add("CurrentLiabilities", "流負_契約負債", "current_contract_liability_suffix")
         elif re.search(r"Deposit|Margin|Collateral|CashReceived|Receipt", tag):
             add("CurrentLiabilities", "流負_預り金", "current_deposit_liability_suffix")
@@ -2184,12 +2215,14 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
             add("CurrentAssets", "流動_契約資産", "current_contract_asset_suffix")
         elif re.search(r"OperatingInvestments|JointBusinessInvestments", tag):
             add("CurrentAssets", "流動_営業投資", "current_operating_investment_suffix")
-        elif re.search(r"Securit|Derivative|Trading|ShortTermInvestment|CryptoAsset", tag):
+        elif re.search(r"Securit|Derivative|Trading|ShortTermInvestment|Crypto[Aa]sset", tag):
             add("CurrentAssets", "流動_その他金融資産", "current_security_asset_suffix")
         elif re.search(r"Cash|Deposit|Margin|Collateral", tag):
             add("CurrentAssets", "流動_預け金", "current_deposit_asset_suffix")
-        elif re.search(r"Receivable|Loan|AdvancePayment", tag):
+        elif re.search(r"Receivable|Loan|AdvancePayment|AdvancesPaid|InCustody", tag):
             add("CurrentAssets", "流動_金融債権", "current_receivable_asset_suffix")
+        elif re.search(r"InvestmentLossReserve", tag):
+            add("CurrentAssets", "流動_貸倒引当金", "current_investment_allowance_suffix")
         elif re.search(r"ProgramRight|CurrentPortionOf.*Deposit|Capitalized.*ContractCost", tag):
             add("CurrentAssets", "流動_その他流動資産", "current_right_or_deposit_suffix")
         elif re.search(r"Inventor|Merchandise|WorkInProgress", tag):
@@ -2206,7 +2239,7 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
 
     if _has_semantic_suffix(tag, "IA"):
         if re.search(
-            r"Asset|Concession|Content|License|Patent|Relationship|Right|Software|Trademark",
+            r"Asset|Concession|Content|Development|License|Patent|Relationship|Right|Software|Trademark",
             tag,
         ):
             add("NonCurrentAssets", "無形_その他無形固定資産", "intangible_extension_suffix")
@@ -2245,6 +2278,10 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         add("NonCurrentLiabilities", "固負_その他固定負債", "unsplit_ifrs_tax_liability", 2)
     elif re.search(r"LongTerm.*(?:Payable|Borrowing|Debt|LoansPayable)", tag):
         add("NonCurrentLiabilities", "固負_その他金融負債", "long_term_liability_meaning")
+    elif re.search(r"CurrentPortionOf.*(?:Bond|Borrowing|Debt|Loan)", tag):
+        add("CurrentLiabilities", "流負_その他金融負債", "current_portion_debt_meaning")
+    elif re.search(r"(?:Advance|Advances).*Received|DepositsReceived", tag):
+        add("CurrentLiabilities", "流負_預り金", "received_advance_or_deposit_meaning", 2)
     elif re.search(r"AnonymousPartnership.*Deposit", tag):
         add("CurrentLiabilities", "流負_匿名組合出資預り金", "partnership_deposit_meaning", 2)
         add("NonCurrentLiabilities", "固負_匿名組合出資預り金", "partnership_deposit_meaning", 2)
@@ -2280,6 +2317,8 @@ def classify_unmapped_bs_tag(tag, raw_tags=None):
         add("NonCurrentAssets", "投資_その他金融資産", "long_term_asset_meaning", 2)
     elif re.search(r"MarginForForeignExchange", tag):
         add("CurrentAssets", "流動_その他金融資産", "foreign_exchange_margin_meaning", 2)
+    elif re.search(r"Distributorship", tag):
+        add("NonCurrentAssets", "無形_その他無形固定資産", "distribution_right_meaning", 2)
     return options
 
 
@@ -2485,25 +2524,46 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
                         "delta_after": delta_after,
                     })
 
-    tag = "AccumulatedDepreciationPPEByGroup"
-    value = raw_tags.get(tag, 0)
     total = totals.get("NonCurrentAssets", 0)
-    if value < 0 and total > 0:
+    aggregate_accumulated_tags = (
+        "AccumulatedDepreciationPPEByGroup",
+        "AccumulatedImpairmentLossPPEByGroup",
+        "AccumulatedDepreciationAndImpairmentLossPPEByGroup",
+    )
+    aggregate_candidates = [
+        (tag, raw_tags[tag]) for tag in aggregate_accumulated_tags
+        if raw_tags.get(tag, 0) < 0
+    ]
+    if aggregate_candidates and total > 0:
         subtotal = sum(
             amount for key, amount in summary.items()
             if key.startswith(("有形_", "無形_", "投資_"))
         )
         delta_before = total - subtotal
-        delta_after = delta_before - value
         tolerance = max(abs(total) * 0.0001, 1_000_000)
-        if abs(delta_after) + tolerance < abs(delta_before) * 0.25:
+        best = None
+        for size in range(1, len(aggregate_candidates) + 1):
+            for combo in combinations(aggregate_candidates, size):
+                tags = {tag for tag, _ in combo}
+                if (
+                    "AccumulatedDepreciationAndImpairmentLossPPEByGroup" in tags
+                    and len(tags) > 1
+                ):
+                    continue
+                combined_value = sum(value for _, value in combo)
+                delta_after = delta_before - combined_value
+                rank = (abs(delta_after), size)
+                if best is None or rank < best[0]:
+                    best = (rank, combo, combined_value, delta_after)
+        if best and abs(best[3]) + tolerance < abs(delta_before) * 0.25:
+            _, selected, value, delta_after = best
             category = "有形_減価償却累計額"
             summary[category] = summary.get(category, 0) + value
             adjustments.append({
                 "category": category,
-                "tag": tag,
+                "tag": "+".join(tag for tag, _ in selected),
                 "value": value,
-                "reason": "section_total_supports_aggregate_accumulated_depreciation",
+                "reason": "section_total_supports_aggregate_depreciation_or_impairment",
                 "delta_before": delta_before,
                 "delta_after": delta_after,
             })

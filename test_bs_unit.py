@@ -1846,6 +1846,88 @@ class MappingTests(unittest.TestCase):
             "electric_utility_facility_detail_skipped_because_total_exists",
         )
 
+    def test_unsplit_financial_conglomerate_tags_cover_assets_and_liabilities(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LoansForBankingBusinessAssetsIFRS": 765_795_000_000,
+            "InvestmentSecuritiesForBankingBusinessAssetsIFRS": 100_505_000_000,
+            "DepositsForBankingBusinessLiabilitiesIFRS": 927_453_000_000,
+            "BondsAndBorrowingsLiabilitiesIFRS": 80_881_000_000,
+            "AssetsRelatedToSecuritiesBusinessAssetsIFRS": 35_906_000_000,
+            "LiabilitiesRelatedToSecuritiesBusinessLiabilitiesIFRS": 30_846_000_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["投資_銀行貸出金"], 765_795_000_000)
+        self.assertEqual(summary["投資_銀行業有価証券"], 100_505_000_000)
+        self.assertEqual(summary["固負_銀行預金"], 927_453_000_000)
+        self.assertEqual(summary["固負_銀行借用金"], 80_881_000_000)
+        self.assertEqual(summary["投資_銀行その他資産"], 35_906_000_000)
+        self.assertEqual(summary["固負_銀行その他負債"], 30_846_000_000)
+
+    def test_unsplit_financial_statement_moves_current_form_assets(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 116_822_000_000
+        summary["流動_売却目的保有資産"] = 636_000_000
+        totals = {"CurrentAssets": 0}
+        raw_tags = {"LoansForBankingBusinessAssetsIFRS": 765_795_000_000}
+
+        reconcile_bank_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(summary["流動_現金及び預金"], 0)
+        self.assertEqual(summary["投資_銀行現金預け金"], 116_822_000_000)
+        self.assertEqual(summary["流動_売却目的保有資産"], 0)
+        self.assertEqual(summary["投資_銀行その他資産"], 636_000_000)
+
+    def test_construction_receivable_parent_removes_completed_work_detail(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 100_000_000_000
+        summary["流動_受取手形・売掛金(合算)"] = 50_000_000_000
+        summary["流動_完成工事未収入金"] = 30_000_000_000
+        summary["流動_その他流動資産"] = 20_000_000_000
+        totals = {"CurrentAssets": 170_000_000_000}
+        raw_tags = {
+            "NotesReceivableAccountsReceivableFromCompletedConstructionContractsAndOtherCNS":
+                50_000_000_000,
+        }
+
+        result = reconcile_receivable_presentation(summary, totals, raw_tags)
+
+        self.assertEqual(result["selected"], "combined")
+        self.assertEqual(summary["流動_完成工事未収入金"], 0)
+
+    def test_combined_depreciation_and_impairment_aggregate_closes_ppe_section(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建物・構築物"] = 46_283_000_000
+        summary["有形_機械・運搬具"] = 4_340_000_000
+        summary["有形_土地"] = 10_375_000_000
+        totals = {"NonCurrentAssets": 21_158_000_000}
+        raw_tags = {
+            "AccumulatedDepreciationAndImpairmentLossPPEByGroup": -39_840_000_000,
+        }
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_減価償却累計額"], -39_840_000_000)
+        self.assertEqual(
+            adjustments[0]["tag"],
+            "AccumulatedDepreciationAndImpairmentLossPPEByGroup",
+        )
+
+    def test_separate_aggregate_impairment_adds_to_aggregate_depreciation(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_その他有形固定資産"] = 143_491_000_000
+        totals = {"NonCurrentAssets": 32_223_000_000}
+        raw_tags = {
+            "AccumulatedDepreciationPPEByGroup": -98_636_000_000,
+            "AccumulatedImpairmentLossPPEByGroup": -12_632_000_000,
+        }
+
+        reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["有形_減価償却累計額"], -111_268_000_000)
+
 
 class TestSetTests(unittest.TestCase):
     def test_curated_set_sizes_and_overlap(self):
