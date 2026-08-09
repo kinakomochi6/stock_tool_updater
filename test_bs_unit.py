@@ -17,6 +17,7 @@ from bs_test_sets import (
     MARKET_700,
     MARKET_900,
     MARKET_1100,
+    MARKET_1300,
     REGRESSION_40,
     STRESS_100,
     WAVE_A_100,
@@ -27,6 +28,8 @@ from bs_test_sets import (
     WAVE_F_100,
     WAVE_G_100,
     WAVE_H_100,
+    WAVE_I_100,
+    WAVE_J_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -2061,6 +2064,12 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(MARKET_900) & set(WAVE_H_100))
         self.assertFalse(set(WAVE_G_100) & set(WAVE_H_100))
         self.assertEqual(len(MARKET_1100), 1100)
+        self.assertEqual(len(WAVE_I_100), 100)
+        self.assertEqual(len(WAVE_J_100), 100)
+        self.assertFalse(set(MARKET_1100) & set(WAVE_I_100))
+        self.assertFalse(set(MARKET_1100) & set(WAVE_J_100))
+        self.assertFalse(set(WAVE_I_100) & set(WAVE_J_100))
+        self.assertEqual(len(MARKET_1300), 1300)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
@@ -2076,8 +2085,11 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(BS_TEST_SETS["wave-f-100"], WAVE_F_100)
         self.assertEqual(BS_TEST_SETS["wave-g-100"], WAVE_G_100)
         self.assertEqual(BS_TEST_SETS["wave-h-100"], WAVE_H_100)
+        self.assertEqual(BS_TEST_SETS["wave-i-100"], WAVE_I_100)
+        self.assertEqual(BS_TEST_SETS["wave-j-100"], WAVE_J_100)
         self.assertEqual(BS_TEST_SETS["market-900"], MARKET_900)
         self.assertEqual(BS_TEST_SETS["market-1100"], MARKET_1100)
+        self.assertEqual(BS_TEST_SETS["market-1300"], MARKET_1300)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])

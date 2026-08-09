@@ -15,6 +15,8 @@ on:
       - bs-wave-f
       - bs-wave-g
       - bs-wave-h
+      - bs-wave-i
+      - bs-wave-j
   schedule:
     # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
@@ -43,6 +45,8 @@ on:
           - wave-f-100
           - wave-g-100
           - wave-h-100
+          - wave-i-100
+          - wave-j-100
           - market-100
           - market-200
           - market-300
@@ -50,6 +54,7 @@ on:
           - market-700
           - market-900
           - market-1100
+          - market-1300
       days_back:
         description: 'Days of EDINET documents to scan'
         required: false
@@ -161,6 +166,10 @@ jobs:
               TEST_SET="wave-g-100"
             elif [ "${{ github.ref_name }}" = "bs-wave-h" ]; then
               TEST_SET="wave-h-100"
+            elif [ "${{ github.ref_name }}" = "bs-wave-i" ]; then
+              TEST_SET="wave-i-100"
+            elif [ "${{ github.ref_name }}" = "bs-wave-j" ]; then
+              TEST_SET="wave-j-100"
             fi
             python firebase_master_test.py \
               --test-set "$TEST_SET" \
