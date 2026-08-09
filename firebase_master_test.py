@@ -1336,11 +1336,9 @@ INVENTORY_DETAIL_TAGS = {
     "CostsOnUncompletedConstructionContractsAndOtherCNS",
     "PartlyFinishedWork", "MaterialsAndStocksCA",
     "SemiFinishedGoods", "CostsOnUncompletedConstructionConstructs",
-}
-INVENTORY_TOTAL_TAGS = {
-    "Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet",
     "FinishedGoodsAndWorkInProcessCA",
 }
+INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
 OTHER_INVENTORY_SUBDETAIL_TAGS = {
     "MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies",
     "FinishedGoods", "Merchandise", "Supplies", "CostsOnOtherBusiness",

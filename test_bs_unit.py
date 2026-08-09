@@ -278,6 +278,25 @@ class MappingTests(unittest.TestCase):
             "gross_lease_investment_assets_skipped_because_net_exists",
         )
 
+    def test_finished_goods_and_work_in_process_does_not_hide_raw_materials(self):
+        component_tags = {
+            "FinishedGoodsAndWorkInProcessCA": 2_366_000_000,
+            "RawMaterialsAndSupplies": 826_000_000,
+        }
+        total_tags = {**component_tags, "Inventories": 3_192_000_000}
+
+        self.assertIsNone(
+            should_skip_item_tag("RawMaterialsAndSupplies", component_tags)
+        )
+        self.assertEqual(
+            should_skip_item_tag("RawMaterialsAndSupplies", total_tags),
+            "inventory_detail_skipped_because_total_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("FinishedGoodsAndWorkInProcessCA", total_tags),
+            "inventory_detail_skipped_because_total_exists",
+        )
+
     def test_nuclear_retirement_work_in_progress_is_removed_only_when_total_proves_overlap(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         summary["有形_建設仮勘定"] = 496_033_000_000
