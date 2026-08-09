@@ -41,6 +41,7 @@ from firebase_master_test import (
     apply_derived_net_tag_pairs,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
+    build_taxonomy_statement_memberships,
     classify_missing_bs_document,
     classify_taxonomy_bs_tag,
     classify_taxonomy_labels,
@@ -64,6 +65,7 @@ from firebase_master_test import (
     serialize_reconciliation_adjustment,
     select_other_or_unclassified,
     should_skip_item_tag,
+    taxonomy_statement_scope_skip_reason,
     validate_tag_mapping,
 )
 
@@ -433,6 +435,83 @@ class TaxonomyRelationshipTests(unittest.TestCase):
         )
         self.assertEqual(info["label_count"], 3)
 
+    def test_statement_memberships_separate_consolidated_and_standalone_items(self):
+        relationships = [
+            {
+                "parent": "CurrentAssets",
+                "child": "ConsolidatedInventory",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_ConsolidatedBalanceSheet",
+            },
+            {
+                "parent": "CurrentAssets",
+                "child": "StandaloneInventoryDetail",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_BalanceSheet",
+            },
+        ]
+
+        memberships = build_taxonomy_statement_memberships(relationships)
+
+        self.assertIn("ConsolidatedInventory", memberships["consolidated"])
+        self.assertIn("StandaloneInventoryDetail", memberships["standalone"])
+        self.assertEqual(
+            taxonomy_statement_scope_skip_reason(
+                "StandaloneInventoryDetail", "CurrentYearInstant", memberships,
+            ),
+            "standalone_only_tag_skipped_for_consolidated_statement",
+        )
+        self.assertEqual(
+            taxonomy_statement_scope_skip_reason(
+                "ConsolidatedInventory",
+                "CurrentYearInstant_NonConsolidatedMember",
+                memberships,
+            ),
+            "consolidated_only_tag_skipped_for_standalone_statement",
+        )
+
+    def test_plain_statement_items_are_kept_when_no_consolidated_role_exists(self):
+        relationships = [{
+            "parent": "CurrentAssets",
+            "child": "StandaloneInventoryDetail",
+            "link_type": "presentation",
+            "arcrole": "parent-child",
+            "role": "http://example.com/role/rol_BalanceSheet",
+        }]
+        memberships = build_taxonomy_statement_memberships(relationships)
+
+        self.assertIsNone(taxonomy_statement_scope_skip_reason(
+            "StandaloneInventoryDetail", "CurrentYearInstant", memberships,
+        ))
+
+    def test_standalone_only_taxonomy_path_is_not_used_for_consolidated_context(self):
+        tag = "OpaqueStandaloneAsset"
+        parent_index = {
+            tag: [{
+                "parent": "CurrentAssets",
+                "child": tag,
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_BalanceSheet",
+            }],
+            "ConsolidatedAsset": [{
+                "parent": "CurrentAssets",
+                "child": "ConsolidatedAsset",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_ConsolidatedBalanceSheet",
+            }],
+        }
+
+        self.assertEqual(classify_taxonomy_bs_tag(
+            tag,
+            parent_index,
+            {tag: 2_000_000_000},
+            "CurrentYearInstant",
+        ), [])
+
     def test_definition_and_standard_label_classify_opaque_extension(self):
         with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
             info = parse_taxonomy_relationships(archive)
@@ -549,6 +628,16 @@ class TaxonomyRelationshipTests(unittest.TestCase):
         ]
 
         self.assertEqual(classify_taxonomy_labels(labels, "CurrentAssets"), [])
+
+    def test_receivable_and_contract_asset_label_uses_combined_category(self):
+        options = classify_taxonomy_labels([{
+            "text": "受取手形、営業未収金及び契約資産",
+            "lang": "ja",
+            "role": "http://www.xbrl.org/2003/role/label",
+        }], "CurrentAssets")
+
+        self.assertEqual(options[0]["category"], "流動_受取手形・売掛金(合算)")
+        self.assertEqual(options[0]["action"], "receivable_parent")
 
     def test_standard_label_refines_broad_extension_name(self):
         tag = "OpaqueReserve"

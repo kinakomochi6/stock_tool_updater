@@ -1652,6 +1652,7 @@ TAXONOMY_LABEL_SECTION_PATTERNS = {
 TAXONOMY_LABEL_CATEGORY_RULES = {
     "CurrentAssets": (
         (r"電子記録債権|electronicallyrecorded.*claim", "流動_電子記録債権", "add"),
+        (r"(?:受取手形|売掛金|営業債権|営業未収金|receiv).*(?:契約資産|contractassets?)|(?:契約資産|contractassets?).*(?:受取手形|売掛金|営業債権|営業未収金|receiv)", "流動_受取手形・売掛金(合算)", "receivable_parent"),
         (r"契約資産|contractassets?", "流動_契約資産", "add"),
         (r"受取手形|売掛金|営業債権|売上債権|tradereceiv|accountsreceiv", "流動_受取手形・売掛金(合算)", "receivable_parent"),
         # These rules apply only to unknown extension concepts. Treat a labeled
@@ -2752,6 +2753,63 @@ def _taxonomy_role_is_nonconsolidated(role):
     return "nonconsolidated" in normalized
 
 
+def _taxonomy_role_is_standalone_statement(role):
+    tail = (role or "").rsplit("/", 1)[-1]
+    normalized = re.sub(r"[-_]", "", tail).lower()
+    return normalized in {
+        "rolbalancesheet",
+        "balancesheet",
+        "rolstatementoffinancialposition",
+        "statementoffinancialposition",
+    }
+
+
+def build_taxonomy_statement_memberships(relationships):
+    """Collect concepts explicitly placed in consolidated or standalone B/S roles."""
+    memberships = {"consolidated": set(), "standalone": set()}
+    for edge in relationships or []:
+        link_type = edge.get("link_type")
+        if link_type not in {"calculation", "definition", "presentation"}:
+            continue
+        if link_type == "definition" and edge.get("arcrole") != "domain-member":
+            continue
+        role = edge.get("role", "")
+        if _taxonomy_role_is_consolidated(role):
+            scope = "consolidated"
+        elif (
+            _taxonomy_role_is_nonconsolidated(role)
+            or _taxonomy_role_is_standalone_statement(role)
+        ):
+            scope = "standalone"
+        else:
+            continue
+        memberships[scope].update((edge.get("parent"), edge.get("child")))
+    memberships["consolidated"].discard(None)
+    memberships["standalone"].discard(None)
+    return memberships
+
+
+def taxonomy_statement_scope_skip_reason(tag, selected_context, memberships):
+    consolidated = memberships.get("consolidated", set())
+    standalone = memberships.get("standalone", set())
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    if (
+        is_nonconsolidated
+        and standalone
+        and tag in consolidated
+        and tag not in standalone
+    ):
+        return "consolidated_only_tag_skipped_for_standalone_statement"
+    if (
+        not is_nonconsolidated
+        and consolidated
+        and tag in standalone
+        and tag not in consolidated
+    ):
+        return "standalone_only_tag_skipped_for_consolidated_statement"
+    return None
+
+
 def _normalize_taxonomy_label(text):
     normalized = unicodedata.normalize("NFKC", str(text or "")).lower()
     normalized = re.sub(r"[\s\u3000,，・･()（）\[\]［］【】]", "", normalized)
@@ -2865,6 +2923,13 @@ def find_taxonomy_anchors(
     """Find nearest known B/S ancestors without crossing link roles."""
     direct_edges = list(parent_index.get(tag, []))
     is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    all_edges = [
+        edge for edges in parent_index.values() for edge in edges
+    ]
+    has_consolidated_statement = any(
+        _taxonomy_role_is_consolidated(edge.get("role", ""))
+        for edge in all_edges
+    )
     if is_nonconsolidated:
         direct_edges = [
             edge for edge in direct_edges
@@ -2875,8 +2940,22 @@ def find_taxonomy_anchors(
             edge for edge in direct_edges
             if _taxonomy_role_is_consolidated(edge["role"])
         ]
+        standalone_statement_edges = [
+            edge for edge in direct_edges
+            if (
+                _taxonomy_role_is_nonconsolidated(edge["role"])
+                or _taxonomy_role_is_standalone_statement(edge["role"])
+            )
+        ]
         if consolidated_edges:
             direct_edges = consolidated_edges
+        elif has_consolidated_statement and standalone_statement_edges:
+            direct_edges = []
+        elif has_consolidated_statement:
+            direct_edges = [
+                edge for edge in direct_edges
+                if edge.get("arcrole") == "general-special"
+            ]
         else:
             direct_edges = [
                 edge for edge in direct_edges
@@ -3768,6 +3847,9 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
 
     with archive as z:
         taxonomy_info = parse_taxonomy_relationships(z)
+        taxonomy_statement_memberships = build_taxonomy_statement_memberships(
+            taxonomy_info["relationships"]
+        )
         xbrl_file = next((n for n in z.namelist() if n.endswith(".xbrl") and "PublicDoc" in n), None)
         if not xbrl_file:
             error = BsAnalysisError(
@@ -3846,6 +3928,10 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                 for tag, val in raw_tags.items():
                     if tag in TAG_MAPPING:
                         skip_reason = should_skip_item_tag(tag, raw_tags)
+                        if not skip_reason:
+                            skip_reason = taxonomy_statement_scope_skip_reason(
+                                tag, cid, taxonomy_statement_memberships,
+                            )
                         if skip_reason:
                             skipped_tags.append({"tag": tag, "value": val, "reason": skip_reason})
                             continue
