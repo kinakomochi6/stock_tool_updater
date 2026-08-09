@@ -2745,6 +2745,11 @@ def _taxonomy_role_is_consolidated(role):
     return "consolidated" in normalized and "nonconsolidated" not in normalized
 
 
+def _taxonomy_role_is_nonconsolidated(role):
+    normalized = (role or "").lower().replace("-", "")
+    return "nonconsolidated" in normalized
+
+
 def _normalize_taxonomy_label(text):
     normalized = unicodedata.normalize("NFKC", str(text or "")).lower()
     normalized = re.sub(r"[\s\u3000,，・･()（）\[\]［］【】]", "", normalized)
@@ -2870,6 +2875,11 @@ def find_taxonomy_anchors(
         ]
         if consolidated_edges:
             direct_edges = consolidated_edges
+        else:
+            direct_edges = [
+                edge for edge in direct_edges
+                if not _taxonomy_role_is_nonconsolidated(edge["role"])
+            ]
 
     anchors = []
     for first in direct_edges:
@@ -2948,6 +2958,16 @@ def classify_taxonomy_bs_tag(
     for stats in evidence_by_section.values():
         if len(stats["link_types"]) > 1:
             stats["score"] += 3
+
+    strong_sections = {
+        section for section, stats in evidence_by_section.items()
+        if (
+            "calculation" in stats["link_types"]
+            or "general-special" in stats["arcroles"]
+        )
+    }
+    if len(strong_sections) > 1:
+        return []
 
     ranked_sections = sorted(
         evidence_by_section.items(),

@@ -283,6 +283,47 @@ class TaxonomyRelationshipTests(unittest.TestCase):
 
         self.assertEqual(options[0]["section"], "CurrentAssets")
 
+    def test_explicit_nonconsolidated_role_is_not_used_for_consolidated_context(self):
+        tag = "OpaqueAsset"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [{
+                "parent": "CurrentAssets",
+                "child": tag,
+                "link_type": "calculation",
+                "role": "http://example.com/role/NonConsolidatedBalanceSheet",
+            }]},
+            {tag: 2_000_000_000},
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(options, [])
+
+    def test_conflicting_strong_taxonomy_sections_are_rejected(self):
+        tag = "OpaqueMetric"
+        options = classify_taxonomy_bs_tag(
+            tag,
+            {tag: [
+                {
+                    "parent": "CurrentAssets",
+                    "child": tag,
+                    "link_type": "calculation",
+                    "role": "http://example.com/role/ConsolidatedBalanceSheet",
+                },
+                {
+                    "parent": "CurrentLiabilitiesAbstract",
+                    "child": tag,
+                    "link_type": "definition",
+                    "arcrole": "general-special",
+                    "role": "http://example.com/role/ConsolidatedBalanceSheet-ListOfAccounts",
+                },
+            ]},
+            {tag: 2_000_000_000},
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(options, [])
+
     def test_taxonomy_inference_prefers_net_variant_over_gross_child(self):
         parent_index = {
             "RightOfUseAssets": [{
