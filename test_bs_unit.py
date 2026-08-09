@@ -251,6 +251,7 @@ class MappingTests(unittest.TestCase):
             "Aircraft": 5_312_000_000,
             "VehicleNet": 980_000_000,
             "LeasingGoldCL": 2_432_900_000,
+            "RightOfUseAssetsNetRightOfUseAssets": 3_160_000_000,
         }
         for tag, value in values.items():
             apply_mapped_tag(summary, tag, value)
@@ -260,6 +261,7 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["有形_航空機"], 5_312_000_000)
         self.assertEqual(summary["有形_車両運搬具"], 980_000_000)
         self.assertEqual(summary["流負_その他金融負債"], 2_432_900_000)
+        self.assertEqual(summary["有形_使用権資産"], 3_160_000_000)
 
     def test_gross_transport_and_lease_values_yield_to_net_values(self):
         raw_tags = {
@@ -267,6 +269,8 @@ class MappingTests(unittest.TestCase):
             "VehicleNet": 980_000_000,
             "LeaseInvestmentAssetsCA": 3_000_000_000,
             "LeaseInvestmentAssetsNetCA": 2_274_500_000,
+            "RightOfUseAssetsPPE": 9_085_000_000,
+            "RightOfUseAssetsNetRightOfUseAssets": 3_160_000_000,
         }
 
         self.assertEqual(
@@ -276,6 +280,10 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(
             should_skip_item_tag("LeaseInvestmentAssetsCA", raw_tags),
             "gross_lease_investment_assets_skipped_because_net_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("RightOfUseAssetsPPE", raw_tags),
+            "gross_right_of_use_assets_skipped_because_net_exists",
         )
 
     def test_finished_goods_and_work_in_process_does_not_hide_raw_materials(self):

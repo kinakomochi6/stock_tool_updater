@@ -1022,6 +1022,7 @@ TAG_MAPPING = {
     "VehiclesPPE": "有形_車両運搬具",
     "VehicleNet": "有形_車両運搬具",
     "LeasingGoldCL": "流負_その他金融負債",
+    "RightOfUseAssetsNetRightOfUseAssets": "有形_使用権資産",
 }
 
 
@@ -1732,7 +1733,12 @@ def should_skip_item_tag(tag, raw_tags):
         includes_other_financial = "BondsBorrowingsAndOtherFinancialLiabilitiesNCLIFRS" in raw_tags
         if tag != "OtherFinancialLiabilitiesNCLIFRS" or includes_other_financial:
             return "debt_detail_skipped_because_combined_noncurrent_total_exists"
-    if tag == "RightOfUseAssetsPPE" and "RightOfUseAssetsNetPPE" in raw_tags:
+    if tag == "RightOfUseAssetsPPE" and any(
+        net_tag in raw_tags for net_tag in {
+            "RightOfUseAssetsNetPPE",
+            "RightOfUseAssetsNetRightOfUseAssets",
+        }
+    ):
         return "gross_right_of_use_assets_skipped_because_net_exists"
     if tag == "SecurityEquipmentAndControlStations" and "SecurityEquipmentAndControlStationsNetPPE" in raw_tags:
         return "gross_security_equipment_skipped_because_net_exists"
