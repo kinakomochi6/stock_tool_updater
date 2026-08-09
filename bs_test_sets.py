@@ -235,6 +235,25 @@ WAVE_J_100 = (
     "7110", "4547", "2593", "4534",
 )
 
+# Blind holdout selected from the 2026-07-31 JPX list before evaluating any
+# diagnostics. It excludes MARKET_1300 and every code in prior artifacts, then
+# samples Prime 35, Standard 35, Growth 20, and PRO Market 10 issuers.
+WAVE_K_100 = (
+    "7972", "5384", "9769", "8934", "4633", "4587", "3132", "7649",
+    "1852", "4825", "6273", "7701", "3002", "7245", "5901", "5410",
+    "8524", "9042", "6523", "2270", "7911", "5288", "9743", "8892",
+    "4951", "4540", "7456", "8217", "1835", "3916", "6310", "7747",
+    "8011", "7313", "5946", "7805", "5273", "2300", "1783", "4120",
+    "7442", "7638", "1438", "9753", "6223", "7749", "8029", "7255",
+    "5965", "5697", "9012", "3856", "2112", "7804", "5388", "4712",
+    "3236", "4247", "2693", "7601", "5079", "3799", "6327", "7702",
+    "3513", "7254", "5952", "9059", "6932", "2224", "6561", "4599",
+    "3224", "4372", "9218", "4888", "5892", "478A", "6193", "4892",
+    "4391", "7360", "130A", "479A", "5870", "4586", "4811", "151A",
+    "4592", "304A", "9226", "2990", "326A", "305A", "312A", "5617",
+    "9156", "524A", "7132", "419A",
+)
+
 MARKET_100 = tuple(sorted(set(REGRESSION_40) | set(EXPANSION_60)))
 MARKET_200 = tuple(sorted(set(MARKET_100) | set(BREADTH_100)))
 MARKET_300 = tuple(sorted(set(MARKET_200) | set(STRESS_100)))
@@ -243,6 +262,7 @@ MARKET_700 = tuple(sorted(set(MARKET_500) | set(WAVE_C_100) | set(WAVE_D_100)))
 MARKET_900 = tuple(sorted(set(MARKET_700) | set(WAVE_E_100) | set(WAVE_F_100)))
 MARKET_1100 = tuple(sorted(set(MARKET_900) | set(WAVE_G_100) | set(WAVE_H_100)))
 MARKET_1300 = tuple(sorted(set(MARKET_1100) | set(WAVE_I_100) | set(WAVE_J_100)))
+MARKET_1400 = tuple(sorted(set(MARKET_1300) | set(WAVE_K_100)))
 
 BS_TEST_SETS = {
     "none": (),
@@ -260,6 +280,7 @@ BS_TEST_SETS = {
     "wave-h-100": WAVE_H_100,
     "wave-i-100": WAVE_I_100,
     "wave-j-100": WAVE_J_100,
+    "wave-k-100": WAVE_K_100,
     "market-100": MARKET_100,
     "market-200": MARKET_200,
     "market-300": MARKET_300,
@@ -268,6 +289,7 @@ BS_TEST_SETS = {
     "market-900": MARKET_900,
     "market-1100": MARKET_1100,
     "market-1300": MARKET_1300,
+    "market-1400": MARKET_1400,
 }
 
 
