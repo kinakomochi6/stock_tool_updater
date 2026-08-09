@@ -26,6 +26,9 @@ def summarize_diagnostics(records):
     failure_statuses = Counter()
     worst_categories = Counter()
     candidate_tags = {}
+    semantic_tags = Counter()
+    semantic_inference_count = 0
+    semantic_company_count = 0
     warning_count = 0
     failed_codes = []
 
@@ -43,6 +46,13 @@ def summarize_diagnostics(records):
         contexts[context_type] += 1
         warnings = record.get("warnings") or []
         warning_count += len(warnings)
+        semantic_inferences = record.get("semantic_inferences") or []
+        if semantic_inferences:
+            semantic_company_count += 1
+        semantic_inference_count += len(semantic_inferences)
+        for inference in semantic_inferences:
+            if inference.get("tag"):
+                semantic_tags[inference["tag"]] += 1
 
         residuals = record.get("other_gap_delta_oku") or {}
         if residuals:
@@ -79,6 +89,7 @@ def summarize_diagnostics(records):
             "signed_residual_oku": round(signed_value, 3),
             "max_abs_residual_oku": round(max_abs_residual, 3),
             "warning_count": len(warnings),
+            "semantic_inference_count": len(semantic_inferences),
         })
 
     rows.sort(key=lambda row: (-row["max_abs_residual_oku"], row["code"]))
@@ -99,6 +110,9 @@ def summarize_diagnostics(records):
         "failed_codes": sorted(failed_codes),
         "failure_statuses": dict(sorted(failure_statuses.items())),
         "warning_count": warning_count,
+        "semantic_company_count": semantic_company_count,
+        "semantic_inference_count": semantic_inference_count,
+        "semantic_tags": dict(semantic_tags.most_common()),
         "accounting_standards": dict(sorted(standards.items())),
         "context_types": dict(sorted(contexts.items())),
         "threshold_counts": threshold_counts,
@@ -123,6 +137,8 @@ def render_markdown(summary, row_limit=25):
         f"- Successful: {summary['ok_count']}",
         f"- Failed: {len(summary['failed_codes'])}",
         f"- Warnings: {summary['warning_count']}",
+        f"- Semantic fallback: {summary['semantic_inference_count']} tags in "
+        f"{summary['semantic_company_count']} companies",
         f"- Accounting standards: {standards}",
         f"- Contexts: {contexts}",
         f"- Absolute residual counts: {threshold_text}",

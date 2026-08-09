@@ -13,12 +13,15 @@ from bs_test_sets import (
     MARKET_300,
     MARKET_500,
     MARKET_700,
+    MARKET_900,
     REGRESSION_40,
     STRESS_100,
     WAVE_A_100,
     WAVE_B_100,
     WAVE_C_100,
     WAVE_D_100,
+    WAVE_E_100,
+    WAVE_F_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -27,6 +30,7 @@ from firebase_master_test import (
     BsAnalysisError,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
+    classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
     parse_codes_arg,
@@ -35,6 +39,7 @@ from firebase_master_test import (
     reconcile_parent_component_overlaps,
     reconcile_receivable_presentation,
     reconcile_optional_duplicate_categories,
+    reconcile_semantic_unmapped_tags,
     reconcile_skipped_section_summaries,
     serialize_reconciliation_adjustment,
     should_skip_item_tag,
@@ -1533,6 +1538,78 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["純資_内訳未分類"], totals["NetAssets"])
         self.assertEqual(fallbacks[0]["section"], "NetAssets")
 
+    def test_unknown_current_provision_is_inferred_when_it_closes_section_total(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+        summary["流負_その他流動負債"] = 20_000_000_000
+        totals = {"CurrentLiabilities": 125_000_000_000}
+        raw_tags = {"ProvisionForNewIndustryRiskCLXYZ": 5_000_000_000}
+
+        adjustments, applied_tags = reconcile_semantic_unmapped_tags(
+            summary, totals, raw_tags
+        )
+
+        self.assertEqual(summary["流負_引当金"], 5_000_000_000)
+        self.assertEqual(applied_tags, {"ProvisionForNewIndustryRiskCLXYZ"})
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
+    def test_unknown_tag_is_not_applied_when_section_total_does_not_support_it(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 100_000_000_000
+        summary["流負_その他流動負債"] = 20_000_000_000
+        totals = {"CurrentLiabilities": 121_000_000_000}
+        raw_tags = {"ProvisionForNewIndustryRiskCLXYZ": 20_000_000_000}
+
+        adjustments, applied_tags = reconcile_semantic_unmapped_tags(
+            summary, totals, raw_tags
+        )
+
+        self.assertEqual(summary["流負_引当金"], 0)
+        self.assertEqual(adjustments, [])
+        self.assertEqual(applied_tags, set())
+
+    def test_semantic_inference_can_unlock_a_proven_duplicate_parent(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流負_支払手形・買掛金"] = 10_000_000_000
+        summary["流負_前受金"] = 8_000_000_000
+        summary["流負_契約負債"] = 8_000_000_000
+        summary["流負_その他流動負債"] = 2_000_000_000
+        totals = {"CurrentLiabilities": 22_000_000_000}
+        raw_tags = {"SuspenseReceipt": 2_000_000_000}
+
+        adjustments, applied_tags = reconcile_semantic_unmapped_tags(
+            summary, totals, raw_tags
+        )
+
+        self.assertEqual(applied_tags, {"SuspenseReceipt"})
+        self.assertEqual(summary["流負_預り金"], 2_000_000_000)
+        self.assertEqual(
+            sum(summary[key] for key in summary if key.startswith("流負_")),
+            totals["CurrentLiabilities"],
+        )
+        self.assertTrue(
+            any("semantic_fallback_triggered" in item["reason"] for item in adjustments)
+        )
+
+    def test_gross_extension_is_ignored_when_net_variant_exists(self):
+        raw_tags = {
+            "NewFacilitiesPPEXYZ": 10_000_000_000,
+            "NewFacilitiesNetPPEXYZ": 6_000_000_000,
+        }
+
+        self.assertEqual(
+            classify_unmapped_bs_tag("NewFacilitiesPPEXYZ", raw_tags), []
+        )
+        options = classify_unmapped_bs_tag("NewFacilitiesNetPPEXYZ", raw_tags)
+        self.assertEqual(options[0]["section"], "NonCurrentAssets")
+
+    def test_note_value_is_never_a_semantic_candidate(self):
+        raw_tags = {"BuildingsAcquisitionCostPPEXYZ": 10_000_000_000}
+
+        self.assertEqual(
+            classify_unmapped_bs_tag("BuildingsAcquisitionCostPPEXYZ", raw_tags), []
+        )
+
 
 class TestSetTests(unittest.TestCase):
     def test_curated_set_sizes_and_overlap(self):
@@ -1558,6 +1635,12 @@ class TestSetTests(unittest.TestCase):
         self.assertFalse(set(MARKET_500) & set(WAVE_D_100))
         self.assertFalse(set(WAVE_C_100) & set(WAVE_D_100))
         self.assertEqual(len(MARKET_700), 700)
+        self.assertEqual(len(WAVE_E_100), 100)
+        self.assertEqual(len(WAVE_F_100), 100)
+        self.assertFalse(set(MARKET_700) & set(WAVE_E_100))
+        self.assertFalse(set(MARKET_700) & set(WAVE_F_100))
+        self.assertFalse(set(WAVE_E_100) & set(WAVE_F_100))
+        self.assertEqual(len(MARKET_900), 900)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
@@ -1569,6 +1652,9 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(BS_TEST_SETS["wave-c-100"], WAVE_C_100)
         self.assertEqual(BS_TEST_SETS["wave-d-100"], WAVE_D_100)
         self.assertEqual(BS_TEST_SETS["market-700"], MARKET_700)
+        self.assertEqual(BS_TEST_SETS["wave-e-100"], WAVE_E_100)
+        self.assertEqual(BS_TEST_SETS["wave-f-100"], WAVE_F_100)
+        self.assertEqual(BS_TEST_SETS["market-900"], MARKET_900)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])
@@ -1592,6 +1678,9 @@ class DiagnosticsReportTests(unittest.TestCase):
                 "other_gap_delta_oku": {"流動_その他流動資産": -1400.0},
                 "mapping_candidate_unmapped_tags_over_1oku": [
                     {"tag": "SpecialAsset", "value_oku": -120.0},
+                ],
+                "semantic_inferences": [
+                    {"tag": "ProvisionForNewRiskCL", "value_oku": 12.0},
                 ],
             },
             {
@@ -1617,6 +1706,9 @@ class DiagnosticsReportTests(unittest.TestCase):
         self.assertEqual(summary["candidate_unmapped_tags"][0]["tag"], "SpecialAsset")
         self.assertEqual(summary["candidate_unmapped_tags"][0]["company_count"], 2)
         self.assertEqual(summary["candidate_unmapped_tags"][0]["total_abs_value_oku"], 200.0)
+        self.assertEqual(summary["semantic_company_count"], 1)
+        self.assertEqual(summary["semantic_inference_count"], 1)
+        self.assertEqual(summary["semantic_tags"], {"ProvisionForNewRiskCL": 1})
 
 
 if __name__ == "__main__":

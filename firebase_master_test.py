@@ -1375,6 +1375,35 @@ NOTE_ONLY_TAG_PATTERNS = [
     "DueFromSubscribers",
 ]
 
+# Company-extension tags often retain a stable balance-sheet section suffix even
+# when their local concept name is unknown. These patterns are intentionally
+# narrower than the XBRL vocabulary: an inferred item is accepted later only
+# when it also materially reconciles the reported section total.
+SEMANTIC_TAG_EXCLUSION_PATTERNS = NOTE_ONLY_TAG_PATTERNS + [
+    "AcquisitionCost", "Accumulated", "AtBeginning", "AtEnd", "BookValue",
+    "CarryingAmount", "Changes", "Discounted", "IncreaseDecrease",
+    "ReserveForAdvancedDepreciation", "ReserveForReductionEntry",
+    "SpecialSuspenseAccountForTaxPurpose", "TransferredByEndorsement",
+]
+
+SEMANTIC_SECTION_SPECS = {
+    "CurrentAssets": {
+        "prefix": "流動_", "other": "流動_その他流動資産",
+    },
+    "NonCurrentAssets": {
+        "prefix": ("有形_", "無形_", "投資_"), "other": "投資_その他固定資産",
+    },
+    "CurrentLiabilities": {
+        "prefix": "流負_", "other": "流負_その他流動負債",
+    },
+    "NonCurrentLiabilities": {
+        "prefix": "固負_", "other": "固負_その他固定負債",
+    },
+    "NetAssets": {
+        "prefix": "純資_", "other": "純資_その他純資産",
+    },
+}
+
 DERIVED_NET_TAG_PAIRS = [
     ("BuildingsAcquisitionCostIFRS", "BuildingsAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsIFRS"]),
     ("BuildingsAndStructuresAcquisitionCostIFRS", "BuildingsAndStructuresAccumulatedDepreciationAndImpairmentLossesIFRS", "有形_建物・構築物", ["BuildingsAndStructuresIFRS"]),
@@ -1929,6 +1958,217 @@ def reconcile_optional_duplicate_categories(summary, totals):
     return adjustments
 
 
+def _has_semantic_suffix(tag, marker):
+    suffixes = {
+        "CA": r"CA(?:IFRS|[A-Z]{2,8})?$",
+        "NCA": r"(?:NCA|IOA)(?:IFRS|[A-Z]{2,8})?$",
+        "CL": r"(?<!N)CL(?:IFRS|[A-Z]{2,8})?$",
+        "NCL": r"NCL(?:IFRS|[A-Z]{2,8})?$",
+        "PPE": r"PPE(?:IFRS|[A-Z]{2,8})?$",
+        "IA": r"IA(?:IFRS|[A-Z]{2,8})?$",
+        "EQUITY": r"(?:NA|EquityIFRS)$",
+    }
+    return re.search(suffixes[marker], tag) is not None
+
+
+def _net_variant_exists(tag, raw_tags):
+    if "Net" in tag:
+        return False
+    normalized = tag.replace("Net", "")
+    return any(
+        other != tag and "Net" in other and other.replace("Net", "") == normalized
+        for other in raw_tags
+    )
+
+
+def classify_unmapped_bs_tag(tag, raw_tags=None):
+    """Return conservative section/category options for an unknown BS concept."""
+    raw_tags = raw_tags or {}
+    if tag in TAG_MAPPING or tag in TOTAL_TAG_LOOKUP:
+        return []
+    if any(pattern in tag for pattern in SEMANTIC_TAG_EXCLUSION_PATTERNS):
+        return []
+    if tag.startswith("Total") or tag.endswith("Total") or _net_variant_exists(tag, raw_tags):
+        return []
+
+    options = []
+
+    def add(section, category, reason, confidence=3):
+        options.append({
+            "section": section,
+            "category": category,
+            "reason": reason,
+            "confidence": confidence,
+        })
+
+    is_provision = tag.startswith(("ProvisionFor", "AllowanceFor", "AccrualFor"))
+    is_unsplit_provision = tag.startswith(("ProvisionFor", "AccrualFor"))
+    if _has_semantic_suffix(tag, "NCL"):
+        if is_provision:
+            add("NonCurrentLiabilities", "固負_引当金", "noncurrent_provision_suffix")
+        elif re.search(r"Payable|Borrowing|Debt|Liabilit|Obligation|Deposit|Derivative", tag):
+            add("NonCurrentLiabilities", "固負_その他金融負債", "noncurrent_liability_suffix")
+        return options
+
+    if _has_semantic_suffix(tag, "CL"):
+        if is_provision:
+            add("CurrentLiabilities", "流負_引当金", "current_provision_suffix")
+        elif re.search(r"ContractLiabilit|AdvancesReceived", tag):
+            add("CurrentLiabilities", "流負_契約負債", "current_contract_liability_suffix")
+        elif re.search(r"Deposit|Margin|CashReceived|SuspenseReceipt", tag):
+            add("CurrentLiabilities", "流負_預り金", "current_deposit_liability_suffix")
+        elif re.search(r"Borrowing|Loan|Debt|Bond", tag):
+            add("CurrentLiabilities", "流負_その他金融負債", "current_debt_suffix")
+        elif re.search(r"Payable|Liabilit|Obligation|Derivative|TradingSecurities", tag):
+            add("CurrentLiabilities", "流負_その他金融負債", "current_liability_suffix")
+        return options
+
+    if _has_semantic_suffix(tag, "CA"):
+        if re.search(r"ContractAssets?", tag):
+            add("CurrentAssets", "流動_契約資産", "current_contract_asset_suffix")
+        elif re.search(r"Securit|Derivative|Trading", tag):
+            add("CurrentAssets", "流動_その他金融資産", "current_security_asset_suffix")
+        elif re.search(r"Cash|Deposit|Margin|Collateral", tag):
+            add("CurrentAssets", "流動_預け金", "current_deposit_asset_suffix")
+        elif re.search(r"Receivable|Loan|AdvancePayment", tag):
+            add("CurrentAssets", "流動_金融債権", "current_receivable_asset_suffix")
+        elif re.search(r"Inventor|Merchandise|WorkInProgress", tag):
+            add("CurrentAssets", "流動_棚卸資産", "current_inventory_suffix")
+        return options
+
+    if _has_semantic_suffix(tag, "PPE"):
+        if re.search(
+            r"Asset|Building|Dock|Equipment|Facilit|Forest|Land|Machiner|Plant|Structure|Timber|Vehicle|Vessel",
+            tag,
+        ):
+            add("NonCurrentAssets", "有形_その他有形固定資産", "ppe_extension_suffix")
+        return options
+
+    if _has_semantic_suffix(tag, "IA"):
+        if re.search(r"Asset|Concession|Content|License|Patent|Right|Software|Trademark", tag):
+            add("NonCurrentAssets", "無形_その他無形固定資産", "intangible_extension_suffix")
+        return options
+
+    if _has_semantic_suffix(tag, "NCA"):
+        if re.search(r"Receivable|Loan", tag):
+            add("NonCurrentAssets", "投資_金融債権", "noncurrent_receivable_suffix")
+        elif re.search(r"Deposit|AdvancePayment|FinancialAsset", tag):
+            add("NonCurrentAssets", "投資_その他金融資産", "noncurrent_financial_asset_suffix")
+        elif re.search(r"Investment|Securit", tag):
+            add("NonCurrentAssets", "投資_投資有価証券", "noncurrent_investment_suffix")
+        elif re.search(r"Asset|Facilit|Forest|Fuel|Plant", tag):
+            add("NonCurrentAssets", "投資_その他固定資産", "noncurrent_asset_suffix", 2)
+        return options
+
+    if _has_semantic_suffix(tag, "EQUITY") and re.search(
+        r"AcquisitionRights|SubscriptionRights", tag
+    ):
+        add("NetAssets", "純資_新株予約権", "equity_rights_suffix")
+        return options
+
+    if tag in {"SuspenseReceipt", "SuspenseReceipts", "TemporaryReceipt"}:
+        add("CurrentLiabilities", "流負_預り金", "receipt_liability_meaning")
+    elif is_unsplit_provision:
+        # Older industry taxonomies sometimes omit CL/NCL. Let section-total
+        # reconciliation choose between the two instead of guessing a duration.
+        add("CurrentLiabilities", "流負_引当金", "unsplit_provision_meaning", 2)
+        add("NonCurrentLiabilities", "固負_引当金", "unsplit_provision_meaning", 2)
+    elif re.search(r"RightOfUseAssets|RentalServiceAssets|AssetsForRent", tag):
+        add("NonCurrentAssets", "有形_その他有形固定資産", "physical_asset_meaning", 2)
+    elif re.search(r"LongTerm(?:Receivable|Loan|Deposit|AdvancePayment)", tag):
+        add("NonCurrentAssets", "投資_その他金融資産", "long_term_asset_meaning", 2)
+    return options
+
+
+def _semantic_section_delta(summary, totals, section):
+    spec = SEMANTIC_SECTION_SPECS[section]
+    total = totals.get(section, 0)
+    if not total:
+        return None
+    subtotal = sum(
+        value for category, value in summary.items()
+        if category.startswith(spec["prefix"]) and category != spec["other"]
+    )
+    return total - subtotal - summary.get(spec["other"], 0)
+
+
+def reconcile_semantic_unmapped_tags(summary, totals, raw_tags):
+    """Apply unknown concepts only when meaning and section totals both agree."""
+    candidates_by_section = {section: [] for section in SEMANTIC_SECTION_SPECS}
+    for tag, value in raw_tags.items():
+        if abs(value) < 100_000_000:
+            continue
+        for option in classify_unmapped_bs_tag(tag, raw_tags):
+            candidates_by_section[option["section"]].append({
+                **option, "tag": tag, "value": value,
+            })
+
+    adjustments = []
+    applied_tags = set()
+    for section in SEMANTIC_SECTION_SPECS:
+        delta_before = _semantic_section_delta(summary, totals, section)
+        if delta_before is None or abs(delta_before) < 100_000_000:
+            continue
+        total = totals[section]
+        tolerance = min(max(abs(total) * 0.001, 100_000_000), 1_000_000_000)
+        candidates = [
+            item for item in candidates_by_section[section]
+            if item["tag"] not in applied_tags
+            and abs(item["value"]) <= abs(delta_before) * 2 + tolerance
+        ]
+        candidates.sort(key=lambda item: abs(abs(item["value"]) - abs(delta_before)))
+        candidates = candidates[:14]
+
+        best = None
+        for size in range(1, min(4, len(candidates)) + 1):
+            for combo in combinations(candidates, size):
+                tags = [item["tag"] for item in combo]
+                if len(tags) != len(set(tags)):
+                    continue
+                trial = dict(summary)
+                for item in combo:
+                    trial[item["category"]] = trial.get(item["category"], 0) + item["value"]
+                duplicate_adjustments = reconcile_optional_duplicate_categories(trial, totals)
+                delta_after = _semantic_section_delta(trial, totals, section)
+                rank = (
+                    abs(delta_after),
+                    len(combo),
+                    -sum(item["confidence"] for item in combo),
+                )
+                if best is None or rank < best[0]:
+                    best = (rank, trial, combo, duplicate_adjustments, delta_after)
+
+        if best is None:
+            continue
+        _, trial, combo, duplicate_adjustments, delta_after = best
+        improvement = abs(delta_before) - abs(delta_after)
+        if (
+            improvement < max(100_000_000, abs(delta_before) * 0.7)
+            or abs(delta_after) > max(tolerance, abs(delta_before) * 0.2)
+        ):
+            continue
+
+        summary.clear()
+        summary.update(trial)
+        for item in combo:
+            applied_tags.add(item["tag"])
+            adjustments.append({
+                "tag": item["tag"],
+                "category": item["category"],
+                "value": item["value"],
+                "reason": f"semantic_fallback:{item['reason']}",
+                "confidence": item["confidence"],
+                "delta_before": delta_before,
+                "delta_after": delta_after,
+            })
+        for item in duplicate_adjustments:
+            adjustments.append({
+                **item,
+                "reason": f"semantic_fallback_triggered:{item['reason']}",
+            })
+    return adjustments, applied_tags
+
+
 def reconcile_skipped_section_summaries(summary, totals, raw_tags):
     """Restore only the unrepresented remainder of skipped parent summaries."""
     adjustments = []
@@ -2372,6 +2612,10 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
     reconciliation_adjustments.extend(
         reconcile_optional_duplicate_categories(summary, totals)
     )
+    semantic_adjustments, semantically_mapped_tags = reconcile_semantic_unmapped_tags(
+        summary, totals, best_raw_tags
+    )
+    reconciliation_adjustments.extend(semantic_adjustments)
     section_fallbacks = apply_summary_only_fallbacks(summary, totals)
     reported_other_values = {key: summary.get(key, 0) for key in OTHER_CATEGORIES}
     gap_diagnostics = {}
@@ -2454,7 +2698,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
     for fallback in section_fallbacks:
         bs_warnings.append(f"{fallback['section']}: 内訳タグがないため合計値を未分類として保持しました")
     if debug:
-        known_numeric_tags = set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP)
+        known_numeric_tags = set(TAG_MAPPING) | set(TOTAL_TAG_LOOKUP) | semantically_mapped_tags
         unmapped_numeric_tags = [
             {"tag": tag, "value_oku": round(val / 100000000, 3)}
             for tag, val in sorted(best_raw_tags.items(), key=lambda item: abs(item[1]), reverse=True)
@@ -2485,6 +2729,11 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False):
         diagnostics["reconciliation_adjustments"] = [
             serialize_reconciliation_adjustment(item)
             for item in reconciliation_adjustments
+        ]
+        diagnostics["semantic_inferences"] = [
+            serialize_reconciliation_adjustment(item)
+            for item in semantic_adjustments
+            if item.get("tag") in semantically_mapped_tags
         ]
         diagnostics["section_fallbacks"] = [
             {**item, "value_oku": round(item["value"] / 100000000, 3)}
