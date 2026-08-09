@@ -35,6 +35,7 @@ from firebase_master_test import (
     BsAnalysisError,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
+    classify_missing_bs_document,
     classify_unmapped_bs_tag,
     download_edinet_xbrl_package,
     empty_financial_data,
@@ -221,7 +222,75 @@ class EdinetSearcherTests(unittest.TestCase):
         self.assertFalse(is_tokyo_pro_market("グロース（内国株式）"))
 
 
+class MissingDocumentClassificationTests(unittest.TestCase):
+    def test_source_and_xbrl_limitations_are_distinguished(self):
+        self.assertEqual(
+            classify_missing_bs_document("TOKYO PRO Market", "コード一致なし")[0],
+            "source_not_applicable",
+        )
+        self.assertEqual(
+            classify_missing_bs_document("プライム", "XBRLなし")[0],
+            "xbrl_not_available",
+        )
+        self.assertEqual(
+            classify_missing_bs_document("プライム", "決算書類なし")[0],
+            "supported_financial_document_not_found",
+        )
+        self.assertEqual(
+            classify_missing_bs_document("プライム", "コード一致なし")[0],
+            "document_not_found",
+        )
+
+
 class MappingTests(unittest.TestCase):
+    def test_transport_leasing_and_inventory_net_concepts_are_reusable(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        values = {
+            "LeaseInvestmentAssetsNetCA": 2_274_500_000,
+            "FinishedGoodsAndWorkInProcessCA": 2_366_000_000,
+            "Aircraft": 5_312_000_000,
+            "VehicleNet": 980_000_000,
+            "LeasingGoldCL": 2_432_900_000,
+        }
+        for tag, value in values.items():
+            apply_mapped_tag(summary, tag, value)
+
+        self.assertEqual(summary["流動_リース投資資産"], 2_274_500_000)
+        self.assertEqual(summary["流動_棚卸資産"], 2_366_000_000)
+        self.assertEqual(summary["有形_航空機"], 5_312_000_000)
+        self.assertEqual(summary["有形_車両運搬具"], 980_000_000)
+        self.assertEqual(summary["流負_その他金融負債"], 2_432_900_000)
+
+    def test_gross_transport_and_lease_values_yield_to_net_values(self):
+        raw_tags = {
+            "VehiclesPPE": 11_934_000_000,
+            "VehicleNet": 980_000_000,
+            "LeaseInvestmentAssetsCA": 3_000_000_000,
+            "LeaseInvestmentAssetsNetCA": 2_274_500_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("VehiclesPPE", raw_tags),
+            "gross_vehicles_skipped_because_net_exists",
+        )
+        self.assertEqual(
+            should_skip_item_tag("LeaseInvestmentAssetsCA", raw_tags),
+            "gross_lease_investment_assets_skipped_because_net_exists",
+        )
+
+    def test_nuclear_retirement_work_in_progress_is_removed_only_when_total_proves_overlap(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["有形_建設仮勘定"] = 496_033_000_000
+        summary["有形_原子力廃止仮勘定"] = 22_875_000_000
+        summary["投資_その他固定資産"] = 100_000_000_000
+        totals = {"NonCurrentAssets": 596_033_000_000}
+
+        adjustments = reconcile_optional_duplicate_categories(summary, totals)
+
+        self.assertEqual(summary["有形_原子力廃止仮勘定"], 0)
+        self.assertEqual(adjustments[0]["category"], "有形_原子力廃止仮勘定")
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
     def test_third_wave_banking_extensions_preserve_independent_assets(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "SecuritiesForBankingBusinessCA", 1_097_389_000_000)

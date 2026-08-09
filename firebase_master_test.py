@@ -1015,6 +1015,13 @@ TAG_MAPPING = {
     "Distributorship": "無形_販売権",
     "InProcessResearchAndDevelopmentIA": "無形_仕掛研究開発",
     "InvestmentLossReservesCA": "流動_貸倒引当金",
+    # Reusable net/combined concepts found in transport, leasing, and manufacturing.
+    "LeaseInvestmentAssetsNetCA": "流動_リース投資資産",
+    "FinishedGoodsAndWorkInProcessCA": "流動_棚卸資産",
+    "Aircraft": "有形_航空機",
+    "VehiclesPPE": "有形_車両運搬具",
+    "VehicleNet": "有形_車両運搬具",
+    "LeasingGoldCL": "流負_その他金融負債",
 }
 
 
@@ -1091,6 +1098,26 @@ def load_edinet_code_map():
 
 def is_tokyo_pro_market(market):
     return "PRO Market" in str(market or "")
+
+
+def classify_missing_bs_document(market, description):
+    """Separate source limitations from genuine EDINET discovery failures."""
+    if is_tokyo_pro_market(market):
+        return (
+            "source_not_applicable",
+            "TOKYO PRO Market銘柄のため、EDINETの継続開示書類が存在しない場合があります",
+        )
+    if description == "XBRLなし":
+        return (
+            "xbrl_not_available",
+            "対象書類は見つかりましたが、EDINETから解析可能なXBRLが提供されていません",
+        )
+    if description == "決算書類なし":
+        return (
+            "supported_financial_document_not_found",
+            "提出書類は見つかりましたが、対応する決算開示書類ではありません",
+        )
+    return "document_not_found", ""
 
 
 class EdinetSearcher:
@@ -1310,7 +1337,10 @@ INVENTORY_DETAIL_TAGS = {
     "PartlyFinishedWork", "MaterialsAndStocksCA",
     "SemiFinishedGoods", "CostsOnUncompletedConstructionConstructs",
 }
-INVENTORY_TOTAL_TAGS = {"Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet"}
+INVENTORY_TOTAL_TAGS = {
+    "Inventories", "InventoriesIFRS", "InventoriesCAIFRS", "InventoryNet",
+    "FinishedGoodsAndWorkInProcessCA",
+}
 OTHER_INVENTORY_SUBDETAIL_TAGS = {
     "MerchandiseAndFinishedGoods", "WorkInProcess", "RawMaterialsAndSupplies",
     "FinishedGoods", "Merchandise", "Supplies", "CostsOnOtherBusiness",
@@ -1678,6 +1708,10 @@ def should_skip_item_tag(tag, raw_tags):
         k in raw_tags for k in {"AircraftPartsNetAircraftPartsPPE", "AircraftPartsNetPPE"}
     ):
         return "gross_aircraft_parts_skipped_because_net_exists"
+    if tag == "VehiclesPPE" and "VehicleNet" in raw_tags:
+        return "gross_vehicles_skipped_because_net_exists"
+    if tag == "LeaseInvestmentAssetsCA" and "LeaseInvestmentAssetsNetCA" in raw_tags:
+        return "gross_lease_investment_assets_skipped_because_net_exists"
     leasing_parent_pairs = {
         "LeasedAssetsPPELEA": {"PropertyForLeasePPELEA", "AdvancesForPurchasesAtLeasedAssetsPPELEA"},
         "OtherOperatingAssetsPPE": {"OtherOperatingAssetsTotalPPE"},
@@ -1913,6 +1947,7 @@ OPTIONAL_DUPLICATE_CATEGORIES = [
     ("固負_価格変動準備金", "固負_", "NonCurrentLiabilities", "固負_その他固定負債"),
     ("固負_特別法上準備金", "固負_", "NonCurrentLiabilities", "固負_その他固定負債"),
     ("投資_使用済燃料再処理関連資産", ("有形_", "無形_", "投資_"), "NonCurrentAssets", "投資_その他固定資産"),
+    ("有形_原子力廃止仮勘定", ("有形_", "無形_", "投資_"), "NonCurrentAssets", "投資_その他固定資産"),
     ("有形_構築物", ("有形_", "無形_", "投資_"), "NonCurrentAssets", "投資_その他固定資産"),
     ("無形_のれん", ("有形_", "無形_", "投資_"), "NonCurrentAssets", "投資_その他固定資産"),
     ("投資_投資有価証券", ("有形_", "無形_", "投資_"), "NonCurrentAssets", "投資_その他固定資産"),
@@ -3856,15 +3891,9 @@ def main():
                     })
                     print(f" -> [B/S診断] {debug_path} に解析失敗情報を出力しました。")
             elif args.debug_bs:
-                if is_tokyo_pro_market(market):
-                    document_status = "source_not_applicable"
-                    source_note = (
-                        "TOKYO PRO Market銘柄のため、EDINETの継続開示書類が"
-                        "存在しない場合があります"
-                    )
-                else:
-                    document_status = "document_not_found"
-                    source_note = ""
+                document_status, source_note = classify_missing_bs_document(
+                    market, bs_desc
+                )
                 debug_path = write_bs_diagnostics(args.debug_dir, code, {
                     "status": document_status,
                     "code": code,
