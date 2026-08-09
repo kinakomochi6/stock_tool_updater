@@ -3924,14 +3924,24 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                     total_key = TOTAL_TAG_LOOKUP.get(tag)
                     if total_key:
                         temp_totals[total_key] = max(temp_totals[total_key], val)
-                
+
+                scoped_raw_tags = {}
                 for tag, val in raw_tags.items():
+                    scope_skip_reason = taxonomy_statement_scope_skip_reason(
+                        tag, cid, taxonomy_statement_memberships,
+                    )
+                    if scope_skip_reason:
+                        skipped_tags.append({
+                            "tag": tag,
+                            "value": val,
+                            "reason": scope_skip_reason,
+                        })
+                    else:
+                        scoped_raw_tags[tag] = val
+
+                for tag, val in scoped_raw_tags.items():
                     if tag in TAG_MAPPING:
-                        skip_reason = should_skip_item_tag(tag, raw_tags)
-                        if not skip_reason:
-                            skip_reason = taxonomy_statement_scope_skip_reason(
-                                tag, cid, taxonomy_statement_memberships,
-                            )
+                        skip_reason = should_skip_item_tag(tag, scoped_raw_tags)
                         if skip_reason:
                             skipped_tags.append({"tag": tag, "value": val, "reason": skip_reason})
                             continue
@@ -3940,7 +3950,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                             
                         hits += 1
 
-                apply_derived_net_tag_pairs(temp_summary, raw_tags, applied_tags)
+                apply_derived_net_tag_pairs(temp_summary, scoped_raw_tags, applied_tags)
                 
                 total_completeness = sum(1 for v in temp_totals.values() if v != 0)
                 rank = (ctx_info["score"] + total_completeness * 80, hits)
@@ -3960,7 +3970,12 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                 if rank > best_rank:
                     best_rank = rank
                     best_cid = cid
-                    best_res = (temp_summary, temp_totals, raw_tags, raw_tag_candidates)
+                    best_res = (
+                        temp_summary,
+                        temp_totals,
+                        scoped_raw_tags,
+                        raw_tag_candidates,
+                    )
             
             summary, totals, best_raw_tags, best_raw_tag_candidates = best_res
             diagnostics = {
