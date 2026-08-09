@@ -1654,7 +1654,9 @@ TAXONOMY_LABEL_CATEGORY_RULES = {
         (r"電子記録債権|electronicallyrecorded.*claim", "流動_電子記録債権", "add"),
         (r"契約資産|contractassets?", "流動_契約資産", "add"),
         (r"受取手形|売掛金|営業債権|売上債権|tradereceiv|accountsreceiv", "流動_受取手形・売掛金(合算)", "receivable_parent"),
-        (r"現金|預金|現金同等物|cash|cashanddeposits?|bankdeposits?|timedeposits?", "流動_現金及び預金", "max"),
+        # These rules apply only to unknown extension concepts. Treat a labeled
+        # cash component as detail; residual proof below rejects duplicate totals.
+        (r"現金|預金|現金同等物|cash|cashanddeposits?|bankdeposits?|timedeposits?", "流動_現金及び預金", "add"),
         (r"棚卸資産|商品及び製品|仕掛品|原材料|貯蔵品|inventor", "流動_棚卸資産", "add"),
         (r"短期.*貸付|shorttermloan", "流動_短期貸付金", "add"),
         (r"前渡金|前払金|advancepayment", "流動_前渡金", "add"),
@@ -3056,30 +3058,56 @@ def _semantic_section_delta(summary, totals, section):
 def reconcile_taxonomy_aggregate_overlaps(
     summary, totals, raw_tags, taxonomy_relationships, selected_context=None,
 ):
-    """Replace a mapped aggregate with mapped children when calculation proves overlap."""
+    """Replace a mapped aggregate when taxonomy relations and values prove overlap."""
     is_nonconsolidated = "NonConsolidated" in (selected_context or "")
     grouped = {}
     for edge in taxonomy_relationships or []:
-        if edge.get("link_type") != "calculation":
+        link_type = edge.get("link_type")
+        arcrole = edge.get("arcrole")
+        if link_type not in {"calculation", "definition", "presentation"}:
+            continue
+        if link_type == "definition" and arcrole != "domain-member":
             continue
         role = edge.get("role", "")
         if is_nonconsolidated and _taxonomy_role_is_consolidated(role):
+            continue
+        if not is_nonconsolidated and _taxonomy_role_is_nonconsolidated(role):
             continue
         parent = edge.get("parent")
         child = edge.get("child")
         if parent not in raw_tags or child not in raw_tags:
             continue
-        try:
-            weight = float(edge.get("weight") or 1)
-        except (TypeError, ValueError):
+        if raw_tags[child] < 0:
             continue
-        if weight != 1 or raw_tags[child] < 0:
-            continue
-        grouped.setdefault((parent, role), {})[child] = raw_tags[child]
+        if link_type == "calculation":
+            try:
+                weight = float(edge.get("weight") or 1)
+            except (TypeError, ValueError):
+                continue
+            if weight != 1:
+                continue
+        child_info = grouped.setdefault(parent, {}).setdefault(child, {
+            "value": raw_tags[child],
+            "link_types": set(),
+            "roles": set(),
+        })
+        child_info["link_types"].add(link_type)
+        child_info["roles"].add(role)
 
     adjustments = []
     processed = set()
-    for (parent, role), child_values in grouped.items():
+    for parent, child_info in grouped.items():
+        supported_children = {
+            child: info
+            for child, info in child_info.items()
+            if (
+                "calculation" in info["link_types"]
+                or {"definition", "presentation"}.issubset(info["link_types"])
+            )
+        }
+        child_values = {
+            child: info["value"] for child, info in supported_children.items()
+        }
         child_key = (parent, tuple(sorted(child_values)))
         if child_key in processed or len(child_values) < 2:
             continue
@@ -3125,9 +3153,25 @@ def reconcile_taxonomy_aggregate_overlaps(
             "category": parent_category,
             "value": replacement - original,
             "raw_value": parent_value,
-            "reason": "calculation_parent_replaced_by_mapped_children",
+            "reason": (
+                "calculation_parent_replaced_by_mapped_children"
+                if all(
+                    "calculation" in info["link_types"]
+                    for info in supported_children.values()
+                )
+                else "taxonomy_parent_replaced_by_mapped_children"
+            ),
             "children": sorted(applied_children),
-            "role": role,
+            "taxonomy_link_types": sorted({
+                link_type
+                for info in supported_children.values()
+                for link_type in info["link_types"]
+            }),
+            "roles": sorted({
+                role
+                for info in supported_children.values()
+                for role in info["roles"]
+            }),
             "delta_before": before,
             "delta_after": after,
         })

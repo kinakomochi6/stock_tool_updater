@@ -473,6 +473,37 @@ class TaxonomyRelationshipTests(unittest.TestCase):
         self.assertEqual(summary["流動_前渡金"], 2_000_000_000)
         self.assertEqual(adjustments[0]["delta_after"], 0)
 
+    def test_labeled_cash_extension_adds_only_with_residual_proof(self):
+        tag = "TrustCash"
+        relationships = [{
+            "parent": "CurrentAssetsAbstract",
+            "child": tag,
+            "link_type": "definition",
+            "arcrole": "domain-member",
+            "role": "http://example.com/role/ConsolidatedBalanceSheet",
+        }]
+        labels = {tag: [{
+            "text": "信託現金",
+            "lang": "ja",
+            "role": "http://www.xbrl.org/2003/role/label",
+        }]}
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 10_822_000_000
+        summary["流動_その他流動資産"] = 547_000_000
+
+        adjustments, applied = reconcile_semantic_unmapped_tags(
+            summary,
+            {"CurrentAssets": 15_054_000_000},
+            {tag: 3_685_000_000},
+            taxonomy_relationships=relationships,
+            taxonomy_labels=labels,
+            selected_context="CurrentYearInstant",
+        )
+
+        self.assertEqual(applied, {tag})
+        self.assertEqual(summary["流動_現金及び預金"], 14_507_000_000)
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
     def test_labeled_intermediate_parent_refines_opaque_child(self):
         with zipfile.ZipFile(self.make_definition_label_zip()) as archive:
             info = parse_taxonomy_relationships(archive)
@@ -644,6 +675,53 @@ class TaxonomyRelationshipTests(unittest.TestCase):
 
         self.assertEqual(adjustments, [])
         self.assertEqual(summary["流動_未成工事支出金"], 4_000_000_000)
+
+    def test_definition_and_presentation_can_prove_aggregate_overlap(self):
+        parent = "CostsOnUncompletedConstructionContractsAndOtherCNS"
+        children = {
+            "CostsOnUncompletedConstructionContractsCNS": 1_545_500_000,
+            "CostsOnUncompletedServices": 338_800_000,
+            "MerchandiseAndFinishedGoods": 975_200_000,
+            "RawMaterialsAndSuppliesCNS": 1_509_300_000,
+        }
+        parent_value = sum(children.values())
+        raw_tags = {parent: parent_value, **children}
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["流動_未成工事支出金"] = parent_value
+        summary["流動_棚卸資産"] = sum(list(children.values())[1:])
+        relationships = []
+        for child in children:
+            relationships.extend((
+                {
+                    "parent": parent,
+                    "child": child,
+                    "link_type": "definition",
+                    "arcrole": "domain-member",
+                    "role": "http://example.com/role/cai_BalanceSheet",
+                },
+                {
+                    "parent": parent,
+                    "child": child,
+                    "link_type": "presentation",
+                    "arcrole": "parent-child",
+                    "role": "http://example.com/role/ConsolidatedBalanceSheet",
+                },
+            ))
+
+        adjustments = reconcile_taxonomy_aggregate_overlaps(
+            summary,
+            {"CurrentAssets": parent_value},
+            raw_tags,
+            relationships,
+            "CurrentYearInstant",
+        )
+
+        self.assertEqual(summary["流動_未成工事支出金"], 1_545_500_000)
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+        self.assertEqual(
+            adjustments[0]["reason"],
+            "taxonomy_parent_replaced_by_mapped_children",
+        )
 
 
 class BsQualityGateTests(unittest.TestCase):
