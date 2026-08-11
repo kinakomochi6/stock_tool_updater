@@ -3248,6 +3248,68 @@ def _semantic_section_delta(summary, totals, section):
     return total - subtotal - summary.get(spec["other"], 0)
 
 
+def reconcile_taxonomy_same_category_siblings(
+    summary, totals, raw_tags, taxonomy_relationships, selected_context=None,
+):
+    """Add same-category lines only when calculation siblings close a section."""
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    grouped = {}
+    for edge in taxonomy_relationships or []:
+        if edge.get("link_type") != "calculation":
+            continue
+        role = edge.get("role", "")
+        if is_nonconsolidated and _taxonomy_role_is_consolidated(role):
+            continue
+        if not is_nonconsolidated and (
+            _taxonomy_role_is_nonconsolidated(role)
+            or _taxonomy_role_is_standalone_statement(role)
+        ):
+            continue
+        child = edge.get("child")
+        category = TAG_MAPPING.get(child)
+        if child not in raw_tags or not category or category in ADDITIVE_CATS:
+            continue
+        grouped.setdefault((edge.get("parent"), category), set()).add(child)
+
+    best_by_category = {}
+    for (parent, category), children in grouped.items():
+        if len(children) < 2:
+            continue
+        section = _taxonomy_section_for_category(category)
+        before = _semantic_section_delta(summary, totals, section) if section else None
+        if before is None:
+            continue
+        current = summary.get(category, 0)
+        proposed = sum(raw_tags[child] for child in children)
+        if proposed == current:
+            continue
+        after = before - (proposed - current)
+        tolerance = max(abs(totals.get(section, 0)) * 0.0001, 1_000_000)
+        if abs(after) + tolerance >= abs(before) * 0.25:
+            continue
+        candidate = (
+            abs(after), parent or "", sorted(children), proposed, before, after,
+        )
+        if category not in best_by_category or candidate < best_by_category[category]:
+            best_by_category[category] = candidate
+
+    adjustments = []
+    for category, candidate in best_by_category.items():
+        _, parent, children, proposed, before, after = candidate
+        previous = summary.get(category, 0)
+        summary[category] = proposed
+        adjustments.append({
+            "category": category,
+            "tag": "+".join(children),
+            "value": proposed - previous,
+            "reason": "calculation_siblings_require_same_category_addition",
+            "taxonomy_parent": parent,
+            "delta_before": before,
+            "delta_after": after,
+        })
+    return adjustments
+
+
 def reconcile_taxonomy_aggregate_overlaps(
     summary, totals, raw_tags, taxonomy_relationships, selected_context=None,
 ):
@@ -3518,9 +3580,8 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
         (
             "PropertyPlantAndEquipment",
             "有形_その他有形固定資産",
-            lambda key: key.startswith("有形_") and key not in {
-                "有形_リース資産", "有形_減価償却累計額",
-            },
+            lambda key: key.startswith("有形_")
+            and key != "有形_減価償却累計額",
         ),
         (
             "IntangibleAssetsIFRS",
@@ -4140,6 +4201,15 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
     )
     reconciliation_adjustments.extend(
         reconcile_skipped_section_summaries(summary, totals, best_raw_tags)
+    )
+    reconciliation_adjustments.extend(
+        reconcile_taxonomy_same_category_siblings(
+            summary,
+            totals,
+            best_raw_tags,
+            taxonomy_info["relationships"],
+            selected_context=best_cid,
+        )
     )
     reconciliation_adjustments.extend(
         reconcile_optional_duplicate_categories(summary, totals)

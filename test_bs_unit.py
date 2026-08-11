@@ -64,6 +64,7 @@ from firebase_master_test import (
     reconcile_semantic_unmapped_tags,
     reconcile_skipped_section_summaries,
     reconcile_taxonomy_aggregate_overlaps,
+    reconcile_taxonomy_same_category_siblings,
     serialize_reconciliation_adjustment,
     select_other_or_unclassified,
     select_bs_totals,
@@ -2452,6 +2453,59 @@ class MappingTests(unittest.TestCase):
         )
 
         self.assertEqual(reason, "ppe_summary_skipped_because_details_exist")
+
+    def test_jgaap_ppe_remainder_includes_lease_assets_as_parent_components(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        apply_mapped_tag(summary, "BuildingsAndStructuresNet", 6_000_000_000)
+        apply_mapped_tag(summary, "LeaseAssetsNetPPE", 1_000_000_000)
+        raw_tags = {
+            "PropertyPlantAndEquipment": 10_000_000_000,
+            "BuildingsAndStructuresNet": 6_000_000_000,
+            "LeaseAssetsNetPPE": 1_000_000_000,
+        }
+
+        adjustments = reconcile_skipped_section_summaries(
+            summary, {"NonCurrentAssets": 10_000_000_000}, raw_tags,
+        )
+
+        other_ppe = TAG_MAPPING["OtherPropertyPlantAndEquipment"]
+        self.assertEqual(summary[other_ppe], 3_000_000_000)
+        self.assertEqual(adjustments[0]["delta_after"], 0)
+
+    def test_calculation_siblings_with_same_category_are_added(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        raw_tags = {
+            "LeaseAndGuaranteeDepositedNCL": 718_944_000,
+            "LongTermDepositsReceived": 1_132_057_000,
+            "AssetRetirementObligationsNCL": 3_592_000,
+            "OtherNCL": 13_705_000,
+        }
+        for tag, value in raw_tags.items():
+            apply_mapped_tag(summary, tag, value)
+        relationships = [
+            {
+                "parent": "NoncurrentLiabilities",
+                "child": child,
+                "link_type": "calculation",
+                "role": "http://example.com/role/rol_ConsolidatedBalanceSheet",
+            }
+            for child in ("LeaseAndGuaranteeDepositedNCL", "LongTermDepositsReceived")
+        ]
+
+        adjustments = reconcile_taxonomy_same_category_siblings(
+            summary,
+            {"NonCurrentLiabilities": 1_868_298_000},
+            raw_tags,
+            relationships,
+            "CurrentYearInstant",
+        )
+
+        category = TAG_MAPPING["LongTermDepositsReceived"]
+        self.assertEqual(summary[category], 1_851_001_000)
+        self.assertEqual(
+            adjustments[0]["reason"],
+            "calculation_siblings_require_same_category_addition",
+        )
 
     def test_duplicate_contract_liability_alias_is_skipped(self):
         reason = should_skip_item_tag(
