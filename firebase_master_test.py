@@ -1081,6 +1081,226 @@ DISPLAY_ORDER = [
     "純資_資本金", "純資_資本剰余金", "純資_その他資本剰余金", "純資_利益剰余金", "純資_自己株式", "純資_評価換算差額金", "純資_累積換算調整額", "純資_売却目的保有関連OCI", "純資_その他資本性金融商品", "純資_新株予約権", "純資_非支配株主持分", "純資_内訳未分類", "純資_その他純資産"
 ]
 
+ANALYSIS_BS_VERSION = "1.0"
+ANALYSIS_BS_FIELD = "B/S_分析分類"
+ANALYSIS_BS_CATEGORIES = [
+    "流動_現金及び預金", "流動_受取手形", "流動_売掛金", "流動_契約資産",
+    "流動_電子記録債権", "流動_受取手形・売掛金(合算)", "流動_有価証券",
+    "流動_棚卸資産", "流動_前払費用", "流動_未収入金", "流動_未収消費税等",
+    "流動_短期貸付金", "流動_リース債権", "流動_貸倒引当金",
+    "流動_その他流動資産",
+    "有形_建物・構築物", "有形_機械・運搬具", "有形_土地", "有形_建設仮勘定",
+    "有形_リース資産", "有形_賃貸用資産", "有形_工具器具備品",
+    "有形_その他有形固定資産",
+    "無形_ソフトウエア", "無形_のれん", "無形_借地権", "無形_その他無形固定資産",
+    "投資_投資有価証券", "投資_関係会社株式", "投資_投資不動産",
+    "投資_長期貸付金", "投資_差入保証金", "投資_退職給付資産",
+    "投資_繰延税金資産", "投資_貸倒引当金", "投資_その他固定資産",
+    "流負_支払手形・買掛金", "流負_短期借入金", "流負_1年内返済長期借入金",
+    "流負_1年内償還社債", "流負_CP", "流負_未払金", "流負_未払費用",
+    "流負_未払法人税等", "流負_前受金", "流負_預り金", "流負_リース債務",
+    "流負_賞与引当金", "流負_その他流動負債",
+    "固負_社債", "固負_長期借入金", "固負_リース債務", "固負_退職給付引当金",
+    "固負_資産除去債務", "固負_長期預り金", "固負_繰延税金負債",
+    "固負_その他固定負債",
+    "純資_資本金", "純資_資本剰余金", "純資_利益剰余金", "純資_自己株式",
+    "純資_評価換算差額金", "純資_新株予約権", "純資_非支配株主持分",
+    "純資_その他純資産",
+]
+
+
+def _contains_any(value, terms):
+    return any(term in value for term in terms)
+
+
+def classify_analysis_bs_category(source_category):
+    """Collapse a detailed B/S category into the stable analysis schema."""
+    if source_category in ANALYSIS_BS_CATEGORIES:
+        return source_category
+
+    label = source_category.split("_", 1)[-1]
+    if source_category.startswith("流動_"):
+        if _contains_any(label, ("貸倒引当金",)):
+            return "流動_貸倒引当金"
+        if _contains_any(label, ("受取手形・売掛金", "完成工事未収入金・契約資産")):
+            return "流動_受取手形・売掛金(合算)"
+        if "電子記録債権" in label:
+            return "流動_電子記録債権"
+        if "受取手形" in label:
+            return "流動_受取手形"
+        if "契約資産" in label:
+            return "流動_契約資産"
+        if _contains_any(label, (
+            "売掛金", "営業未収入金", "運賃未収金", "契約者未収金",
+            "完成工事未収入金", "報酬未収金",
+        )):
+            return "流動_売掛金"
+        if "未収消費税" in label:
+            return "流動_未収消費税等"
+        if _contains_any(label, ("現金", "預金", "預け金", "分別保管預金", "分離保管金")):
+            return "流動_現金及び預金"
+        if _contains_any(label, (
+            "有価証券", "トレーディング商品", "トレーディング資産", "暗号資産",
+            "金銭の信託", "信託受益権", "営業投資",
+        )):
+            return "流動_有価証券"
+        if _contains_any(label, (
+            "棚卸資産", "販売用不動産", "未成工事支出金", "生物資産",
+            "仕掛品", "メディア資産", "販売用航空機", "返品資産",
+            "有償支給取引関連資産",
+        )):
+            return "流動_棚卸資産"
+        if _contains_any(label, ("リース債権", "リース売掛金", "リース料債権", "リース投資資産")):
+            return "流動_リース債権"
+        if _contains_any(label, (
+            "貸付金", "貸出金", "金融債権", "コールローン", "信用取引資産",
+            "有価証券担保貸付金", "買現先勘定", "買入金銭債権",
+        )):
+            return "流動_短期貸付金"
+        if _contains_any(label, ("前払費用", "前渡金", "立替金", "短期差入保証金")):
+            return "流動_前払費用"
+        if _contains_any(label, (
+            "未収入金", "未収収益", "未収法人税", "外国為替", "支払承諾見返",
+            "清算業務金融資産", "補填請求権", "募集等払込金",
+        )):
+            return "流動_未収入金"
+        return "流動_その他流動資産"
+
+    if source_category.startswith("有形_"):
+        if _contains_any(label, ("建物", "構築物")):
+            return "有形_建物・構築物"
+        if _contains_any(label, ("土地", "山林")):
+            return "有形_土地"
+        if _contains_any(label, ("建設仮勘定", "廃止仮勘定", "購入前渡金")):
+            return "有形_建設仮勘定"
+        if _contains_any(label, ("リース", "使用権", "施設利用権")):
+            return "有形_リース資産"
+        if "賃貸" in label:
+            return "有形_賃貸用資産"
+        if _contains_any(label, ("工具", "器具", "備品", "金型")):
+            return "有形_工具器具備品"
+        if _contains_any(label, (
+            "機械", "車両", "運搬", "設備", "機器", "通信線路", "船舶", "航空機",
+        )):
+            return "有形_機械・運搬具"
+        return "有形_その他有形固定資産"
+
+    if source_category.startswith("無形_"):
+        if "ソフトウエア" in label:
+            return "無形_ソフトウエア"
+        if "のれん" in label:
+            return "無形_のれん"
+        if "借地権" in label:
+            return "無形_借地権"
+        return "無形_その他無形固定資産"
+
+    if source_category.startswith("投資_"):
+        if "貸倒引当金" in label:
+            return "投資_貸倒引当金"
+        if _contains_any(label, ("現金預金", "現金預け金")):
+            return "流動_現金及び預金"
+        if _contains_any(label, ("関係会社", "持分法")):
+            return "投資_関係会社株式"
+        if "投資不動産" in label:
+            return "投資_投資不動産"
+        if "退職給付資産" in label:
+            return "投資_退職給付資産"
+        if "繰延税金資産" in label:
+            return "投資_繰延税金資産"
+        if _contains_any(label, ("差入保証金", "長期預け金", "店舗開設準備預け金")):
+            return "投資_差入保証金"
+        if _contains_any(label, (
+            "長期貸付金", "貸出金", "貸付金", "金融債権", "営業債権", "割賦債権",
+            "リース債権", "コールローン", "買現先勘定", "買入金銭債権", "再保険貸",
+            "代理店貸",
+        )):
+            return "投資_長期貸付金"
+        if _contains_any(label, (
+            "有価証券", "金銭信託", "金銭の信託", "トレーディング資産",
+            "公正価値測定金融資産", "SVF投資", "保険積立資産",
+        )) or label == "出資金":
+            return "投資_投資有価証券"
+        return "投資_その他固定資産"
+
+    if source_category.startswith("流負_"):
+        if "1年内償還" in label:
+            return "流負_1年内償還社債"
+        if _contains_any(label, ("1年内返済", "1年内返済固定負債")):
+            return "流負_1年内返済長期借入金"
+        if label == "CP" or "短期社債" in label:
+            return "流負_CP"
+        if _contains_any(label, ("支払手形", "買掛金", "電子記録債務", "加盟店買掛金")):
+            return "流負_支払手形・買掛金"
+        if _contains_any(label, (
+            "短期借入金", "ノンリコース借入金", "有利子負債", "コールマネー",
+            "売現先勘定", "借用金", "有価証券担保借入金",
+        )):
+            return "流負_短期借入金"
+        if "未払法人税" in label:
+            return "流負_未払法人税等"
+        if _contains_any(label, ("未払費用", "従業員給付未払金")):
+            return "流負_未払費用"
+        if _contains_any(label, ("未払金", "営業未払金", "設備未払金")):
+            return "流負_未払金"
+        if _contains_any(label, ("前受", "契約負債", "繰延収益", "繰延利益", "返品負債")):
+            return "流負_前受金"
+        if _contains_any(label, ("預り", "預金", "保証金", "受入保証金")):
+            return "流負_預り金"
+        if "リース債務" in label:
+            return "流負_リース債務"
+        if "賞与引当金" in label:
+            return "流負_賞与引当金"
+        return "流負_その他流動負債"
+
+    if source_category.startswith("固負_"):
+        if "社債" in label:
+            return "固負_社債"
+        if _contains_any(label, ("借入金", "有利子負債", "借用金")):
+            return "固負_長期借入金"
+        if "リース債務" in label:
+            return "固負_リース債務"
+        if _contains_any(label, ("退職給付", "退職慰労")):
+            return "固負_退職給付引当金"
+        if "資産除去債務" in label:
+            return "固負_資産除去債務"
+        if _contains_any(label, ("長期預り金", "長期預り保証金")):
+            return "固負_長期預り金"
+        if "繰延税金負債" in label:
+            return "固負_繰延税金負債"
+        return "固負_その他固定負債"
+
+    if source_category.startswith("純資_"):
+        if "資本剰余金" in label:
+            return "純資_資本剰余金"
+        if _contains_any(label, ("評価換算", "換算調整", "OCI")):
+            return "純資_評価換算差額金"
+        return "純資_その他純資産"
+
+    raise ValueError(f"分析分類に変換できないB/Sカテゴリです: {source_category}")
+
+
+ANALYSIS_CATEGORY_MAP = {
+    category: classify_analysis_bs_category(category)
+    for category in DISPLAY_ORDER
+}
+
+
+def aggregate_analysis_bs(summary):
+    """Aggregate every detailed category exactly once without changing signs."""
+    unknown_nonzero = {
+        key: value for key, value in summary.items()
+        if key not in ANALYSIS_CATEGORY_MAP and value
+    }
+    if unknown_nonzero:
+        unknown = ", ".join(sorted(unknown_nonzero))
+        raise ValueError(f"分析分類に未対応のB/Sカテゴリがあります: {unknown}")
+
+    aggregated = {category: 0 for category in ANALYSIS_BS_CATEGORIES}
+    for source_category in DISPLAY_ORDER:
+        target_category = ANALYSIS_CATEGORY_MAP[source_category]
+        aggregated[target_category] += summary.get(source_category, 0)
+    return aggregated
+
 # ==========================================
 # 2. 書類検索クラス
 # ==========================================
@@ -2147,6 +2367,9 @@ BS_VALUE_FIELDS = set(DISPLAY_ORDER) | {
     "★純資産合計",
     "B/S_取得書類",
     "B/S_警告",
+    ANALYSIS_BS_FIELD,
+    "B/S_分析分類バージョン",
+    "B/S_分析分類集計差額_億",
 }
 
 OPTIONAL_DUPLICATE_CATEGORIES = [
@@ -4906,6 +5129,18 @@ def validate_tag_mapping():
     if unknown_categories:
         joined = ", ".join(unknown_categories)
         raise ValueError(f"TAG_MAPPINGにDISPLAY_ORDER未定義のカテゴリがあります: {joined}")
+    unknown_analysis_categories = sorted(
+        set(ANALYSIS_CATEGORY_MAP.values()) - set(ANALYSIS_BS_CATEGORIES)
+    )
+    if unknown_analysis_categories:
+        joined = ", ".join(unknown_analysis_categories)
+        raise ValueError(f"分析分類に未定義のカテゴリがあります: {joined}")
+    missing_detailed_categories = sorted(
+        set(DISPLAY_ORDER) - set(ANALYSIS_CATEGORY_MAP)
+    )
+    if missing_detailed_categories:
+        joined = ", ".join(missing_detailed_categories)
+        raise ValueError(f"分析分類への割当がない詳細カテゴリがあります: {joined}")
 
 def write_bs_diagnostics(debug_dir, code, diagnostics):
     os.makedirs(debug_dir, exist_ok=True)
@@ -5169,7 +5404,25 @@ def main():
                     combined_data["★負債合計"] = round(totals['Liabilities'] / 100000000, 3)
                     combined_data["★純資産合計"] = round(totals['NetAssets'] / 100000000, 3)
 
+                    analysis_bs = aggregate_analysis_bs(summary)
+                    combined_data[ANALYSIS_BS_FIELD] = {
+                        key: round(value / 100000000, 3)
+                        for key, value in analysis_bs.items()
+                    }
+                    combined_data["B/S_分析分類バージョン"] = ANALYSIS_BS_VERSION
+                    combined_data["B/S_分析分類集計差額_億"] = round(
+                        (sum(analysis_bs.values()) - sum(summary.values())) / 100000000,
+                        3,
+                    )
+
                     if bs_diagnostics:
+                        bs_diagnostics["analysis_classification"] = {
+                            "version": ANALYSIS_BS_VERSION,
+                            "values_oku": combined_data[ANALYSIS_BS_FIELD],
+                            "aggregation_difference_oku": combined_data[
+                                "B/S_分析分類集計差額_億"
+                            ],
+                        }
                         warnings_text = bs_diagnostics.get("warnings", [])
                         combined_data["B/S_警告"] = warnings_text
                         bs_diagnostics["code"] = code

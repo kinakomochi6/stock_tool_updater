@@ -36,15 +36,20 @@ from bs_test_sets import (
     WAVE_L_100,
 )
 from firebase_master_test import (
+    ANALYSIS_BS_CATEGORIES,
+    ANALYSIS_BS_FIELD,
+    ANALYSIS_CATEGORY_MAP,
     DISPLAY_ORDER,
     EdinetSearcher,
     TAG_MAPPING,
     BsAnalysisError,
     apply_derived_net_tag_pairs,
+    aggregate_analysis_bs,
     apply_mapped_tag,
     apply_summary_only_fallbacks,
     build_taxonomy_statement_memberships,
     classify_missing_bs_document,
+    classify_analysis_bs_category,
     classify_taxonomy_bs_tag,
     classify_taxonomy_labels,
     classify_unmapped_bs_tag,
@@ -1201,6 +1206,74 @@ class MissingDocumentClassificationTests(unittest.TestCase):
             classify_missing_bs_document("プライム", "コード一致なし")[0],
             "document_not_found",
         )
+
+
+class AnalysisClassificationTests(unittest.TestCase):
+    def test_every_detailed_category_has_one_supported_analysis_target(self):
+        self.assertEqual(set(ANALYSIS_CATEGORY_MAP), set(DISPLAY_ORDER))
+        self.assertTrue(
+            set(ANALYSIS_CATEGORY_MAP.values()).issubset(ANALYSIS_BS_CATEGORIES)
+        )
+        validate_tag_mapping()
+
+    def test_industry_specific_categories_collapse_by_economic_substance(self):
+        expected = {
+            "流動_銀行現金預け金": "流動_現金及び預金",
+            "流動_銀行業有価証券": "流動_有価証券",
+            "流動_ゲームソフト仕掛品": "流動_棚卸資産",
+            "流動_完成工事未収入金・契約資産": "流動_受取手形・売掛金(合算)",
+            "有形_原子力発電設備": "有形_機械・運搬具",
+            "無形_顧客関連資産": "無形_その他無形固定資産",
+            "投資_保険現金預金": "流動_現金及び預金",
+            "投資_保険有価証券": "投資_投資有価証券",
+            "投資_銀行貸出金": "投資_長期貸付金",
+            "流負_銀行コールマネー": "流負_短期借入金",
+            "固負_銀行借用金": "固負_長期借入金",
+            "純資_累積換算調整額": "純資_評価換算差額金",
+        }
+        for source, target in expected.items():
+            with self.subTest(source=source):
+                self.assertEqual(classify_analysis_bs_category(source), target)
+
+    def test_aggregation_preserves_every_value_and_its_sign(self):
+        summary = {category: 0 for category in DISPLAY_ORDER}
+        summary["流動_現金及び預金"] = 1_000_000_000
+        summary["流動_銀行現金預け金"] = 2_000_000_000
+        summary["流動_ゲームソフト仕掛品"] = 700_000_000
+        summary["投資_保険有価証券"] = 4_000_000_000
+        summary["投資_保険貸倒引当金"] = -300_000_000
+        summary["純資_累積換算調整額"] = -200_000_000
+
+        aggregated = aggregate_analysis_bs(summary)
+
+        self.assertEqual(aggregated["流動_現金及び預金"], 3_000_000_000)
+        self.assertEqual(aggregated["流動_棚卸資産"], 700_000_000)
+        self.assertEqual(aggregated["投資_投資有価証券"], 4_000_000_000)
+        self.assertEqual(aggregated["投資_貸倒引当金"], -300_000_000)
+        self.assertEqual(aggregated["純資_評価換算差額金"], -200_000_000)
+        self.assertEqual(sum(aggregated.values()), sum(summary.values()))
+
+    def test_unknown_nonzero_category_is_rejected_instead_of_silently_dropped(self):
+        summary = {category: 0 for category in DISPLAY_ORDER}
+        summary["流動_将来追加される資産"] = 100_000_000
+
+        with self.assertRaisesRegex(ValueError, "未対応"):
+            aggregate_analysis_bs(summary)
+
+    def test_quarantine_does_not_publish_a_new_analysis_map(self):
+        data = {
+            ANALYSIS_BS_FIELD: {"流動_現金及び預金": 10},
+            "B/S_分析分類バージョン": "1.0",
+            "B/S_分析分類集計差額_億": 0,
+            "時価総額_億": 100,
+        }
+
+        remove_bs_values_for_quarantine(data)
+
+        self.assertNotIn(ANALYSIS_BS_FIELD, data)
+        self.assertNotIn("B/S_分析分類バージョン", data)
+        self.assertNotIn("B/S_分析分類集計差額_億", data)
+        self.assertEqual(data["時価総額_億"], 100)
 
 
 class MappingTests(unittest.TestCase):
