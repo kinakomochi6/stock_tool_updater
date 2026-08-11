@@ -2418,6 +2418,41 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(summary["有形_リース資産"], 50_000_000_000)
         self.assertEqual(adjustments, [])
 
+    def test_ppe_summary_is_kept_when_specialized_asset_is_a_sibling_line(self):
+        raw_tags = {
+            "PropertyPlantAndEquipmentIFRS": 50_455_000_000,
+            "OilAndGasAssetsNCAIFRS": 4_039_385_000_000,
+        }
+        relationships = [
+            {
+                "parent": "NonCurrentAssetsIFRS",
+                "child": child,
+                "link_type": "calculation",
+                "role": "http://example.com/role/rol_CondensedSemiAnnualConsolidatedStatementOfFinancialPositionIFRS",
+            }
+            for child in raw_tags
+        ]
+
+        reason = should_skip_item_tag(
+            "PropertyPlantAndEquipmentIFRS",
+            raw_tags,
+            relationships,
+            "InterimInstant",
+        )
+
+        self.assertIsNone(reason)
+
+    def test_ppe_summary_is_skipped_for_plausible_unlinked_details(self):
+        reason = should_skip_item_tag(
+            "PropertyPlantAndEquipmentIFRS",
+            {
+                "PropertyPlantAndEquipmentIFRS": 50_455_000_000,
+                "BuildingsIFRS": 20_000_000_000,
+            },
+        )
+
+        self.assertEqual(reason, "ppe_summary_skipped_because_details_exist")
+
     def test_duplicate_contract_liability_alias_is_skipped(self):
         reason = should_skip_item_tag(
             "ContractLiabilitiesCL",

@@ -1790,7 +1790,34 @@ def is_main_bs_context(ctx, end_date):
             return False
     return True
 
-def should_skip_item_tag(tag, raw_tags):
+def _taxonomy_reports_sibling_lines(
+    tag, candidate_siblings, taxonomy_relationships, selected_context=None,
+):
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    grouped_children = {}
+    for edge in taxonomy_relationships or []:
+        if edge.get("link_type") != "calculation":
+            continue
+        role = edge.get("role", "")
+        if is_nonconsolidated and _taxonomy_role_is_consolidated(role):
+            continue
+        if not is_nonconsolidated and (
+            _taxonomy_role_is_nonconsolidated(role)
+            or _taxonomy_role_is_standalone_statement(role)
+        ):
+            continue
+        grouped_children.setdefault(edge.get("parent"), set()).add(
+            edge.get("child")
+        )
+    return any(
+        tag in children and bool(candidate_siblings & children)
+        for children in grouped_children.values()
+    )
+
+
+def should_skip_item_tag(
+    tag, raw_tags, taxonomy_relationships=None, selected_context=None,
+):
     if tag in EXCLUDE_FROM_ITEMS:
         return "excluded_summary_or_special_tag"
     if tag in INVENTORY_DETAIL_TAGS and any(k in raw_tags for k in INVENTORY_TOTAL_TAGS):
@@ -1822,8 +1849,23 @@ def should_skip_item_tag(tag, raw_tags):
     combined_trade_payables = TRADE_PAYABLE_DETAIL_TOTALS.get(tag, set())
     if any(k in raw_tags for k in combined_trade_payables):
         return "trade_payable_detail_skipped_because_combined_total_exists"
-    if tag in PPE_SUMMARY_TAGS and any(k in raw_tags for k in PPE_DETAIL_TAGS):
-        return "ppe_summary_skipped_because_details_exist"
+    if tag in PPE_SUMMARY_TAGS:
+        present_details = PPE_DETAIL_TAGS & set(raw_tags)
+        if present_details:
+            parent_value = raw_tags.get(tag, 0)
+            tolerance = max(abs(parent_value) * 0.001, 1_000_000)
+            detail_exceeds_parent = any(
+                raw_tags[detail] > parent_value + tolerance
+                for detail in present_details
+            )
+            sibling_lines = _taxonomy_reports_sibling_lines(
+                tag,
+                present_details,
+                taxonomy_relationships,
+                selected_context,
+            )
+            if not detail_exceeds_parent and not sibling_lines:
+                return "ppe_summary_skipped_because_details_exist"
     is_electric_facility_detail = (
         tag in ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS
         or re.search(r"FacilitiesNCAElectricELE$", tag) is not None
@@ -4015,7 +4057,12 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
 
                 for tag, val in scoped_raw_tags.items():
                     if tag in TAG_MAPPING:
-                        skip_reason = should_skip_item_tag(tag, scoped_raw_tags)
+                        skip_reason = should_skip_item_tag(
+                            tag,
+                            scoped_raw_tags,
+                            taxonomy_info["relationships"],
+                            cid,
+                        )
                         if skip_reason:
                             skipped_tags.append({"tag": tag, "value": val, "reason": skip_reason})
                             continue
