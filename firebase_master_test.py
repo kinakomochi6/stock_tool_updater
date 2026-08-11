@@ -1790,7 +1790,7 @@ def is_main_bs_context(ctx, end_date):
             return False
     return True
 
-def _taxonomy_reports_sibling_lines(
+def _taxonomy_sibling_lines(
     tag, candidate_siblings, taxonomy_relationships, selected_context=None,
 ):
     is_nonconsolidated = "NonConsolidated" in (selected_context or "")
@@ -1809,10 +1809,11 @@ def _taxonomy_reports_sibling_lines(
         grouped_children.setdefault(edge.get("parent"), set()).add(
             edge.get("child")
         )
-    return any(
-        tag in children and bool(candidate_siblings & children)
-        for children in grouped_children.values()
-    )
+    siblings = set()
+    for children in grouped_children.values():
+        if tag in children:
+            siblings.update(candidate_siblings & children)
+    return siblings
 
 
 def should_skip_item_tag(
@@ -1858,13 +1859,14 @@ def should_skip_item_tag(
                 raw_tags[detail] > parent_value + tolerance
                 for detail in present_details
             )
-            sibling_lines = _taxonomy_reports_sibling_lines(
+            sibling_lines = _taxonomy_sibling_lines(
                 tag,
                 present_details,
                 taxonomy_relationships,
                 selected_context,
             )
-            if not detail_exceeds_parent and not sibling_lines:
+            all_details_are_siblings = sibling_lines == present_details
+            if not detail_exceeds_parent and not all_details_are_siblings:
                 return "ppe_summary_skipped_because_details_exist"
     is_electric_facility_detail = (
         tag in ELECTRIC_UTILITY_FACILITY_DETAIL_TAGS

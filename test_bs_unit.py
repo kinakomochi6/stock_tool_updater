@@ -2454,6 +2454,34 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(reason, "ppe_summary_skipped_because_details_exist")
 
+    def test_ppe_summary_is_skipped_when_sibling_and_internal_details_are_mixed(self):
+        raw_tags = {
+            "PropertyPlantAndEquipmentIFRS": 3_499_226_000_000,
+            "RightOfUseAssetsIFRS": 720_949_000_000,
+            "BuildingsAndStructuresIFRS": 678_312_000_000,
+            "MachineryAndEquipmentIFRS": 865_399_000_000,
+        }
+        relationships = [
+            {
+                "parent": "NonCurrentAssetsIFRS",
+                "child": child,
+                "link_type": "calculation",
+                "role": "http://example.com/role/rol_ConsolidatedStatementOfFinancialPositionIFRS",
+            }
+            for child in (
+                "PropertyPlantAndEquipmentIFRS", "RightOfUseAssetsIFRS",
+            )
+        ]
+
+        reason = should_skip_item_tag(
+            "PropertyPlantAndEquipmentIFRS",
+            raw_tags,
+            relationships,
+            "CurrentYearInstant",
+        )
+
+        self.assertEqual(reason, "ppe_summary_skipped_because_details_exist")
+
     def test_jgaap_ppe_remainder_includes_lease_assets_as_parent_components(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "BuildingsAndStructuresNet", 6_000_000_000)
