@@ -19,6 +19,7 @@ from bs_test_sets import (
     MARKET_1100,
     MARKET_1300,
     MARKET_1400,
+    MARKET_1500,
     REGRESSION_40,
     STRESS_100,
     WAVE_A_100,
@@ -32,6 +33,7 @@ from bs_test_sets import (
     WAVE_I_100,
     WAVE_J_100,
     WAVE_K_100,
+    WAVE_L_100,
 )
 from firebase_master_test import (
     DISPLAY_ORDER,
@@ -64,6 +66,7 @@ from firebase_master_test import (
     reconcile_taxonomy_aggregate_overlaps,
     serialize_reconciliation_adjustment,
     select_other_or_unclassified,
+    select_bs_totals,
     should_skip_item_tag,
     taxonomy_statement_scope_skip_reason,
     validate_tag_mapping,
@@ -484,6 +487,103 @@ class TaxonomyRelationshipTests(unittest.TestCase):
 
         self.assertIsNone(taxonomy_statement_scope_skip_reason(
             "StandaloneInventoryDetail", "CurrentYearInstant", memberships,
+        ))
+
+    def test_period_prefixed_standalone_role_is_separated_from_consolidated_bs(self):
+        relationships = [
+            {
+                "parent": "InvestmentsAndOtherAssets",
+                "child": "ConsolidatedInvestmentSecurities",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_Type1SemiAnnualConsolidatedBalanceSheet",
+            },
+            {
+                "parent": "InvestmentsAndOtherAssets",
+                "child": "AllowanceForDoubtfulAccountsIOAByGroup",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "role": "http://example.com/role/rol_Type1SemiAnnualBalanceSheet",
+            },
+        ]
+
+        memberships = build_taxonomy_statement_memberships(relationships)
+
+        self.assertIn(
+            "AllowanceForDoubtfulAccountsIOAByGroup", memberships["standalone"],
+        )
+        self.assertNotIn(
+            "AllowanceForDoubtfulAccountsIOAByGroup", memberships["consolidated"],
+        )
+        self.assertEqual(
+            taxonomy_statement_scope_skip_reason(
+                "AllowanceForDoubtfulAccountsIOAByGroup",
+                "InterimInstant",
+                memberships,
+            ),
+            "standalone_only_tag_skipped_for_consolidated_statement",
+        )
+
+    def test_total_selection_uses_top_level_ifrs_equity_with_negative_nci(self):
+        relationships = [
+            {
+                "parent": "EquityIFRS",
+                "child": "EquityAttributableToOwnersOfParentIFRS",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "weight": "1",
+                "role": "http://example.com/role/rol_ConsolidatedStatementOfFinancialPositionIFRS",
+            },
+            {
+                "parent": "EquityIFRS",
+                "child": "NonControllingInterestsIFRS",
+                "link_type": "calculation",
+                "arcrole": "summation-item",
+                "weight": "1",
+                "role": "http://example.com/role/rol_ConsolidatedStatementOfFinancialPositionIFRS",
+            },
+        ]
+        raw_tags = {
+            "EquityIFRS": 160_880_000_000,
+            "EquityAttributableToOwnersOfParentIFRS": 161_668_000_000,
+            "NonControllingInterestsIFRS": -788_000_000,
+        }
+
+        totals, sources = select_bs_totals(
+            raw_tags, relationships, "CurrentYearInstant",
+        )
+
+        self.assertEqual(totals["NetAssets"], 160_880_000_000)
+        self.assertEqual(sources["NetAssets"]["tag"], "EquityIFRS")
+
+    def test_total_selection_preserves_negative_equity(self):
+        totals, sources = select_bs_totals(
+            {"EquityIFRS": -2_500_000_000}, [], "CurrentYearInstant",
+        )
+
+        self.assertEqual(totals["NetAssets"], -2_500_000_000)
+        self.assertEqual(sources["NetAssets"]["tag"], "EquityIFRS")
+
+    def test_note_only_concept_is_excluded_from_balance_sheet(self):
+        memberships = {
+            "consolidated": {"InvestmentSecurities", "OtherIOA"},
+            "standalone": set(),
+        }
+
+        self.assertEqual(
+            taxonomy_statement_scope_skip_reason(
+                "AllowanceForDoubtfulAccountsIOAByGroup",
+                "InterimInstant",
+                memberships,
+                {"AllowanceForDoubtfulAccountsIOAByGroup"},
+            ),
+            "note_only_tag_skipped_for_balance_sheet",
+        )
+        self.assertIsNone(taxonomy_statement_scope_skip_reason(
+            "InvestmentSecurities",
+            "InterimInstant",
+            memberships,
+            {"InvestmentSecurities"},
         ))
 
     def test_standalone_only_taxonomy_path_is_not_used_for_consolidated_context(self):
@@ -3014,6 +3114,9 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(len(WAVE_K_100), 100)
         self.assertFalse(set(MARKET_1300) & set(WAVE_K_100))
         self.assertEqual(len(MARKET_1400), 1400)
+        self.assertEqual(len(WAVE_L_100), 100)
+        self.assertFalse(set(MARKET_1400) & set(WAVE_L_100))
+        self.assertEqual(len(MARKET_1500), 1500)
         self.assertEqual(BS_TEST_SETS["breadth-100"], BREADTH_100)
         self.assertEqual(BS_TEST_SETS["stress-100"], STRESS_100)
         self.assertEqual(BS_TEST_SETS["market-100"], MARKET_100)
@@ -3032,10 +3135,12 @@ class TestSetTests(unittest.TestCase):
         self.assertEqual(BS_TEST_SETS["wave-i-100"], WAVE_I_100)
         self.assertEqual(BS_TEST_SETS["wave-j-100"], WAVE_J_100)
         self.assertEqual(BS_TEST_SETS["wave-k-100"], WAVE_K_100)
+        self.assertEqual(BS_TEST_SETS["wave-l-100"], WAVE_L_100)
         self.assertEqual(BS_TEST_SETS["market-900"], MARKET_900)
         self.assertEqual(BS_TEST_SETS["market-1100"], MARKET_1100)
         self.assertEqual(BS_TEST_SETS["market-1300"], MARKET_1300)
         self.assertEqual(BS_TEST_SETS["market-1400"], MARKET_1400)
+        self.assertEqual(BS_TEST_SETS["market-1500"], MARKET_1500)
 
     def test_alphanumeric_security_codes_are_accepted(self):
         self.assertEqual(parse_codes_arg("456a, 442A, 9366"), ["442A", "456A", "9366"])

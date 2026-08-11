@@ -2582,6 +2582,7 @@ def parse_taxonomy_relationships(archive):
     label_files = []
     relationships = []
     concept_labels = {}
+    note_concepts = set()
 
     for name in archive.namelist():
         if "publicdoc" not in name.lower() or not name.lower().endswith(".xsd"):
@@ -2621,11 +2622,11 @@ def parse_taxonomy_relationships(archive):
                 continue
             role = link.get(f"{{{XLINK_NAMESPACE}}}role", "")
             role_lower = role.lower()
-            if (
-                not any(token in role_lower for token in ("balancesheet", "financialposition"))
-                or "note" in role_lower
+            if not any(
+                token in role_lower for token in ("balancesheet", "financialposition")
             ):
                 continue
+            is_note_role = "note" in role_lower
 
             locators = {}
             for child in link:
@@ -2652,6 +2653,9 @@ def parse_taxonomy_relationships(archive):
                 parent = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}from", ""))
                 concept = locators.get(child.get(f"{{{XLINK_NAMESPACE}}}to", ""))
                 if not parent or not concept or parent == concept:
+                    continue
+                if is_note_role:
+                    note_concepts.update((parent, concept))
                     continue
                 relationships.append({
                     "parent": parent,
@@ -2723,6 +2727,7 @@ def parse_taxonomy_relationships(archive):
         "files": parsed_files,
         "label_files": label_files,
         "labels": concept_labels,
+        "note_concepts": sorted(note_concepts),
         "label_count": sum(len(labels) for labels in concept_labels.values()),
         "concept_id_count": len(concept_ids),
         "errors": errors,
@@ -2756,12 +2761,13 @@ def _taxonomy_role_is_nonconsolidated(role):
 def _taxonomy_role_is_standalone_statement(role):
     tail = (role or "").rsplit("/", 1)[-1]
     normalized = re.sub(r"[-_]", "", tail).lower()
-    return normalized in {
-        "rolbalancesheet",
+    if "consolidated" in normalized:
+        return False
+    return normalized.endswith((
         "balancesheet",
-        "rolstatementoffinancialposition",
         "statementoffinancialposition",
-    }
+        "statementoffinancialpositionifrs",
+    ))
 
 
 def build_taxonomy_statement_memberships(relationships):
@@ -2789,9 +2795,17 @@ def build_taxonomy_statement_memberships(relationships):
     return memberships
 
 
-def taxonomy_statement_scope_skip_reason(tag, selected_context, memberships):
+def taxonomy_statement_scope_skip_reason(
+    tag, selected_context, memberships, note_concepts=None,
+):
     consolidated = memberships.get("consolidated", set())
     standalone = memberships.get("standalone", set())
+    if (
+        tag in set(note_concepts or ())
+        and tag not in consolidated
+        and tag not in standalone
+    ):
+        return "note_only_tag_skipped_for_balance_sheet"
     is_nonconsolidated = "NonConsolidated" in (selected_context or "")
     if (
         is_nonconsolidated
@@ -2808,6 +2822,64 @@ def taxonomy_statement_scope_skip_reason(tag, selected_context, memberships):
     ):
         return "standalone_only_tag_skipped_for_consolidated_statement"
     return None
+
+
+def select_bs_totals(raw_tags, taxonomy_relationships, selected_context=None):
+    """Select the highest-level reported total instead of the largest value."""
+    is_nonconsolidated = "NonConsolidated" in (selected_context or "")
+    calculation_children = {}
+    for edge in taxonomy_relationships or []:
+        if edge.get("link_type") != "calculation":
+            continue
+        role = edge.get("role", "")
+        if is_nonconsolidated and _taxonomy_role_is_consolidated(role):
+            continue
+        if not is_nonconsolidated and (
+            _taxonomy_role_is_nonconsolidated(role)
+            or _taxonomy_role_is_standalone_statement(role)
+        ):
+            continue
+        calculation_children.setdefault(edge.get("parent"), set()).add(
+            edge.get("child")
+        )
+
+    def descendant_count(tag, candidate_tags):
+        seen = set()
+        pending = list(calculation_children.get(tag, ()))
+        while pending:
+            child = pending.pop()
+            if child in seen:
+                continue
+            seen.add(child)
+            pending.extend(calculation_children.get(child, ()))
+        return len(seen & candidate_tags)
+
+    totals = {key: 0 for key in TOTAL_TAG_MAP}
+    sources = {}
+    for total_key, priority_tags in TOTAL_TAG_MAP.items():
+        candidates = {
+            tag: raw_tags[tag]
+            for tag in priority_tags
+            if tag in raw_tags
+        }
+        if not candidates:
+            continue
+        candidate_tags = set(candidates)
+        priority = {tag: index for index, tag in enumerate(priority_tags)}
+        selected_tag = min(
+            candidates,
+            key=lambda tag: (
+                -descendant_count(tag, candidate_tags),
+                priority[tag],
+            ),
+        )
+        totals[total_key] = candidates[selected_tag]
+        sources[total_key] = {
+            "tag": selected_tag,
+            "value": candidates[selected_tag],
+            "candidates": candidates,
+        }
+    return totals, sources
 
 
 def _normalize_taxonomy_label(text):
@@ -3901,7 +3973,6 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
             for ctx_info in valid_contexts:
                 cid = ctx_info["id"]
                 temp_summary = {k: 0 for k in DISPLAY_ORDER}
-                temp_totals = {k: 0 for k in totals}
                 hits = 0
                 
                 raw_tags = {}
@@ -3921,14 +3992,13 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                     })
                     raw_tags[tag] = val
                     
-                    total_key = TOTAL_TAG_LOOKUP.get(tag)
-                    if total_key:
-                        temp_totals[total_key] = max(temp_totals[total_key], val)
-
                 scoped_raw_tags = {}
                 for tag, val in raw_tags.items():
                     scope_skip_reason = taxonomy_statement_scope_skip_reason(
-                        tag, cid, taxonomy_statement_memberships,
+                        tag,
+                        cid,
+                        taxonomy_statement_memberships,
+                        taxonomy_info["note_concepts"],
                     )
                     if scope_skip_reason:
                         skipped_tags.append({
@@ -3938,6 +4008,10 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                         })
                     else:
                         scoped_raw_tags[tag] = val
+
+                temp_totals, total_sources = select_bs_totals(
+                    scoped_raw_tags, taxonomy_info["relationships"], cid,
+                )
 
                 for tag, val in scoped_raw_tags.items():
                     if tag in TAG_MAPPING:
@@ -3962,6 +4036,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                     "total_completeness": total_completeness,
                     "members": ctx_info["members"],
                     "totals": temp_totals,
+                    "total_sources": total_sources,
                     "duplicate_tags": {k: v for k, v in raw_tag_candidates.items() if len(v) > 1},
                     "applied_tags": applied_tags if debug else [],
                     "skipped_tags": skipped_tags if debug else [],
@@ -3993,6 +4068,7 @@ def analyze_bs_xbrl(doc_id, debug=False, raise_on_error=False, include_quality=F
                     "label_count": taxonomy_info["label_count"],
                     "labeled_concept_count": len(taxonomy_info["labels"]),
                     "concept_id_count": taxonomy_info["concept_id_count"],
+                    "note_concept_count": len(taxonomy_info["note_concepts"]),
                     "errors": taxonomy_info["errors"],
                 },
             }
