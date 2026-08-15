@@ -292,6 +292,25 @@ WAVE_M_100 = (
     "574A", "5531", "501A", "5890",
 )
 
+# Blind holdout selected from the 2026-08-15 JPX list before evaluating any
+# diagnostics. It excludes MARKET_1600, then samples Prime 35, Standard 35,
+# Growth 20, and PRO Market 10 issuers by sector.
+WAVE_N_100 = (
+    "8200", "9424", "7966", "7282", "5938", "2353", "6254", "4765",
+    "4985", "9069", "8334", "1871", "7721", "6779", "2282", "3543",
+    "3179", "3687", "7936", "6902", "5991", "8923", "6498", "6196",
+    "4203", "9010", "8370", "1762", "8086", "6674", "2801", "3167",
+    "9887", "9605", "7856", "6428", "2917", "4619", "5216", "6016",
+    "1914", "2708", "2481", "5589", "2673", "6666", "7811", "8914",
+    "5945", "3409", "6144", "2876", "4629", "5218", "7284", "1853",
+    "3143", "4671", "3840", "7610", "6736", "7902", "8844", "2962",
+    "3571", "6262", "2932", "7877", "5381", "7122", "248A", "9244",
+    "4424", "6574", "4393", "6081", "4438", "7083", "4199", "7097",
+    "519A", "9238", "4496", "9250", "5129", "9556", "4450", "194A",
+    "4444", "7371", "445A", "5893", "374A", "6174", "239A", "7137",
+    "503A", "510A", "583A", "252A",
+)
+
 MARKET_100 = tuple(sorted(set(REGRESSION_40) | set(EXPANSION_60)))
 MARKET_200 = tuple(sorted(set(MARKET_100) | set(BREADTH_100)))
 MARKET_300 = tuple(sorted(set(MARKET_200) | set(STRESS_100)))
@@ -303,6 +322,7 @@ MARKET_1300 = tuple(sorted(set(MARKET_1100) | set(WAVE_I_100) | set(WAVE_J_100))
 MARKET_1400 = tuple(sorted(set(MARKET_1300) | set(WAVE_K_100)))
 MARKET_1500 = tuple(sorted(set(MARKET_1400) | set(WAVE_L_100)))
 MARKET_1600 = tuple(sorted(set(MARKET_1500) | set(WAVE_M_100)))
+MARKET_1700 = tuple(sorted(set(MARKET_1600) | set(WAVE_N_100)))
 
 BS_TEST_SETS = {
     "none": (),
@@ -323,6 +343,7 @@ BS_TEST_SETS = {
     "wave-k-100": WAVE_K_100,
     "wave-l-100": WAVE_L_100,
     "wave-m-100": WAVE_M_100,
+    "wave-n-100": WAVE_N_100,
     "market-100": MARKET_100,
     "market-200": MARKET_200,
     "market-300": MARKET_300,
@@ -334,6 +355,7 @@ BS_TEST_SETS = {
     "market-1400": MARKET_1400,
     "market-1500": MARKET_1500,
     "market-1600": MARKET_1600,
+    "market-1700": MARKET_1700,
 }
 
 
