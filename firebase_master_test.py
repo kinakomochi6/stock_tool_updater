@@ -3825,27 +3825,32 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
             lambda key: key.startswith("有形_") and key not in {
                 "有形_リース資産", "有形_減価償却累計額",
             },
+            False,
         ),
         (
             "PropertyPlantAndEquipment",
             "有形_その他有形固定資産",
             lambda key: key.startswith("有形_")
             and key != "有形_減価償却累計額",
+            False,
         ),
         (
             "IntangibleAssetsIFRS",
             "無形_その他無形固定資産",
             lambda key: key.startswith("無形_") and key != "無形_のれん",
+            False,
         ),
         (
             "InvestmentsAndOtherAssets",
             "投資_その他固定資産",
             lambda key: key.startswith("投資_"),
+            True,
         ),
         (
             "PlantAndEquipmentAndIntangibleAssetsELE",
             "有形_その他有形固定資産",
             lambda key: key.startswith(("有形_", "無形_")) and key != "有形_減価償却累計額",
+            False,
         ),
     ]
     total = totals.get("NonCurrentAssets", 0)
@@ -3857,12 +3862,13 @@ def reconcile_skipped_section_summaries(summary, totals, raw_tags):
         delta_before = total - subtotal
         tolerance = max(abs(total) * 0.0001, 1_000_000)
         candidates = []
-        for tag, category, is_component in candidate_specs:
+        for tag, category, is_component, include_signed_components in candidate_specs:
             parent_value = raw_tags.get(tag, 0)
             if parent_value <= 0:
                 continue
             represented = sum(
-                max(amount, 0) for key, amount in summary.items()
+                amount if include_signed_components else max(amount, 0)
+                for key, amount in summary.items()
                 if is_component(key)
             )
             remainder = parent_value - represented

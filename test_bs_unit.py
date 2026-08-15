@@ -2454,6 +2454,20 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(len(adjustments), 1)
         self.assertEqual(adjustments[0]["tag"], "InvestmentsAndOtherAssets")
 
+    def test_investments_parent_remainder_includes_negative_allowance(self):
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        summary["投資_投資有価証券"] = 10_000_000_000
+        summary["投資_その他固定資産"] = 1_000_000_000
+        summary["投資_貸倒引当金"] = -200_000_000
+        totals = {"NonCurrentAssets": 12_000_000_000}
+        raw_tags = {"InvestmentsAndOtherAssets": 12_000_000_000}
+
+        adjustments = reconcile_skipped_section_summaries(summary, totals, raw_tags)
+
+        self.assertEqual(summary["投資_その他固定資産"], 2_200_000_000)
+        self.assertEqual(sum(summary.values()), 12_000_000_000)
+        self.assertEqual(adjustments[0]["represented_value"], 10_800_000_000)
+
     def test_new_industry_specific_tags_use_independent_categories(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         apply_mapped_tag(summary, "AccountsReceivableLeaseCALEA", 50_390_000_000)
