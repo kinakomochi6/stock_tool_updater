@@ -14,6 +14,7 @@ from real_estate_diagnostics import (
 )
 from real_estate_test_sets import (
     REAL_ESTATE_HOLDOUT_30,
+    REAL_ESTATE_HOLDOUT_B_40,
     REAL_ESTATE_REGRESSION_5,
     get_real_estate_test_set_codes,
 )
@@ -65,6 +66,13 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         )
         self.assertEqual(len(REAL_ESTATE_HOLDOUT_30), 30)
         self.assertFalse(set(REAL_ESTATE_REGRESSION_5) & set(REAL_ESTATE_HOLDOUT_30))
+        self.assertEqual(len(REAL_ESTATE_HOLDOUT_B_40), 40)
+        previous_codes = set(REAL_ESTATE_REGRESSION_5) | set(REAL_ESTATE_HOLDOUT_30)
+        self.assertFalse(previous_codes & set(REAL_ESTATE_HOLDOUT_B_40))
+        self.assertEqual(
+            get_real_estate_test_set_codes("holdout-b-40"),
+            list(REAL_ESTATE_HOLDOUT_B_40),
+        )
 
     def test_tracked_baseline_covers_the_regression_set(self):
         baseline = load_baseline("real_estate_baseline.json")

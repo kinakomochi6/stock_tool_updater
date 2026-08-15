@@ -15,10 +15,24 @@ REAL_ESTATE_HOLDOUT_30 = (
     "8136", "8058", "5020", "2502", "2503", "7911",
 )
 
+# A second blind set fixed after the first holdout improvements. It broadens
+# coverage across railways, property, retail/hospitality, warehousing,
+# asset-heavy manufacturing, utilities, and telecommunications.
+REAL_ESTATE_HOLDOUT_B_40 = (
+    "9020", "9021", "9022", "9046", "9047", "9049", "9052",
+    "8804", "8818", "8860", "8876", "8892", "8934", "3231",
+    "3465", "3254", "3291", "3299",
+    "3086", "3382", "7532", "7453", "9983", "4680", "9722", "9616",
+    "9304", "9305", "9324",
+    "5401", "5411", "5711", "5802", "5108", "5201", "5202", "5332",
+    "9501", "9502", "9432",
+)
+
 
 REAL_ESTATE_TEST_SETS = {
     "regression-5": REAL_ESTATE_REGRESSION_5,
     "holdout-30": REAL_ESTATE_HOLDOUT_30,
+    "holdout-b-40": REAL_ESTATE_HOLDOUT_B_40,
 }
 
 
