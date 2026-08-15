@@ -332,10 +332,13 @@ def _extract_fair_value_model_layout(df, context_text):
     context = normalize_text(context_text)
     if not _contains_any(context, REAL_ESTATE_MARKERS):
         return None
-    if not any(
-        marker in context
-        for marker in ("公正価値で計上", "公正価値モデル", "公正価値により測定")
-    ):
+    fair_value_accounting = (
+        "公正価値モデル" in context
+        or re.search(
+            r"公正価値.{0,80}(?:で計上|により測定|によって測定)", context
+        )
+    )
+    if not fair_value_accounting:
         return None
 
     period_layout = _extract_period_layout(df, context)

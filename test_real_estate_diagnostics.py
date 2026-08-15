@@ -369,7 +369,8 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         soup = BeautifulSoup(html, "lxml")
         candidate = extract_table_candidate(
             soup.table,
-            "投資不動産は当初認識後、公正価値で計上します。（単位：百万円）",
+            "投資不動産は当初認識後、公正価値（市場価格に近似）で計上します。"
+            "（単位：百万円）",
         )
         self.assertEqual(candidate["quality_status"], "verified")
         self.assertEqual(candidate["book_value_yen"], 108000000)
