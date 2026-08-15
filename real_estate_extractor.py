@@ -188,11 +188,14 @@ def _extract_period_layout(df, context_text):
     column = selected_column["column"]
     book_rows = []
     market_rows = []
+    opening_rows = []
     for row in range(rows):
         value = parse_numeric_cell(df.iloc[row, column])
         if value is None:
             continue
         label = "".join(normalize_text(df.iloc[row, c]) for c in range(column))
+        if "期首" in label and "残高" in label:
+            opening_rows.append({"row": row, "label": label, "value": value})
         is_book = (
             ("期末" in label and ("残高" in label or _contains_any(label, BOOK_MARKERS)))
             or (_contains_any(label, BOOK_MARKERS) and not _contains_any(label, BOOK_EXCLUDES))
@@ -204,6 +207,7 @@ def _extract_period_layout(df, context_text):
 
     book, book_resolution = _resolve_rows(book_rows)
     market, market_resolution = _resolve_rows(market_rows)
+    opening, opening_resolution = _resolve_rows(opening_rows)
     return {
         "layout": "period_columns",
         "target_column": column,
@@ -212,10 +216,13 @@ def _extract_period_layout(df, context_text):
         "previous_period_explicit": selected_column["previous_explicit"],
         "book_rows": book_rows,
         "market_rows": market_rows,
+        "opening_rows": opening_rows,
         "book_raw": book,
         "market_raw": market,
+        "opening_raw": opening,
         "book_resolution": book_resolution,
         "market_resolution": market_resolution,
+        "opening_resolution": opening_resolution,
     }
 
 
@@ -231,7 +238,11 @@ def _extract_horizontal_layout(df, table_text, context_text):
     book_columns = [
         (column, descriptor)
         for column, descriptor in descriptors
-        if ("期末残高" in descriptor or "年度末残高" in descriptor)
+        if (
+            "期末残高" in descriptor
+            or "年度末残高" in descriptor
+            or _contains_any(descriptor, BOOK_MARKERS)
+        )
     ]
     market_columns = [
         (column, descriptor)
@@ -246,8 +257,18 @@ def _extract_horizontal_layout(df, table_text, context_text):
     ):
         return None
 
-    book_column = book_columns[-1][0]
-    market_column = market_columns[-1][0]
+    current_book_columns = [
+        item for item in book_columns
+        if _contains_any(item[1], CURRENT_PERIOD_MARKERS)
+    ]
+    current_market_columns = [
+        item for item in market_columns
+        if _contains_any(item[1], CURRENT_PERIOD_MARKERS)
+    ]
+    selected_book = (current_book_columns or book_columns)[-1]
+    selected_market = (current_market_columns or market_columns)[-1]
+    book_column, book_descriptor = selected_book
+    market_column, market_descriptor = selected_market
     if book_column == market_column:
         return None
 
@@ -282,8 +303,14 @@ def _extract_horizontal_layout(df, table_text, context_text):
             {"column": column, "text": descriptor}
             for column, descriptor in descriptors
         ],
-        "current_period_explicit": _contains_any(combined, CURRENT_PERIOD_MARKERS),
-        "previous_period_explicit": _contains_any(combined, PREVIOUS_PERIOD_MARKERS),
+        "current_period_explicit": all(
+            _contains_any(descriptor, CURRENT_PERIOD_MARKERS)
+            for descriptor in (book_descriptor, market_descriptor)
+        ),
+        "previous_period_explicit": any(
+            _contains_any(descriptor, PREVIOUS_PERIOD_MARKERS)
+            for descriptor in (book_descriptor, market_descriptor)
+        ),
         "value_rows": value_rows,
         "selected_rows": selected_rows,
         "book_raw": book,
@@ -298,6 +325,53 @@ def _extract_horizontal_layout(df, table_text, context_text):
             {"row": row["row"], "label": row["label"], "value": row["market"]}
             for row in selected_rows
         ],
+    }
+
+
+def _extract_fair_value_model_layout(df, context_text):
+    context = normalize_text(context_text)
+    if not _contains_any(context, REAL_ESTATE_MARKERS):
+        return None
+    if not any(
+        marker in context
+        for marker in ("公正価値で計上", "公正価値モデル", "公正価値により測定")
+    ):
+        return None
+
+    period_layout = _extract_period_layout(df, context)
+    if not period_layout or not period_layout.get("current_period_explicit"):
+        return None
+    column = period_layout["target_column"]
+    closing_rows = []
+    for row in range(df.shape[0]):
+        value = parse_numeric_cell(df.iloc[row, column])
+        if value is None:
+            continue
+        label = "".join(
+            normalize_text(df.iloc[row, cell_column])
+            for cell_column in range(column)
+        )
+        if any(
+            marker in label
+            for marker in ("期末残高", "報告期間末", "年度末", "3月31日現在", "12月31日現在")
+        ):
+            closing_rows.append({"row": row, "label": label, "value": value})
+    if len(closing_rows) != 1 or closing_rows[0]["value"] <= 0:
+        return None
+
+    closing = closing_rows[0]
+    return {
+        "layout": "fair_value_model",
+        "target_column": column,
+        "column_candidates": period_layout.get("column_candidates", []),
+        "current_period_explicit": True,
+        "previous_period_explicit": False,
+        "book_rows": [closing],
+        "market_rows": [closing],
+        "book_raw": closing["value"],
+        "market_raw": closing["value"],
+        "book_resolution": "fair_value_model",
+        "market_resolution": "fair_value_model",
     }
 
 
@@ -349,17 +423,18 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
     candidate["shape"] = [int(df.shape[0]), int(df.shape[1])]
     period_layout = _extract_period_layout(df, context)
     horizontal_layout = _extract_horizontal_layout(df, table_text, context)
+    fair_value_layout = _extract_fair_value_model_layout(df, context)
     layouts = [
-        layout for layout in (period_layout, horizontal_layout)
+        layout for layout in (period_layout, horizontal_layout, fair_value_layout)
         if layout and layout.get("book_raw", 0) > 0 and layout.get("market_raw", 0) > 0
     ]
     layout = max(
         layouts,
         key=lambda item: (
             item.get("current_period_explicit", False),
-            item.get("layout") == "book_market_columns",
+            item.get("layout") in ("book_market_columns", "fair_value_model"),
         ),
-        default=period_layout or horizontal_layout,
+        default=period_layout or horizontal_layout or fair_value_layout,
     )
     candidate["layout_result"] = layout
     if not layout:
@@ -421,7 +496,10 @@ def expand_complementary_candidates(candidates):
             right_layout = right.get("layout_result") or {}
             if left.get("file") != right.get("file"):
                 continue
-            if abs(left.get("table_index", -100) - right.get("table_index", 100)) != 1:
+            table_gap = abs(
+                left.get("table_index", -100) - right.get("table_index", 100)
+            )
+            if table_gap < 1 or table_gap > 5:
                 continue
             if not left.get("table_relevant") or not right.get("table_relevant"):
                 continue
@@ -440,6 +518,11 @@ def expand_complementary_candidates(candidates):
                 or left_unit.get("multiplier") != right_unit.get("multiplier")
             ):
                 continue
+            if table_gap > 1:
+                left_period = left.get("period_end_hint")
+                right_period = right.get("period_end_hint")
+                if not left_period or left_period != right_period:
+                    continue
             if not all(
                 layout.get("current_period_explicit")
                 and not layout.get("previous_period_explicit", False)
@@ -467,6 +550,12 @@ def expand_complementary_candidates(candidates):
                     right.get("period_end_hint"),
                 ) if hint
             ]
+            layout_name = (
+                "adjacent_book_market_tables"
+                if table_gap == 1
+                else "nearby_book_market_tables"
+            )
+            resolution = "adjacent_table" if table_gap == 1 else "nearby_table"
             expanded.append({
                 "file": left.get("file", ""),
                 "table_index": [
@@ -478,14 +567,18 @@ def expand_complementary_candidates(candidates):
                 "table_relevant": True,
                 "loss_table": False,
                 "guarantor_section": False,
-                "score": max(left.get("score", 0), right.get("score", 0)) + 150,
+                "score": (
+                    max(left.get("score", 0), right.get("score", 0))
+                    + 150
+                    - (table_gap - 1) * 10
+                ),
                 "quality_status": "verified",
                 "quality_reasons": [],
                 "book_value_yen": int(round(book_layout["book_raw"] * multiplier)),
                 "market_value_yen": int(round(market_layout["market_raw"] * multiplier)),
                 "period_end_hint": max(period_hints) if period_hints else None,
                 "layout_result": {
-                    "layout": "adjacent_book_market_tables",
+                    "layout": layout_name,
                     "current_period_explicit": True,
                     "previous_period_explicit": False,
                     "book_raw": book_layout["book_raw"],
@@ -494,8 +587,81 @@ def expand_complementary_candidates(candidates):
                     "market_rows": market_layout.get("market_rows", []),
                     "book_source_table": book_candidate.get("table_index"),
                     "market_source_table": market_candidate.get("table_index"),
-                    "book_resolution": "adjacent_table",
-                    "market_resolution": "adjacent_table",
+                    "book_resolution": resolution,
+                    "market_resolution": resolution,
+                },
+            })
+
+    original_candidates = list(candidates)
+    for prior_index, prior in enumerate(original_candidates):
+        prior_layout = prior.get("layout_result") or {}
+        if prior_layout.get("book_raw", 0) <= 0 or prior_layout.get("market_raw", 0) <= 0:
+            continue
+        for current_index in range(prior_index + 1, len(original_candidates)):
+            current = original_candidates[current_index]
+            current_layout = current.get("layout_result") or {}
+            if prior.get("file") != current.get("file"):
+                continue
+            if current.get("table_index", -100) - prior.get("table_index", 100) != 1:
+                continue
+            if not prior.get("table_relevant") or not current.get("table_relevant"):
+                continue
+            if any(
+                candidate.get(flag)
+                for candidate in (prior, current)
+                for flag in ("loss_table", "guarantor_section")
+            ):
+                continue
+            prior_unit = prior.get("unit", {})
+            current_unit = current.get("unit", {})
+            if (
+                not prior_unit.get("explicit")
+                or not current_unit.get("explicit")
+                or prior_unit.get("multiplier") != current_unit.get("multiplier")
+            ):
+                continue
+            if any(
+                layout.get("current_period_explicit")
+                or layout.get("previous_period_explicit")
+                for layout in (prior_layout, current_layout)
+            ):
+                continue
+            opening = current_layout.get("opening_raw", 0)
+            if opening <= 0 or not math.isclose(
+                prior_layout["book_raw"], opening, rel_tol=0.001, abs_tol=1.0
+            ):
+                continue
+
+            multiplier = current_unit["multiplier"]
+            expanded.append({
+                "file": current.get("file", ""),
+                "table_index": [
+                    prior.get("table_index"),
+                    current.get("table_index"),
+                ],
+                "source_candidate_indices": [prior_index, current_index],
+                "unit": current_unit,
+                "table_relevant": True,
+                "loss_table": False,
+                "guarantor_section": False,
+                "score": max(prior.get("score", 0), current.get("score", 0)) + 150,
+                "quality_status": "verified",
+                "quality_reasons": [],
+                "book_value_yen": int(round(current_layout["book_raw"] * multiplier)),
+                "market_value_yen": int(round(current_layout["market_raw"] * multiplier)),
+                "period_end_hint": current.get("period_end_hint"),
+                "layout_result": {
+                    "layout": "rollforward_continuity",
+                    "current_period_explicit": True,
+                    "previous_period_explicit": False,
+                    "book_raw": current_layout["book_raw"],
+                    "market_raw": current_layout["market_raw"],
+                    "opening_raw": opening,
+                    "book_rows": current_layout.get("book_rows", []),
+                    "market_rows": current_layout.get("market_rows", []),
+                    "prior_closing_book_raw": prior_layout["book_raw"],
+                    "book_resolution": "rollforward_continuity",
+                    "market_resolution": "rollforward_continuity",
                 },
             })
     return expanded

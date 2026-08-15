@@ -271,6 +271,145 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
             "extracted_structural",
         )
 
+    def test_nearby_current_period_tables_allow_small_separator_gap(self):
+        html = """
+        <div>
+          <table>
+            <tr><th></th><th>前連結会計年度末</th><th>当連結会計年度末</th></tr>
+            <tr><th>帳簿価額</th><td>20,000</td><td>22,360</td></tr>
+          </table>
+          <table>
+            <tr><th></th><th>前連結会計年度末</th><th>当連結会計年度末</th></tr>
+            <tr><th>公正価値</th><td>22,900</td><td>26,349</td></tr>
+          </table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        tables = soup.find_all("table")
+        candidates = [
+            extract_table_candidate(
+                tables[0],
+                "投資不動産（単位：百万円）2026年3月31日",
+                file_name="annual.htm",
+                table_index=51,
+            ),
+            extract_table_candidate(
+                tables[1],
+                "投資不動産（単位：百万円）2026年3月31日",
+                file_name="annual.htm",
+                table_index=55,
+            ),
+        ]
+        expanded = expand_complementary_candidates(candidates)
+        selection = select_real_estate_candidate(expanded)
+        self.assertEqual(selection["quality_status"], "verified")
+        self.assertEqual(selection["book_value_yen"], 22360000000)
+        self.assertEqual(selection["market_value_yen"], 26349000000)
+        combined = expanded[-1]
+        self.assertEqual(
+            combined["layout_result"]["layout"], "nearby_book_market_tables"
+        )
+
+    def test_nearby_tables_require_matching_period_hints(self):
+        html = """
+        <div>
+          <table><tr><th></th><th>当連結会計年度末</th></tr>
+            <tr><th>帳簿価額</th><td>100</td></tr></table>
+          <table><tr><th></th><th>当連結会計年度末</th></tr>
+            <tr><th>公正価値</th><td>200</td></tr></table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        contexts = (
+            "投資不動産（単位：百万円）2025年3月31日",
+            "投資不動産（単位：百万円）2026年3月31日",
+        )
+        candidates = [
+            extract_table_candidate(
+                table,
+                contexts[index],
+                file_name="annual.htm",
+                table_index=10 + index * 3,
+            )
+            for index, table in enumerate(soup.find_all("table"))
+        ]
+        self.assertEqual(len(expand_complementary_candidates(candidates)), 2)
+
+    def test_ifrs_horizontal_period_pairs_choose_current_book_and_fair_value(self):
+        html = """
+        <table>
+          <tr><th></th><th colspan="2">前連結会計年度（2025年3月31日）</th>
+            <th colspan="2">当連結会計年度（2026年3月31日）</th></tr>
+          <tr><th></th><th>帳簿価額</th><th>公正価値</th>
+            <th>帳簿価額</th><th>公正価値</th></tr>
+          <tr><th>投資不動産</th><td>54,126</td><td>120,640</td>
+            <td>53,317</td><td>139,412</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table, "投資不動産（単位：百万円）"
+        )
+        self.assertEqual(candidate["quality_status"], "verified")
+        self.assertEqual(candidate["book_value_yen"], 53317000000)
+        self.assertEqual(candidate["market_value_yen"], 139412000000)
+        self.assertEqual(
+            candidate["layout_result"]["layout"], "book_market_columns"
+        )
+
+    def test_ifrs_fair_value_model_uses_equal_book_and_market_values(self):
+        html = """
+        <table>
+          <tr><th></th><th>当連結会計年度</th><th>前連結会計年度</th></tr>
+          <tr><th>（公正価値）4月1日現在</th><td>134</td><td>136</td></tr>
+          <tr><th>公正価値の変動による純損益</th><td>△42</td><td>-</td></tr>
+          <tr><th>3月31日現在</th><td>108</td><td>134</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table,
+            "投資不動産は当初認識後、公正価値で計上します。（単位：百万円）",
+        )
+        self.assertEqual(candidate["quality_status"], "verified")
+        self.assertEqual(candidate["book_value_yen"], 108000000)
+        self.assertEqual(candidate["market_value_yen"], 108000000)
+        self.assertEqual(candidate["layout_result"]["layout"], "fair_value_model")
+
+    def test_separate_annual_tables_use_rollforward_continuity(self):
+        html = """
+        <div>
+          <table>
+            <tr><th>連結貸借対照表計上額 期首残高</th><td>4,822</td></tr>
+            <tr><th>期末残高</th><td>2,234</td></tr>
+            <tr><th>期末時価</th><td>2,952</td></tr>
+          </table>
+          <table>
+            <tr><th>連結貸借対照表計上額 期首残高</th><td>2,234</td></tr>
+            <tr><th>期末残高</th><td>5,374</td></tr>
+            <tr><th>期末時価</th><td>5,479</td></tr>
+          </table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidates = [
+            extract_table_candidate(
+                table,
+                "賃貸等不動産（単位：百万円）",
+                file_name="annual.htm",
+                table_index=55 + index,
+            )
+            for index, table in enumerate(soup.find_all("table"))
+        ]
+        expanded = expand_complementary_candidates(candidates)
+        selection = select_real_estate_candidate(expanded)
+        self.assertEqual(selection["quality_status"], "verified")
+        self.assertEqual(selection["book_value_yen"], 5374000000)
+        self.assertEqual(selection["market_value_yen"], 5479000000)
+        self.assertEqual(
+            expanded[-1]["layout_result"]["layout"], "rollforward_continuity"
+        )
+
     def test_no_candidate_outcomes_are_classified_by_scan_evidence(self):
         selection = select_real_estate_candidate([])
         no_disclosure = classify_real_estate_outcome(
