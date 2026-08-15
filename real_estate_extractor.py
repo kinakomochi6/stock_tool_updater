@@ -429,6 +429,9 @@ def select_real_estate_candidate(candidates):
         selected.get("unit", {}).get("explicit")
         and selected.get("layout_result", {}).get("book_rows")
         and selected.get("layout_result", {}).get("market_rows")
+        and not selected.get("layout_result", {}).get(
+            "previous_period_explicit", False
+        )
         and latest_hint
     ):
         reasons = [
@@ -456,3 +459,12 @@ def select_real_estate_candidate(candidates):
         "hidden_gain_yen": selected["market_value_yen"] - selected["book_value_yen"],
         "score": selected.get("score", 0),
     }
+
+
+def publishable_real_estate_values(selection):
+    if selection.get("quality_status") != "verified":
+        return 0, 0
+    return (
+        selection.get("book_value_yen", 0),
+        selection.get("market_value_yen", 0),
+    )

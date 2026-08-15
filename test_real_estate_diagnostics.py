@@ -19,6 +19,7 @@ from real_estate_test_sets import (
 )
 from real_estate_extractor import (
     extract_table_candidate,
+    publishable_real_estate_values,
     select_real_estate_candidate,
 )
 
@@ -197,6 +198,30 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(selection["quality_status"], "verified")
         self.assertEqual(selection["book_value_yen"], 430000000)
         self.assertEqual(selection["market_value_yen"], 700000000)
+        self.assertEqual(
+            publishable_real_estate_values(selection),
+            (430000000, 700000000),
+        )
+
+    def test_previous_period_horizontal_table_is_not_promoted_by_context_date(self):
+        html = """
+        <table>
+          <tr>
+            <th>区分</th><th>前連結会計年度期中増減額</th>
+            <th>前連結会計年度期末残高</th><th>前連結会計年度期末の時価</th>
+          </tr>
+          <tr><th>賃貸等不動産</th><td>10</td><td>110</td><td>200</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table,
+            "（単位：百万円）2026年3月期の賃貸等不動産",
+        )
+        selection = select_real_estate_candidate([candidate])
+        self.assertEqual(selection["quality_status"], "partial")
+        self.assertIn("current_period_not_explicit", selection["quality_reasons"])
+        self.assertEqual(publishable_real_estate_values(selection), (0, 0))
 
 
 if __name__ == "__main__":

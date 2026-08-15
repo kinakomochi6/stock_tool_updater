@@ -22,6 +22,7 @@ from urllib.parse import unquote, urlparse
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from real_estate_extractor import (
     extract_table_candidate,
+    publishable_real_estate_values,
     select_real_estate_candidate,
 )
 from bs4 import XMLParsedAsHTMLWarning
@@ -4985,31 +4986,41 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                 f"{type(exc).__name__}: {exc}"
             )
 
-    b_oku = round(final_res["Book"] / 100000000, 2)
-    m_oku = round(final_res["Market"] / 100000000, 2)
+    legacy_b_oku = round(final_res["Book"] / 100000000, 2)
+    legacy_m_oku = round(final_res["Market"] / 100000000, 2)
     sec_oku = round(final_res["Sec_Profit"] / 100000000, 2)
+    structural_selection = select_real_estate_candidate(structural_candidates)
+    structural_selection["book_value_oku"] = round(
+        structural_selection.get("book_value_yen", 0) / 100000000, 2
+    )
+    structural_selection["market_value_oku"] = round(
+        structural_selection.get("market_value_yen", 0) / 100000000, 2
+    )
+    structural_selection["hidden_gain_oku"] = round(
+        structural_selection.get("hidden_gain_yen", 0) / 100000000, 2
+    )
+
+    # Only publish values whose unit, period, rows, and source table passed the
+    # structural checks. Uncertain candidates remain visible in diagnostics.
+    publishable_book, publishable_market = publishable_real_estate_values(
+        structural_selection
+    )
+    b_oku = round(publishable_book / 100000000, 2)
+    m_oku = round(publishable_market / 100000000, 2)
     if real_estate_diagnostics is not None:
-        structural_selection = select_real_estate_candidate(
-            structural_candidates
-        )
-        structural_selection["book_value_oku"] = round(
-            structural_selection.get("book_value_yen", 0) / 100000000, 2
-        )
-        structural_selection["market_value_oku"] = round(
-            structural_selection.get("market_value_yen", 0) / 100000000, 2
-        )
-        structural_selection["hidden_gain_oku"] = round(
-            structural_selection.get("hidden_gain_yen", 0) / 100000000, 2
-        )
         real_estate_diagnostics["structural_candidates"] = structural_candidates
         real_estate_diagnostics["structural_selection"] = structural_selection
+        real_estate_diagnostics["legacy_book_value_oku"] = legacy_b_oku
+        real_estate_diagnostics["legacy_market_value_oku"] = legacy_m_oku
         real_estate_diagnostics["final_book_value_oku"] = b_oku
         real_estate_diagnostics["final_market_value_oku"] = m_oku
     return {
         "不動産_簿価_億": b_oku,
         "不動産_時価_億": m_oku,
         "不動産_含み益_億": round(m_oku - b_oku, 2) if m_oku > 0 else 0,
-        "有価証券_含み益_億": sec_oku
+        "有価証券_含み益_億": sec_oku,
+        "不動産_検証状態": structural_selection["quality_status"],
+        "不動産_検証理由": structural_selection.get("quality_reasons", []),
     }
 
 # ==========================================
@@ -5505,6 +5516,7 @@ def main():
                 "★業種": sector,
                 "★資産合計": 0, "★負債合計": 0, "★純資産合計": 0,
                 "不動産_簿価_億": 0, "不動産_時価_億": 0, "不動産_含み益_億": 0, "有価証券_含み益_億": 0,
+                "不動産_検証状態": "not_found", "不動産_検証理由": [],
                 "B/S_取得書類": "なし", "不動産_取得書類": "なし"
             })
             
@@ -5620,9 +5632,11 @@ def main():
             re_doc_id = searcher.find_best_re_doc(code) if not args.bs_only else None
             if re_doc_id:
                 re_sec_data = analyze_real_estate_and_securities_html(re_doc_id)
-                if re_sec_data["不動産_時価_億"] > 0 or re_sec_data["不動産_簿価_億"] > 0 or re_sec_data["有価証券_含み益_億"] > 0:
-                    combined_data.update(re_sec_data)
+                combined_data.update(re_sec_data)
+                if re_sec_data["不動産_検証状態"] == "verified":
                     combined_data["不動産_取得書類"] = "有価証券報告書等より取得"
+                elif re_sec_data["不動産_検証状態"] in {"partial", "quarantined"}:
+                    combined_data["不動産_取得書類"] = "候補あり（自動採用保留）"
 
             # Firebaseへ保存
             combined_data["B/S_検証状態"] = bs_quality["status"]
