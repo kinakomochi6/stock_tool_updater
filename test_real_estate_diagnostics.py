@@ -5,6 +5,7 @@ from pathlib import Path
 from real_estate_diagnostics import (
     build_candidate_baseline,
     compare_with_baseline,
+    load_baseline,
     normalize_extraction_result,
     summarize_records,
     write_outputs,
@@ -48,6 +49,21 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
             get_real_estate_test_set_codes("regression-5"),
             list(REAL_ESTATE_REGRESSION_5),
         )
+
+    def test_tracked_baseline_covers_the_regression_set(self):
+        baseline = load_baseline("real_estate_baseline.json")
+        self.assertEqual(
+            set(baseline["records"]), set(REAL_ESTATE_REGRESSION_5)
+        )
+        for record in baseline["records"].values():
+            self.assertTrue(record["doc_id"])
+            self.assertGreater(record["book_value_oku"], 0)
+            self.assertGreater(record["market_value_oku"], 0)
+            self.assertAlmostEqual(
+                record["hidden_gain_oku"],
+                record["market_value_oku"] - record["book_value_oku"],
+                places=2,
+            )
 
     def test_same_document_and_values_match(self):
         status, details = compare_with_baseline(

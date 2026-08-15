@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "generated_at": "2026-08-15T10:42:24.646602+00:00",
+  "tolerance_oku": 0.01,
+  "records": {
+    "3123": {
+      "doc_id": "S100YJC8",
+      "period_end": "2026-03-31",
+      "submitted_at": "2026-06-25 09:02",
+      "document_description": "有価証券報告書－第103期(2025/04/01－2026/03/31)",
+      "filer_name": "サイボー株式会社",
+      "book_value_oku": 247.69,
+      "market_value_oku": 406.09,
+      "hidden_gain_oku": 158.4
+    },
+    "6042": {
+      "doc_id": "S100YKJL",
+      "period_end": "2026-03-31",
+      "submitted_at": "2026-06-26 15:35",
+      "document_description": "有価証券報告書－第135期(2025/04/01－2026/03/31)",
+      "filer_name": "株式会社ニッキ",
+      "book_value_oku": 39.45,
+      "market_value_oku": 177.14,
+      "hidden_gain_oku": 137.69
+    },
+    "6396": {
+      "doc_id": "S100YF8O",
+      "period_end": "2026-03-31",
+      "submitted_at": "2026-06-22 10:09",
+      "document_description": "有価証券報告書－第134期(2025/04/01－2026/03/31)",
+      "filer_name": "株式会社宇野澤組鐵工所",
+      "book_value_oku": 13.89,
+      "market_value_oku": 136.8,
+      "hidden_gain_oku": 122.91
+    },
+    "9366": {
+      "doc_id": "S100YFGT",
+      "period_end": "2026-03-31",
+      "submitted_at": "2026-06-23 14:45",
+      "document_description": "有価証券報告書－第81期(2025/04/01－2026/03/31)",
+      "filer_name": "株式会社サンリツ",
+      "book_value_oku": 67.13,
+      "market_value_oku": 178.98,
+      "hidden_gain_oku": 111.85
+    },
+    "9635": {
+      "doc_id": "S100YKI6",
+      "period_end": "2026-03-31",
+      "submitted_at": "2026-06-25 10:47",
+      "document_description": "有価証券報告書－第155期(2025/04/01－2026/03/31)",
+      "filer_name": "武蔵野興業株式会社",
+      "book_value_oku": 43.05,
+      "market_value_oku": 118.09,
+      "hidden_gain_oku": 75.04
+    }
+  }
+}
