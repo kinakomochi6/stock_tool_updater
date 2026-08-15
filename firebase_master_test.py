@@ -1083,6 +1083,8 @@ DISPLAY_ORDER = [
 
 ANALYSIS_BS_VERSION = "1.0"
 ANALYSIS_BS_FIELD = "B/S_分析分類"
+BS_ACCEPTED_AT_FIELD = "B/S_正常更新日時"
+BS_ACCEPTED_DOCUMENT_FIELD = "B/S_正常更新書類"
 ANALYSIS_BS_CATEGORIES = [
     "流動_現金及び預金", "流動_受取手形", "流動_売掛金", "流動_契約資産",
     "流動_電子記録債権", "流動_受取手形・売掛金(合算)", "流動_有価証券",
@@ -4178,6 +4180,16 @@ def remove_bs_values_for_quarantine(data):
     return data
 
 
+def add_firestore_update_timestamps(data, publish_bs_values):
+    """Mark the attempt time and only advance accepted-B/S metadata on success."""
+    data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
+    data["B/S_検証日時"] = firestore.SERVER_TIMESTAMP
+    if publish_bs_values:
+        data[BS_ACCEPTED_AT_FIELD] = firestore.SERVER_TIMESTAMP
+        data[BS_ACCEPTED_DOCUMENT_FIELD] = data.get("B/S_取得書類", "")
+    return data
+
+
 class BsAnalysisError(RuntimeError):
     def __init__(self, stage, message, details=None):
         super().__init__(message)
@@ -5492,8 +5504,10 @@ def main():
             if args.dry_run:
                 print(" -> [DRY RUN] Firestore保存をスキップしました。")
             else:
-                combined_data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
-                combined_data["B/S_検証日時"] = firestore.SERVER_TIMESTAMP
+                add_firestore_update_timestamps(
+                    combined_data,
+                    bs_quality.get("publish_bs_values", False),
+                )
                 collection_ref.document(str(code)).set(combined_data, merge=True)
             
             print(f" -> [{company_name}] 財務 ROE: {combined_data['ROE_pct']}% / 時価総額: {combined_data['時価総額_億']}億円 / 4年平均自社株買い: {combined_data['4年平均自社株買い_億']}億円")

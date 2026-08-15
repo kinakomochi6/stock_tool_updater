@@ -43,6 +43,7 @@ from firebase_master_test import (
     EdinetSearcher,
     TAG_MAPPING,
     BsAnalysisError,
+    add_firestore_update_timestamps,
     apply_derived_net_tag_pairs,
     aggregate_analysis_bs,
     apply_mapped_tag,
@@ -1274,6 +1275,23 @@ class AnalysisClassificationTests(unittest.TestCase):
         self.assertNotIn("B/S_分析分類バージョン", data)
         self.assertNotIn("B/S_分析分類集計差額_億", data)
         self.assertEqual(data["時価総額_億"], 100)
+
+    def test_only_an_accepted_bs_advances_accepted_metadata(self):
+        accepted = {
+            "B/S_取得書類": "有価証券報告書",
+        }
+        add_firestore_update_timestamps(accepted, True)
+        self.assertIn("B/S_正常更新日時", accepted)
+        self.assertEqual(accepted["B/S_正常更新書類"], "有価証券報告書")
+
+        quarantined = {
+            "B/S_正常更新日時": "previous timestamp",
+            "B/S_正常更新書類": "previous document",
+        }
+        add_firestore_update_timestamps(quarantined, False)
+        self.assertEqual(quarantined["B/S_正常更新日時"], "previous timestamp")
+        self.assertEqual(quarantined["B/S_正常更新書類"], "previous document")
+        self.assertIn("B/S_検証日時", quarantined)
 
 
 class MappingTests(unittest.TestCase):
