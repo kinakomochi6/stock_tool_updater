@@ -19,7 +19,7 @@ REAL_ESTATE_HOLDOUT_30 = (
 # coverage across railways, property, retail/hospitality, warehousing,
 # asset-heavy manufacturing, utilities, and telecommunications.
 REAL_ESTATE_HOLDOUT_B_40 = (
-    "9020", "9021", "9022", "9046", "9047", "9049", "9052",
+    "9020", "9021", "9022", "9046", "9142", "9049", "9052",
     "8804", "8818", "8860", "8876", "8892", "8934", "3231",
     "3465", "3254", "3291", "3299",
     "3086", "3382", "7532", "7453", "9983", "4680", "9722", "9616",
