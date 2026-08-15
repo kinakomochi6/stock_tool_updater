@@ -18,6 +18,8 @@ from real_estate_test_sets import (
     get_real_estate_test_set_codes,
 )
 from real_estate_extractor import (
+    classify_real_estate_outcome,
+    expand_complementary_candidates,
     extract_table_candidate,
     publishable_real_estate_values,
     select_real_estate_candidate,
@@ -44,6 +46,9 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
             "book_value_oku": 100.0,
             "market_value_oku": 250.0,
             "hidden_gain_oku": 150.0,
+            "real_estate_quality": "verified",
+            "real_estate_outcome": "extracted_structural",
+            "real_estate_reasons": [],
             "comparison_status": "matched",
             "comparison": {},
         }
@@ -222,6 +227,74 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(selection["quality_status"], "partial")
         self.assertIn("current_period_not_explicit", selection["quality_reasons"])
         self.assertEqual(publishable_real_estate_values(selection), (0, 0))
+
+    def test_adjacent_current_period_book_and_market_tables_are_combined(self):
+        html = """
+        <div>
+          <table>
+            <tr><th></th><th>前連結会計年度末（百万円）</th><th>当連結会計年度末（百万円）</th></tr>
+            <tr><th>帳簿価額</th><td>34,391</td><td>67,231</td></tr>
+          </table>
+          <table>
+            <tr><th></th><th>前連結会計年度末（百万円）</th><th>当連結会計年度末（百万円）</th></tr>
+            <tr><th>公正価値</th><td>45,282</td><td>79,875</td></tr>
+          </table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidates = [
+            extract_table_candidate(
+                table,
+                "13. 投資不動産（単位：百万円）",
+                file_name="annual.htm",
+                table_index=index,
+            )
+            for index, table in enumerate(soup.find_all("table"), start=23)
+        ]
+        expanded = expand_complementary_candidates(candidates)
+        selection = select_real_estate_candidate(expanded)
+        self.assertEqual(len(expanded), 3)
+        self.assertEqual(selection["quality_status"], "verified")
+        self.assertEqual(selection["book_value_yen"], 67231000000)
+        self.assertEqual(selection["market_value_yen"], 79875000000)
+        self.assertEqual(
+            classify_real_estate_outcome(expanded, selection)["classification"],
+            "extracted_structural",
+        )
+
+    def test_no_candidate_outcomes_are_classified_by_scan_evidence(self):
+        selection = select_real_estate_candidate([])
+        no_disclosure = classify_real_estate_outcome(
+            [], selection, {"files_with_real_estate_markers": 0}
+        )
+        omitted = classify_real_estate_outcome(
+            [],
+            selection,
+            {
+                "files_with_real_estate_markers": 1,
+                "omission_markers": ["記載を省略"],
+            },
+        )
+        text_only = classify_real_estate_outcome(
+            [],
+            selection,
+            {
+                "files_with_real_estate_markers": 1,
+                "omission_markers": [],
+            },
+        )
+        self.assertEqual(
+            no_disclosure["classification"],
+            "no_relevant_disclosure_detected",
+        )
+        self.assertEqual(
+            omitted["classification"],
+            "disclosure_omitted_or_not_applicable",
+        )
+        self.assertEqual(
+            text_only["classification"],
+            "text_only_or_unsupported_disclosure",
+        )
 
 
 if __name__ == "__main__":

@@ -24,6 +24,14 @@ REAL_ESTATE_MARKERS = ("賃貸等不動産", "投資不動産")
 BOOK_MARKERS = ("貸借対照表計上額", "財政状態計算書計上額", "帳簿価額")
 MARKET_MARKERS = ("期末時価", "公正価値", "時価")
 BOOK_EXCLUDES = ("期首", "増減", "償却", "損益", "収益", "費用")
+OMISSION_MARKERS = (
+    "該当事項はありません",
+    "該当ありません",
+    "該当なし",
+    "記載を省略",
+    "重要性が乏しい",
+    "重要性がない",
+)
 
 
 def normalize_text(value):
@@ -186,6 +194,7 @@ def _extract_period_layout(df, context_text):
         "target_column": column,
         "column_candidates": candidates,
         "current_period_explicit": selected_column["current_explicit"],
+        "previous_period_explicit": selected_column["previous_explicit"],
         "book_rows": book_rows,
         "market_rows": market_rows,
         "book_raw": book,
@@ -386,6 +395,143 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
     elif candidate["book_value_yen"] > 0 and candidate["market_value_yen"] > 0:
         candidate["quality_status"] = "partial"
     return candidate
+
+
+def expand_complementary_candidates(candidates):
+    expanded = list(candidates)
+    for left_index, left in enumerate(candidates):
+        left_layout = left.get("layout_result") or {}
+        for right_index in range(left_index + 1, len(candidates)):
+            right = candidates[right_index]
+            right_layout = right.get("layout_result") or {}
+            if left.get("file") != right.get("file"):
+                continue
+            if abs(left.get("table_index", -100) - right.get("table_index", 100)) != 1:
+                continue
+            if not left.get("table_relevant") or not right.get("table_relevant"):
+                continue
+            if any(
+                candidate.get(flag)
+                for candidate in (left, right)
+                for flag in ("loss_table", "guarantor_section")
+            ):
+                continue
+
+            left_unit = left.get("unit", {})
+            right_unit = right.get("unit", {})
+            if (
+                not left_unit.get("explicit")
+                or not right_unit.get("explicit")
+                or left_unit.get("multiplier") != right_unit.get("multiplier")
+            ):
+                continue
+            if not all(
+                layout.get("current_period_explicit")
+                and not layout.get("previous_period_explicit", False)
+                for layout in (left_layout, right_layout)
+            ):
+                continue
+
+            left_book = left_layout.get("book_raw", 0)
+            left_market = left_layout.get("market_raw", 0)
+            right_book = right_layout.get("book_raw", 0)
+            right_market = right_layout.get("market_raw", 0)
+            if left_book > 0 and left_market == 0 and right_book == 0 and right_market > 0:
+                book_candidate, market_candidate = left, right
+                book_layout, market_layout = left_layout, right_layout
+            elif right_book > 0 and right_market == 0 and left_book == 0 and left_market > 0:
+                book_candidate, market_candidate = right, left
+                book_layout, market_layout = right_layout, left_layout
+            else:
+                continue
+
+            multiplier = left_unit["multiplier"]
+            period_hints = [
+                hint for hint in (
+                    left.get("period_end_hint"),
+                    right.get("period_end_hint"),
+                ) if hint
+            ]
+            expanded.append({
+                "file": left.get("file", ""),
+                "table_index": [
+                    left.get("table_index"),
+                    right.get("table_index"),
+                ],
+                "source_candidate_indices": [left_index, right_index],
+                "unit": left_unit,
+                "table_relevant": True,
+                "loss_table": False,
+                "guarantor_section": False,
+                "score": max(left.get("score", 0), right.get("score", 0)) + 150,
+                "quality_status": "verified",
+                "quality_reasons": [],
+                "book_value_yen": int(round(book_layout["book_raw"] * multiplier)),
+                "market_value_yen": int(round(market_layout["market_raw"] * multiplier)),
+                "period_end_hint": max(period_hints) if period_hints else None,
+                "layout_result": {
+                    "layout": "adjacent_book_market_tables",
+                    "current_period_explicit": True,
+                    "previous_period_explicit": False,
+                    "book_raw": book_layout["book_raw"],
+                    "market_raw": market_layout["market_raw"],
+                    "book_rows": book_layout.get("book_rows", []),
+                    "market_rows": market_layout.get("market_rows", []),
+                    "book_source_table": book_candidate.get("table_index"),
+                    "market_source_table": market_candidate.get("table_index"),
+                    "book_resolution": "adjacent_table",
+                    "market_resolution": "adjacent_table",
+                },
+            })
+    return expanded
+
+
+def classify_real_estate_outcome(candidates, selection, scan_stats=None):
+    scan_stats = scan_stats or {}
+    quality = selection.get("quality_status", "not_found")
+    reasons = list(selection.get("quality_reasons", []))
+    if quality == "verified":
+        return {
+            "classification": "extracted_structural",
+            "reasons": [],
+        }
+    if "competing_tables_with_different_values" in reasons:
+        return {
+            "classification": "competing_tables",
+            "reasons": reasons,
+        }
+    if "current_period_not_explicit" in reasons:
+        return {
+            "classification": "current_period_table_missing",
+            "reasons": reasons,
+        }
+
+    layouts = [candidate.get("layout_result") or {} for candidate in candidates]
+    has_book = any(layout.get("book_raw", 0) > 0 for layout in layouts)
+    has_market = any(layout.get("market_raw", 0) > 0 for layout in layouts)
+    if has_book and has_market:
+        classification = "separate_values_not_safely_pairable"
+    elif has_book:
+        classification = "book_value_only"
+    elif has_market:
+        classification = "market_value_only"
+    elif any(
+        "unit_not_explicit" in candidate.get("quality_reasons", [])
+        for candidate in candidates
+    ):
+        classification = "unit_not_explicit"
+    elif candidates:
+        classification = "unsupported_table_structure"
+    elif scan_stats.get("omission_markers"):
+        classification = "disclosure_omitted_or_not_applicable"
+    elif scan_stats.get("files_with_real_estate_markers", 0) > 0:
+        classification = "text_only_or_unsupported_disclosure"
+    else:
+        classification = "no_relevant_disclosure_detected"
+    return {
+        "classification": classification,
+        "reasons": reasons,
+    }
 
 
 def select_real_estate_candidate(candidates):

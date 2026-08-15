@@ -21,6 +21,10 @@ import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlparse
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from real_estate_extractor import (
+    OMISSION_MARKERS,
+    REAL_ESTATE_MARKERS,
+    classify_real_estate_outcome,
+    expand_complementary_candidates,
     extract_table_candidate,
     publishable_real_estate_values,
     select_real_estate_candidate,
@@ -4859,6 +4863,15 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     final_res = {"Book": 0, "Market": 0, "Sec_Profit": 0}
     structural_candidates = []
+    scan_stats = {
+        "html_files_total": 0,
+        "html_files_scanned": 0,
+        "files_with_real_estate_markers": 0,
+        "tables_scanned": 0,
+        "relevant_tables": 0,
+        "adjacent_tables_scanned": 0,
+        "omission_markers": [],
+    }
     if real_estate_diagnostics is not None:
         real_estate_diagnostics.update({
             "doc_id": doc_id,
@@ -4887,6 +4900,7 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     try:
         with zipfile.ZipFile(z_data) as z:
             html_files = [n for n in z.namelist() if n.endswith(".htm") and "PublicDoc" in n]
+            scan_stats["html_files_total"] = len(html_files)
             for h_file in html_files:
                 with z.open(h_file) as f:
                     content = f.read()
@@ -4897,11 +4911,24 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                     
                     # === 高速化: 不要なHTMLをスキップ（精度を落とさないようタグ除去して判定） ===
                     quick_text = re.sub(r'<[^>]+>', '', content_str).replace(' ', '').replace('\n', '').replace('\u3000', '')
+                    has_real_estate_marker = any(
+                        marker in quick_text for marker in REAL_ESTATE_MARKERS
+                    )
+                    if has_real_estate_marker:
+                        scan_stats["files_with_real_estate_markers"] += 1
+                        scan_stats["omission_markers"].extend(
+                            marker for marker in OMISSION_MARKERS
+                            if marker in quick_text
+                        )
                     if not any(x in quick_text for x in ["不動産", "期末時価", "取得", "評価差", "評価益", "含み損益", "v", "z", "擾"]):
                         continue
                         
                     soup = BeautifulSoup(content_str, 'lxml')
+                    scan_stats["html_files_scanned"] += 1
+                    adjacent_table_budget = 0
+                    real_estate_anchor = ""
                     for table_index, tbl in enumerate(soup.find_all('table')):
+                        scan_stats["tables_scanned"] += 1
                         tbl_text = normalize_str(tbl.get_text())
                         prev_text, curr = "", tbl
                         for _ in range(15):
@@ -4917,21 +4944,36 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                         if "賃貸等不動産" in tbl_text or "投資不動産" in tbl_text: is_re_target = True
                         if "期末時価" in tbl_text: is_re_target = True
 
+                        has_direct_real_estate_marker = any(
+                            marker in (prev_text + tbl_text)
+                            for marker in REAL_ESTATE_MARKERS
+                        )
+                        effective_context = prev_text
+                        if not is_re_target and adjacent_table_budget > 0:
+                            is_re_target = True
+                            effective_context = real_estate_anchor + " " + prev_text
+                            adjacent_table_budget -= 1
+                            scan_stats["adjacent_tables_scanned"] += 1
+                        if has_direct_real_estate_marker:
+                            real_estate_anchor = prev_text + " " + tbl_text
+                            adjacent_table_budget = 2
+
                         if is_re_target:
+                            scan_stats["relevant_tables"] += 1
                             structural_candidates.append(extract_table_candidate(
                                 tbl,
-                                prev_text,
+                                effective_context,
                                 file_name=h_file,
                                 table_index=table_index,
                             ))
                             table_diagnostics = {
                                 "file": h_file,
                                 "table_index": table_index,
-                                "context": prev_text[-2000:],
+                                "context": effective_context[-2000:],
                                 "table_text": tbl_text[:4000],
                             }
                             b, m = analyze_single_table(
-                                tbl, prev_text, table_diagnostics
+                                tbl, effective_context, table_diagnostics
                             )
                             table_diagnostics["book_value_oku"] = round(
                                 b / 100000000, 3
@@ -4989,7 +5031,18 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     legacy_b_oku = round(final_res["Book"] / 100000000, 2)
     legacy_m_oku = round(final_res["Market"] / 100000000, 2)
     sec_oku = round(final_res["Sec_Profit"] / 100000000, 2)
+    scan_stats["omission_markers"] = sorted(set(
+        scan_stats["omission_markers"]
+    ))
+    structural_candidates = expand_complementary_candidates(
+        structural_candidates
+    )
     structural_selection = select_real_estate_candidate(structural_candidates)
+    real_estate_outcome = classify_real_estate_outcome(
+        structural_candidates,
+        structural_selection,
+        scan_stats,
+    )
     structural_selection["book_value_oku"] = round(
         structural_selection.get("book_value_yen", 0) / 100000000, 2
     )
@@ -5010,6 +5063,8 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     if real_estate_diagnostics is not None:
         real_estate_diagnostics["structural_candidates"] = structural_candidates
         real_estate_diagnostics["structural_selection"] = structural_selection
+        real_estate_diagnostics["scan_stats"] = scan_stats
+        real_estate_diagnostics["outcome"] = real_estate_outcome
         real_estate_diagnostics["legacy_book_value_oku"] = legacy_b_oku
         real_estate_diagnostics["legacy_market_value_oku"] = legacy_m_oku
         real_estate_diagnostics["final_book_value_oku"] = b_oku
@@ -5021,6 +5076,7 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
         "有価証券_含み益_億": sec_oku,
         "不動産_検証状態": structural_selection["quality_status"],
         "不動産_検証理由": structural_selection.get("quality_reasons", []),
+        "不動産_取得分類": real_estate_outcome["classification"],
     }
 
 # ==========================================
@@ -5517,6 +5573,7 @@ def main():
                 "★資産合計": 0, "★負債合計": 0, "★純資産合計": 0,
                 "不動産_簿価_億": 0, "不動産_時価_億": 0, "不動産_含み益_億": 0, "有価証券_含み益_億": 0,
                 "不動産_検証状態": "not_found", "不動産_検証理由": [],
+                "不動産_取得分類": "not_scanned",
                 "B/S_取得書類": "なし", "不動産_取得書類": "なし"
             })
             

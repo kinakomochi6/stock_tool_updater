@@ -44,6 +44,9 @@ def normalize_extraction_result(result):
             "book_value_oku": 0.0,
             "market_value_oku": 0.0,
             "hidden_gain_oku": 0.0,
+            "real_estate_quality": "unknown",
+            "real_estate_outcome": "extraction_failed",
+            "real_estate_reasons": [],
         }
 
     expected_keys = (
@@ -57,6 +60,9 @@ def normalize_extraction_result(result):
             "book_value_oku": 0.0,
             "market_value_oku": 0.0,
             "hidden_gain_oku": 0.0,
+            "real_estate_quality": "unknown",
+            "real_estate_outcome": "extraction_failed",
+            "real_estate_reasons": [],
         }
 
     book = float(result.get("不動産_簿価_億", 0) or 0)
@@ -68,6 +74,9 @@ def normalize_extraction_result(result):
         "book_value_oku": book,
         "market_value_oku": market,
         "hidden_gain_oku": gain,
+        "real_estate_quality": result.get("不動産_検証状態", "unknown"),
+        "real_estate_outcome": result.get("不動産_取得分類", "unknown"),
+        "real_estate_reasons": result.get("不動産_検証理由", []),
     }
 
 
@@ -143,6 +152,9 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
             "book_value_oku": 0.0,
             "market_value_oku": 0.0,
             "hidden_gain_oku": 0.0,
+            "real_estate_quality": "not_found",
+            "real_estate_outcome": "document_not_found",
+            "real_estate_reasons": [],
         })
     else:
         try:
@@ -158,6 +170,9 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
                 "book_value_oku": 0.0,
                 "market_value_oku": 0.0,
                 "hidden_gain_oku": 0.0,
+                "real_estate_quality": "unknown",
+                "real_estate_outcome": "extraction_failed",
+                "real_estate_reasons": [],
                 "error": f"{type(exc).__name__}: {exc}",
             })
 
@@ -215,10 +230,14 @@ def summarize_records(records):
     comparisons = collections.Counter(
         record.get("comparison_status", "unknown") for record in records
     )
+    outcomes = collections.Counter(
+        record.get("real_estate_outcome", "unknown") for record in records
+    )
     return {
         "record_count": len(records),
         "extraction_statuses": dict(sorted(extraction.items())),
         "comparison_statuses": dict(sorted(comparisons.items())),
+        "real_estate_outcomes": dict(sorted(outcomes.items())),
         "regression_codes": [
             record["code"] for record in records
             if record.get("comparison_status") == "regression"
@@ -264,19 +283,24 @@ def render_markdown(summary, title):
         f"{key}: {value}"
         for key, value in summary["comparison_statuses"].items()
     ) or "none"
+    outcomes = ", ".join(
+        f"{key}: {value}"
+        for key, value in summary["real_estate_outcomes"].items()
+    ) or "none"
     lines = [
         f"# {title}",
         "",
         f"- Records: {summary['record_count']}",
         f"- Extraction: {extraction}",
         f"- Comparison: {comparisons}",
+        f"- Outcomes: {outcomes}",
         "",
-        "| Code | Document | Period | Extraction | Comparison | Book (oku) | Market (oku) | Gain (oku) |",
-        "|---|---|---|---|---|---:|---:|---:|",
+        "| Code | Document | Period | Extraction | Outcome | Comparison | Book (oku) | Market (oku) | Gain (oku) |",
+        "|---|---|---|---|---|---|---:|---:|---:|",
     ]
     for row in summary["rows"]:
         lines.append(
-            "| {code} | {doc_id} | {period_end} | {extraction_status} | "
+            "| {code} | {doc_id} | {period_end} | {extraction_status} | {real_estate_outcome} | "
             "{comparison_status} | {book_value_oku:.2f} | {market_value_oku:.2f} | "
             "{hidden_gain_oku:.2f} |".format(**row)
         )
