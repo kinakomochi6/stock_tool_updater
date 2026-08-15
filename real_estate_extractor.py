@@ -41,6 +41,21 @@ def normalize_text(value):
     return re.sub(r"[\s\u3000]+", "", text)
 
 
+def find_nearby_omission_markers(text, radius=500):
+    normalized = normalize_text(text)
+    found = set()
+    for real_estate_marker in REAL_ESTATE_MARKERS:
+        for match in re.finditer(re.escape(real_estate_marker), normalized):
+            start = max(0, match.start() - radius)
+            end = min(len(normalized), match.end() + radius)
+            nearby = normalized[start:end]
+            found.update(
+                marker for marker in OMISSION_MARKERS
+                if marker in nearby
+            )
+    return sorted(found)
+
+
 def parse_numeric_cell(value):
     if value is None:
         return None

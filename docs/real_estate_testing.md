@@ -77,3 +77,24 @@ status and reasons in `不動産_検証状態` and `不動産_検証理由`.
 
 The legacy extractor remains in diagnostics for comparison only. Its value is
 not used as ground truth outside the five manually reviewed regression records.
+
+## Outcome classifications
+
+`不動産_取得分類` records why a value was or was not published:
+
+- `extracted_structural`: passed the structural publication gate.
+- `current_period_table_missing`: only a prior-period candidate was reliable.
+- `competing_tables`: multiple plausible tables disagree.
+- `separate_values_not_safely_pairable`: book and market values were found but
+  did not meet the strict same-section pairing rules.
+- `book_value_only` / `market_value_only`: only one side was found.
+- `unit_not_explicit`: values were found without a reliable unit.
+- `unsupported_table_structure`: relevant tables were found but not parsed.
+- `disclosure_omitted_or_not_applicable`: an omission phrase was found near the
+  real-estate disclosure.
+- `text_only_or_unsupported_disclosure`: real-estate text was found without a
+  usable table.
+- `no_relevant_disclosure_detected`: no target disclosure marker was found.
+
+These are parser outcomes, not manual correctness labels. Only the tracked
+regression records have been reviewed as ground truth.

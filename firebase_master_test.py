@@ -21,11 +21,11 @@ import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlparse
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
 from real_estate_extractor import (
-    OMISSION_MARKERS,
     REAL_ESTATE_MARKERS,
     classify_real_estate_outcome,
     expand_complementary_candidates,
     extract_table_candidate,
+    find_nearby_omission_markers,
     publishable_real_estate_values,
     select_real_estate_candidate,
 )
@@ -4917,8 +4917,7 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                     if has_real_estate_marker:
                         scan_stats["files_with_real_estate_markers"] += 1
                         scan_stats["omission_markers"].extend(
-                            marker for marker in OMISSION_MARKERS
-                            if marker in quick_text
+                            find_nearby_omission_markers(quick_text)
                         )
                     if not any(x in quick_text for x in ["不動産", "期末時価", "取得", "評価差", "評価益", "含み損益", "v", "z", "擾"]):
                         continue

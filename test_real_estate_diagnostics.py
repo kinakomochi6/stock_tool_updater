@@ -21,6 +21,7 @@ from real_estate_extractor import (
     classify_real_estate_outcome,
     expand_complementary_candidates,
     extract_table_candidate,
+    find_nearby_omission_markers,
     publishable_real_estate_values,
     select_real_estate_candidate,
 )
@@ -294,6 +295,15 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(
             text_only["classification"],
             "text_only_or_unsupported_disclosure",
+        )
+
+    def test_omission_marker_must_be_near_real_estate_disclosure(self):
+        distant = "記載を省略" + ("別の注記" * 300) + "投資不動産"
+        nearby = "投資不動産については重要性が乏しいため記載を省略"
+        self.assertEqual(find_nearby_omission_markers(distant), [])
+        self.assertEqual(
+            find_nearby_omission_markers(nearby),
+            ["記載を省略", "重要性が乏しい"],
         )
 
 
