@@ -137,8 +137,12 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
         })
     else:
         try:
-            result = analyze_real_estate_and_securities_html(doc_id)
+            source_diagnostics = {}
+            result = analyze_real_estate_and_securities_html(
+                doc_id, real_estate_diagnostics=source_diagnostics
+            )
             record.update(normalize_extraction_result(result))
+            record["source_diagnostics"] = source_diagnostics
         except Exception as exc:
             record.update({
                 "extraction_status": "extraction_failed",

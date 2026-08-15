@@ -4680,21 +4680,37 @@ def resolve_sum_or_max(values):
     if rest_sum > 0 and abs(max_val - rest_sum) / max_val < 0.05: return max_val
     return total_sum
 
-def analyze_single_table(tbl_soup, prev_text):
+def analyze_single_table(tbl_soup, prev_text, diagnostics=None):
     unit = detect_unit(tbl_soup.get_text())
     if unit == 1000000: unit = detect_unit(prev_text)
+
+    if diagnostics is not None:
+        diagnostics.update({
+            "unit_multiplier": unit,
+            "target_column": None,
+            "column_headers": [],
+            "book_rows": [],
+            "market_rows": [],
+        })
 
     try:
         dfs = pd.read_html(io.StringIO(str(tbl_soup)), header=None)
         if not dfs: return 0, 0
         df = dfs[0]
-    except: return 0, 0
+    except Exception as exc:
+        if diagnostics is not None:
+            diagnostics["parse_error"] = f"{type(exc).__name__}: {exc}"
+        return 0, 0
 
     rows, cols = df.shape
+    if diagnostics is not None:
+        diagnostics["shape"] = [rows, cols]
     if rows < 2 or cols < 2: return 0, 0
 
     target_col_indices = []
     col_headers = ["".join([normalize_str(df.iloc[r, c]) for r in range(min(5, rows))]) for c in range(cols)]
+    if diagnostics is not None:
+        diagnostics["column_headers"] = col_headers
 
     for c in range(cols):
         h_text = col_headers[c]
@@ -4713,6 +4729,8 @@ def analyze_single_table(tbl_soup, prev_text):
 
     if not target_col_indices: return 0, 0
     target_col = target_col_indices[-1]
+    if diagnostics is not None:
+        diagnostics["target_column"] = target_col
 
     found_books, found_markets = [], []
     for r in range(rows):
@@ -4725,10 +4743,29 @@ def analyze_single_table(tbl_soup, prev_text):
         elif "貸借対照表計上額" in row_label or "帳簿価額" in row_label: is_book_row = True
 
         if is_book_row and any(x in row_label for x in ["期首", "増減", "償却", "損益"]): is_book_row = False
-        if is_book_row and "期首" not in row_label: found_books.append(val)
-        if "時価" in row_label: found_markets.append(val)
+        if is_book_row and "期首" not in row_label:
+            found_books.append(val)
+            if diagnostics is not None:
+                diagnostics["book_rows"].append({
+                    "row": r,
+                    "label": row_label,
+                    "value": val,
+                })
+        if "時価" in row_label:
+            found_markets.append(val)
+            if diagnostics is not None:
+                diagnostics["market_rows"].append({
+                    "row": r,
+                    "label": row_label,
+                    "value": val,
+                })
 
-    return resolve_sum_or_max(found_books) * unit, resolve_sum_or_max(found_markets) * unit
+    book = resolve_sum_or_max(found_books) * unit
+    market = resolve_sum_or_max(found_markets) * unit
+    if diagnostics is not None:
+        diagnostics["resolved_book"] = book
+        diagnostics["resolved_market"] = market
+    return book, market
 
 # ★【追加】有価証券の「取得原価を超えるもの」の差額を取得する関数
 def analyze_securities_table(tbl_soup, prev_text):
@@ -4812,10 +4849,18 @@ def analyze_securities_table(tbl_soup, prev_text):
     return resolve_sum_or_max(found_values) * unit
 
 # ★ 不動産と有価証券を両方取得するように拡張
-def analyze_real_estate_and_securities_html(doc_id):
+def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None):
     url = f"https://disclosure.edinet-fsa.go.jp/api/v2/documents/{doc_id}"
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     final_res = {"Book": 0, "Market": 0, "Sec_Profit": 0}
+    if real_estate_diagnostics is not None:
+        real_estate_diagnostics.update({
+            "doc_id": doc_id,
+            "candidates": [],
+            "selected_candidate": None,
+            "download_failures": [],
+            "errors": [],
+        })
 
     z_data = None
     for _ in range(3):
@@ -4824,7 +4869,11 @@ def analyze_real_estate_and_securities_html(doc_id):
             if res.status_code == 200:
                 z_data = io.BytesIO(res.content)
                 break
-        except: pass
+        except Exception as exc:
+            if real_estate_diagnostics is not None:
+                real_estate_diagnostics["download_failures"].append(
+                    f"{type(exc).__name__}: {exc}"
+                )
         time.sleep(1)
         
     if not z_data: return final_res
@@ -4846,7 +4895,7 @@ def analyze_real_estate_and_securities_html(doc_id):
                         continue
                         
                     soup = BeautifulSoup(content_str, 'lxml')
-                    for tbl in soup.find_all('table'):
+                    for table_index, tbl in enumerate(soup.find_all('table')):
                         tbl_text = normalize_str(tbl.get_text())
                         prev_text, curr = "", tbl
                         for _ in range(15):
@@ -4863,11 +4912,41 @@ def analyze_real_estate_and_securities_html(doc_id):
                         if "期末時価" in tbl_text: is_re_target = True
 
                         if is_re_target:
-                            b, m = analyze_single_table(tbl, prev_text)
+                            table_diagnostics = {
+                                "file": h_file,
+                                "table_index": table_index,
+                                "context": prev_text[-2000:],
+                                "table_text": tbl_text[:4000],
+                            }
+                            b, m = analyze_single_table(
+                                tbl, prev_text, table_diagnostics
+                            )
+                            table_diagnostics["book_value_oku"] = round(
+                                b / 100000000, 3
+                            )
+                            table_diagnostics["market_value_oku"] = round(
+                                m / 100000000, 3
+                            )
+                            candidate_index = None
+                            if real_estate_diagnostics is not None:
+                                candidate_index = len(
+                                    real_estate_diagnostics["candidates"]
+                                )
+                                real_estate_diagnostics["candidates"].append(
+                                    table_diagnostics
+                                )
                             if m > final_res["Market"]:
                                 final_res["Market"], final_res["Book"] = m, b
+                                if real_estate_diagnostics is not None:
+                                    real_estate_diagnostics[
+                                        "selected_candidate"
+                                    ] = candidate_index
                             elif m == final_res["Market"] and m > 0 and b > final_res["Book"]:
                                 final_res["Book"] = b
+                                if real_estate_diagnostics is not None:
+                                    real_estate_diagnostics[
+                                        "selected_candidate"
+                                    ] = candidate_index
 
                         # 有価証券の解析
                         is_sec_target = False
@@ -4889,11 +4968,18 @@ def analyze_real_estate_and_securities_html(doc_id):
                             sec_profit = analyze_securities_table(tbl, prev_text)
                             if sec_profit > 0:
                                 final_res["Sec_Profit"] = sec_profit
-    except: pass
+    except Exception as exc:
+        if real_estate_diagnostics is not None:
+            real_estate_diagnostics["errors"].append(
+                f"{type(exc).__name__}: {exc}"
+            )
 
     b_oku = round(final_res["Book"] / 100000000, 2)
     m_oku = round(final_res["Market"] / 100000000, 2)
     sec_oku = round(final_res["Sec_Profit"] / 100000000, 2)
+    if real_estate_diagnostics is not None:
+        real_estate_diagnostics["final_book_value_oku"] = b_oku
+        real_estate_diagnostics["final_market_value_oku"] = m_oku
     return {
         "不動産_簿価_億": b_oku,
         "不動産_時価_億": m_oku,
