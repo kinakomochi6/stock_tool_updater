@@ -20,6 +20,10 @@ import json
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlparse
 from bs_test_sets import BS_TEST_SETS, get_test_set_codes
+from real_estate_extractor import (
+    extract_table_candidate,
+    select_real_estate_candidate,
+)
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -4853,6 +4857,7 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     url = f"https://disclosure.edinet-fsa.go.jp/api/v2/documents/{doc_id}"
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     final_res = {"Book": 0, "Market": 0, "Sec_Profit": 0}
+    structural_candidates = []
     if real_estate_diagnostics is not None:
         real_estate_diagnostics.update({
             "doc_id": doc_id,
@@ -4912,6 +4917,12 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                         if "期末時価" in tbl_text: is_re_target = True
 
                         if is_re_target:
+                            structural_candidates.append(extract_table_candidate(
+                                tbl,
+                                prev_text,
+                                file_name=h_file,
+                                table_index=table_index,
+                            ))
                             table_diagnostics = {
                                 "file": h_file,
                                 "table_index": table_index,
@@ -4978,6 +4989,20 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     m_oku = round(final_res["Market"] / 100000000, 2)
     sec_oku = round(final_res["Sec_Profit"] / 100000000, 2)
     if real_estate_diagnostics is not None:
+        structural_selection = select_real_estate_candidate(
+            structural_candidates
+        )
+        structural_selection["book_value_oku"] = round(
+            structural_selection.get("book_value_yen", 0) / 100000000, 2
+        )
+        structural_selection["market_value_oku"] = round(
+            structural_selection.get("market_value_yen", 0) / 100000000, 2
+        )
+        structural_selection["hidden_gain_oku"] = round(
+            structural_selection.get("hidden_gain_yen", 0) / 100000000, 2
+        )
+        real_estate_diagnostics["structural_candidates"] = structural_candidates
+        real_estate_diagnostics["structural_selection"] = structural_selection
         real_estate_diagnostics["final_book_value_oku"] = b_oku
         real_estate_diagnostics["final_market_value_oku"] = m_oku
     return {

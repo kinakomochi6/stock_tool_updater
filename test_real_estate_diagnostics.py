@@ -2,6 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from bs4 import BeautifulSoup
+
 from real_estate_diagnostics import (
     build_candidate_baseline,
     compare_with_baseline,
@@ -11,8 +13,13 @@ from real_estate_diagnostics import (
     write_outputs,
 )
 from real_estate_test_sets import (
+    REAL_ESTATE_HOLDOUT_30,
     REAL_ESTATE_REGRESSION_5,
     get_real_estate_test_set_codes,
+)
+from real_estate_extractor import (
+    extract_table_candidate,
+    select_real_estate_candidate,
 )
 
 
@@ -49,6 +56,8 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
             get_real_estate_test_set_codes("regression-5"),
             list(REAL_ESTATE_REGRESSION_5),
         )
+        self.assertEqual(len(REAL_ESTATE_HOLDOUT_30), 30)
+        self.assertFalse(set(REAL_ESTATE_REGRESSION_5) & set(REAL_ESTATE_HOLDOUT_30))
 
     def test_tracked_baseline_covers_the_regression_set(self):
         baseline = load_baseline("real_estate_baseline.json")
@@ -117,6 +126,55 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
                 (Path(temp_dir) / "real_estate_pinned_summary.md").exists()
             )
             self.assertTrue(candidate.exists())
+
+    def test_structural_extractor_chooses_current_period(self):
+        html = """
+        <p>（単位：千円）</p>
+        <table>
+          <tr><th></th><th>前連結会計年度</th><th>当連結会計年度</th></tr>
+          <tr><th>連結貸借対照表計上額 期首残高</th><td>100,000</td><td>110,000</td></tr>
+          <tr><th>期中増減額</th><td>10,000</td><td>10,000</td></tr>
+          <tr><th>期末残高</th><td>110,000</td><td>120,000</td></tr>
+          <tr><th>期末時価</th><td>200,000</td><td>250,000</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table,
+            "（単位：千円）当該賃貸等不動産の連結貸借対照表計上額及び時価",
+        )
+        self.assertEqual(candidate["quality_status"], "verified")
+        self.assertEqual(candidate["book_value_yen"], 120000000)
+        self.assertEqual(candidate["market_value_yen"], 250000000)
+
+    def test_structural_extractor_rejects_profit_table(self):
+        html = """
+        <table>
+          <tr><th></th><th>当連結会計年度</th></tr>
+          <tr><th>賃貸収益</th><td>500</td></tr>
+          <tr><th>賃貸費用</th><td>200</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table, "（単位：百万円）賃貸等不動産に関する損益"
+        )
+        selection = select_real_estate_candidate([candidate])
+        self.assertTrue(candidate["loss_table"])
+        self.assertEqual(selection["quality_status"], "not_found")
+
+    def test_structural_extractor_quarantines_unknown_unit(self):
+        html = """
+        <table>
+          <tr><th></th><th>当事業年度</th></tr>
+          <tr><th>貸借対照表計上額 期末残高</th><td>120</td></tr>
+          <tr><th>期末時価</th><td>250</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(soup.table, "賃貸等不動産")
+        self.assertEqual(candidate["quality_status"], "quarantined")
+        self.assertEqual(candidate["book_value_yen"], 0)
 
 
 if __name__ == "__main__":
