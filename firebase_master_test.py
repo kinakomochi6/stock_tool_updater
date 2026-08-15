@@ -1942,6 +1942,18 @@ TAXONOMY_LABEL_CATEGORY_RULES = {
 }
 
 DERIVED_NET_TAG_PAIRS = [
+    (
+        "PropertyForLeasePPELEA",
+        "AccumulatedDepreciationLeaseAssets",
+        TAG_MAPPING["PropertyForLeasePPELEA"],
+        ["LeaseAssetsNet", "LeaseAssetsNetPPE"],
+    ),
+    (
+        "LeaseAssetsPPE",
+        "AccumulatedDepreciationLeaseAssetsPPE",
+        TAG_MAPPING["LeaseAssetsPPE"],
+        ["LeaseAssetsNetPPE"],
+    ),
     ("BuildingsAndStructures", "AccumulatedDepreciationBuildings", "有形_建物・構築物", ["BuildingsAndStructuresNet", "BuildingsNet"]),
     ("Buildings", "AccumulatedDepreciationAndImpairmentLossBuildings", "有形_建物・構築物", ["BuildingsNet"]),
     ("ToolsFurnitureAndFixtures", "AccumulatedDepreciationAndImpairmentLossToolsFurnitureAndFixtures", "有形_工具器具備品", ["ToolsFurnitureAndFixturesNet", "FurnitureAndFixturesNetPPE"]),
@@ -2153,12 +2165,22 @@ def should_skip_item_tag(
     ):
         return "gross_right_of_use_assets_skipped_because_net_exists"
     for gross_tag, accumulated_tag, _category, base_tags in DERIVED_NET_TAG_PAIRS:
-        if (
-            tag == gross_tag
-            and accumulated_tag in raw_tags
-            and not any(base_tag in raw_tags for base_tag in base_tags)
-        ):
+        if tag != gross_tag or accumulated_tag not in raw_tags:
+            continue
+        reported_net_tags = [
+            base_tag
+            for base_tag in base_tags
+            if base_tag in raw_tags and base_tag in TAG_MAPPING
+        ]
+        if not reported_net_tags:
             return "gross_value_skipped_because_accumulated_value_can_derive_net"
+
+        derived_net = raw_tags[gross_tag] + raw_tags[accumulated_tag]
+        for net_tag in reported_net_tags:
+            reported_net = raw_tags[net_tag]
+            tolerance = max(abs(reported_net) * 0.001, 1_000_000)
+            if derived_net > 0 and abs(derived_net - reported_net) <= tolerance:
+                return "gross_value_skipped_because_reported_net_reconciles"
     if tag == "SecurityEquipmentAndControlStations" and "SecurityEquipmentAndControlStationsNetPPE" in raw_tags:
         return "gross_security_equipment_skipped_because_net_exists"
     if tag == "LeaseAssetsPPE" and "LeaseAssetsNetPPE" in raw_tags:

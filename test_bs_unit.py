@@ -2086,6 +2086,47 @@ class MappingTests(unittest.TestCase):
             "leasing_parent_or_alias_skipped_because_preferred_total_exists",
         )
 
+    def test_leasing_gross_value_is_skipped_when_depreciation_reconciles_to_net(self):
+        raw_tags = {
+            "PropertyForLeasePPELEA": 159_620_000_000,
+            "AccumulatedDepreciationLeaseAssets": -95_673_000_000,
+            "LeaseAssetsNet": 63_946_000_000,
+        }
+
+        self.assertEqual(
+            should_skip_item_tag("PropertyForLeasePPELEA", raw_tags),
+            "gross_value_skipped_because_reported_net_reconciles",
+        )
+
+    def test_leasing_gross_value_is_kept_when_net_does_not_reconcile(self):
+        raw_tags = {
+            "PropertyForLeasePPELEA": 100_000_000_000,
+            "AccumulatedDepreciationLeaseAssets": -20_000_000_000,
+            "LeaseAssetsNet": 50_000_000_000,
+        }
+
+        self.assertIsNone(
+            should_skip_item_tag("PropertyForLeasePPELEA", raw_tags)
+        )
+
+    def test_leasing_net_value_is_derived_when_reported_net_is_missing(self):
+        raw_tags = {
+            "PropertyForLeasePPELEA": 100_000_000_000,
+            "AccumulatedDepreciationLeaseAssets": -20_000_000_000,
+        }
+        summary = {key: 0 for key in DISPLAY_ORDER}
+        applied = []
+
+        self.assertEqual(
+            should_skip_item_tag("PropertyForLeasePPELEA", raw_tags),
+            "gross_value_skipped_because_accumulated_value_can_derive_net",
+        )
+        apply_derived_net_tag_pairs(summary, raw_tags, applied)
+
+        category = TAG_MAPPING["PropertyForLeasePPELEA"]
+        self.assertEqual(summary[category], 80_000_000_000)
+        self.assertEqual(applied[0]["action"], "derived_net_add")
+
     def test_broad_industry_residual_tags_have_distinct_categories(self):
         summary = {key: 0 for key in DISPLAY_ORDER}
         values = {
