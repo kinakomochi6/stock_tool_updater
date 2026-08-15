@@ -1,0 +1,95 @@
+name: Real Estate Diagnostics
+
+on:
+  push:
+    branches:
+      - real-estate-regression
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Diagnostic mode'
+        required: true
+        type: choice
+        default: both
+        options:
+          - both
+          - pinned
+          - latest
+      codes:
+        description: 'Optional comma-separated codes added to regression-5'
+        required: false
+        default: ''
+      days_back:
+        description: 'Days of EDINET documents to scan in latest mode'
+        required: false
+        default: '730'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run real-estate unit tests
+        run: python -m unittest test_real_estate_diagnostics.py
+
+      - name: Run diagnostics
+        env:
+          EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          PYTHONUNBUFFERED: '1'
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          DAYS_BACK="${{ github.event.inputs.days_back }}"
+          CODES="${{ github.event.inputs.codes }}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            MODE="both"
+            DAYS_BACK="730"
+            CODES=""
+          fi
+
+          COMMON=(--test-set regression-5 --baseline real_estate_baseline.json)
+          if [ -n "$CODES" ]; then
+            COMMON+=(--codes "$CODES")
+          fi
+
+          if [ "$MODE" = "pinned" ] || [ "$MODE" = "both" ]; then
+            if [ -s real_estate_baseline.json ]; then
+              python real_estate_diagnostics.py "${COMMON[@]}" \
+                --mode pinned \
+                --output-dir real_estate_diagnostics/pinned \
+                --fail-on-regression
+              cat real_estate_diagnostics/pinned/real_estate_pinned_summary.md >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Pinned diagnostics skipped until the reviewed baseline is committed." >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          if [ "$MODE" = "latest" ] || [ "$MODE" = "both" ]; then
+            python real_estate_diagnostics.py "${COMMON[@]}" \
+              --mode latest \
+              --days-back "$DAYS_BACK" \
+              --output-dir real_estate_diagnostics/latest \
+              --write-candidate-baseline real_estate_diagnostics/candidate_baseline.json \
+              --fail-on-regression
+            cat real_estate_diagnostics/latest/real_estate_latest_summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-estate-diagnostics
+          path: real_estate_diagnostics/
+          if-no-files-found: warn
+          retention-days: 30
