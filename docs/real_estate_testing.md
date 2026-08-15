@@ -14,6 +14,11 @@ initializing Firebase or writing company data.
 3. Unit tests cover comparison rules, download-contract failures, output files,
    and the fixed regression set.
 
+Holdout records without a reviewed baseline are observational. A difference
+from the legacy extractor is not a regression and is not evidence that either
+value is correct. Missing values are reported as `unverified_no_values` rather
+than failing the workflow.
+
 The initial regression set is `6396, 9635, 6042, 3123, 9366`.
 
 ## Commands
@@ -60,3 +65,15 @@ copy the reviewed values and document metadata into the tracked baseline.
 
 Every parser bug should add a small table fixture or another reviewed holdout
 case before the extraction logic is changed.
+
+## Publication gate
+
+The batch publishes real-estate book and market values only when the structural
+extractor returns `verified`. Verification requires an explicit unit, matching
+book and market rows or columns, and a current-period candidate without an
+unresolved competing table or excluded reporting entity. `partial`,
+`quarantined`, and `not_found` candidates publish zero values and retain their
+status and reasons in `不動産_検証状態` and `不動産_検証理由`.
+
+The legacy extractor remains in diagnostics for comparison only. Its value is
+not used as ground truth outside the five manually reviewed regression records.
