@@ -72,12 +72,21 @@ def normalize_extraction_result(result):
 
 
 def compare_with_baseline(record, expected, mode, tolerance_oku):
+    if not expected:
+        status = record.get("extraction_status")
+        if status == "extracted":
+            return "baseline_missing", {}
+        if status == "no_values":
+            return "unverified_no_values", {}
+        if status == "document_not_found":
+            return "source_unavailable", {}
+        return "unverified_extraction_failure", {
+            "reason": status or "extraction_failed",
+        }
     if record.get("extraction_status") != "extracted":
         return "regression", {
             "reason": record.get("extraction_status", "extraction_failed"),
         }
-    if not expected:
-        return "baseline_missing", {}
 
     if mode == "latest" and record.get("doc_id") != expected.get("doc_id"):
         return "review_required", {

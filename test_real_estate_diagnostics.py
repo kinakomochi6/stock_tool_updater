@@ -101,11 +101,11 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         normalized = normalize_extraction_result({"Book": 0, "Market": 0})
         self.assertEqual(normalized["extraction_status"], "extraction_failed")
 
-    def test_extraction_failure_is_a_regression_without_baseline(self):
+    def test_missing_values_are_neutral_without_baseline(self):
         failed = dict(self.record, extraction_status="document_not_found")
         status, details = compare_with_baseline(failed, None, "latest", 0.01)
-        self.assertEqual(status, "regression")
-        self.assertEqual(details["reason"], "document_not_found")
+        self.assertEqual(status, "source_unavailable")
+        self.assertEqual(details, {})
 
     def test_summary_and_candidate_baseline(self):
         summary = summarize_records([self.record])
@@ -175,6 +175,28 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         candidate = extract_table_candidate(soup.table, "賃貸等不動産")
         self.assertEqual(candidate["quality_status"], "quarantined")
         self.assertEqual(candidate["book_value_yen"], 0)
+
+    def test_structural_extractor_sums_horizontal_categories(self):
+        html = """
+        <table>
+          <tr>
+            <th>区分</th><th>当連結会計年度期首残高</th>
+            <th>当連結会計年度増減額</th><th>当連結会計年度期末残高</th>
+            <th>連結決算日における時価</th>
+          </tr>
+          <tr><th>賃貸等不動産</th><td>100</td><td>10</td><td>110</td><td>200</td></tr>
+          <tr><th>賃貸等不動産として使用される部分を含む不動産</th><td>300</td><td>20</td><td>320</td><td>500</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table,
+            "（単位：百万円）2026年3月期の賃貸等不動産",
+        )
+        selection = select_real_estate_candidate([candidate])
+        self.assertEqual(selection["quality_status"], "verified")
+        self.assertEqual(selection["book_value_yen"], 430000000)
+        self.assertEqual(selection["market_value_yen"], 700000000)
 
 
 if __name__ == "__main__":

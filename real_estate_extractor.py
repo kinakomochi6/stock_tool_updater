@@ -195,6 +195,98 @@ def _extract_period_layout(df, context_text):
     }
 
 
+def _extract_horizontal_layout(df, table_text, context_text):
+    rows, cols = df.shape
+    descriptors = []
+    for column in range(1, cols):
+        descriptor = normalize_text(df.columns[column]) + "".join(
+            normalize_text(df.iloc[row, column]) for row in range(min(3, rows))
+        )
+        descriptors.append((column, descriptor))
+
+    book_columns = [
+        (column, descriptor)
+        for column, descriptor in descriptors
+        if ("期末残高" in descriptor or "年度末残高" in descriptor)
+    ]
+    market_columns = [
+        (column, descriptor)
+        for column, descriptor in descriptors
+        if _contains_any(descriptor, MARKET_MARKERS)
+    ]
+    combined = table_text + context_text
+    if (
+        not book_columns
+        or not market_columns
+        or not _contains_any(combined, REAL_ESTATE_MARKERS)
+    ):
+        return None
+
+    book_column = book_columns[-1][0]
+    market_column = market_columns[-1][0]
+    if book_column == market_column:
+        return None
+
+    value_rows = []
+    label_limit = min(book_column, market_column)
+    for row in range(rows):
+        book = parse_numeric_cell(df.iloc[row, book_column])
+        market = parse_numeric_cell(df.iloc[row, market_column])
+        if book is None or market is None:
+            continue
+        label = "".join(
+            normalize_text(df.iloc[row, column]) for column in range(label_limit)
+        )
+        value_rows.append({
+            "row": row,
+            "label": label,
+            "book": book,
+            "market": market,
+        })
+    if not value_rows:
+        return None
+
+    total_rows = [row for row in value_rows if "合計" in row["label"]]
+    selected_rows = total_rows[-1:] if total_rows else value_rows
+    book = sum(row["book"] for row in selected_rows)
+    market = sum(row["market"] for row in selected_rows)
+    return {
+        "layout": "book_market_columns",
+        "book_column": book_column,
+        "market_column": market_column,
+        "column_descriptors": [
+            {"column": column, "text": descriptor}
+            for column, descriptor in descriptors
+        ],
+        "current_period_explicit": _contains_any(combined, CURRENT_PERIOD_MARKERS),
+        "previous_period_explicit": _contains_any(combined, PREVIOUS_PERIOD_MARKERS),
+        "value_rows": value_rows,
+        "selected_rows": selected_rows,
+        "book_raw": book,
+        "market_raw": market,
+        "book_resolution": "explicit_total" if total_rows else "summed_category_rows",
+        "market_resolution": "explicit_total" if total_rows else "summed_category_rows",
+        "book_rows": [
+            {"row": row["row"], "label": row["label"], "value": row["book"]}
+            for row in selected_rows
+        ],
+        "market_rows": [
+            {"row": row["row"], "label": row["label"], "value": row["market"]}
+            for row in selected_rows
+        ],
+    }
+
+
+def _period_end_hint(text):
+    normalized = unicodedata.normalize("NFKC", str(text))
+    dates = []
+    for year, month, day in re.findall(
+        r"(20\d{2})年(\d{1,2})月(?:(\d{1,2})日|期)", normalized
+    ):
+        dates.append((int(year), int(month), int(day or 1)))
+    return max(dates) if dates else None
+
+
 def extract_table_candidate(table_soup, context_text, file_name="", table_index=0):
     table_text = normalize_text(table_soup.get_text(" "))
     context = normalize_text(context_text)
@@ -215,6 +307,8 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
         "quality_reasons": [],
         "book_value_yen": 0,
         "market_value_yen": 0,
+        "period_end_hint": _period_end_hint(combined),
+        "guarantor_section": "保証会社" in combined,
     }
     try:
         frames = pd.read_html(io.StringIO(str(table_soup)), header=None)
@@ -229,7 +323,20 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
         return candidate
 
     candidate["shape"] = [int(df.shape[0]), int(df.shape[1])]
-    layout = _extract_period_layout(df, context)
+    period_layout = _extract_period_layout(df, context)
+    horizontal_layout = _extract_horizontal_layout(df, table_text, context)
+    layouts = [
+        layout for layout in (period_layout, horizontal_layout)
+        if layout and layout.get("book_raw", 0) > 0 and layout.get("market_raw", 0) > 0
+    ]
+    layout = max(
+        layouts,
+        key=lambda item: (
+            item.get("current_period_explicit", False),
+            item.get("layout") == "book_market_columns",
+        ),
+        default=period_layout or horizontal_layout,
+    )
     candidate["layout_result"] = layout
     if not layout:
         candidate["quality_reasons"].append("period_value_columns_not_found")
@@ -252,6 +359,8 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
         score += 40
     if "連結" in combined:
         score += 20
+    if candidate["guarantor_section"]:
+        score -= 200
     candidate["score"] = score
 
     if not unit["explicit"]:
@@ -264,6 +373,8 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
         candidate["quality_reasons"].append("market_row_not_found")
     if candidate["loss_table"]:
         candidate["quality_reasons"].append("rental_profit_table_excluded")
+    if candidate["guarantor_section"]:
+        candidate["quality_reasons"].append("guarantor_section")
 
     multiplier = unit["multiplier"]
     if multiplier and layout["book_raw"] > 0 and layout["market_raw"] > 0:
@@ -294,10 +405,38 @@ def select_real_estate_candidate(candidates):
             "market_value_yen": 0,
         }
 
+    period_hints = [
+        candidate.get("period_end_hint")
+        for _, candidate in usable
+        if candidate.get("period_end_hint")
+    ]
+    latest_hint = max(period_hints) if period_hints else None
+    if latest_hint:
+        latest_usable = [
+            item for item in usable if item[1].get("period_end_hint") == latest_hint
+        ]
+        if latest_usable:
+            usable = latest_usable
     usable.sort(key=lambda item: item[1].get("score", 0), reverse=True)
     selected_index, selected = usable[0]
     reasons = list(selected.get("quality_reasons", []))
     quality = selected.get("quality_status", "quarantined")
+    reasons = [reason for reason in reasons if reason != "guarantor_section"]
+    if selected.get("guarantor_section"):
+        quality = "quarantined"
+        reasons.append("guarantor_section")
+    elif (
+        selected.get("unit", {}).get("explicit")
+        and selected.get("layout_result", {}).get("book_rows")
+        and selected.get("layout_result", {}).get("market_rows")
+        and latest_hint
+    ):
+        reasons = [
+            reason for reason in reasons
+            if reason != "current_period_not_explicit"
+        ]
+        if not reasons:
+            quality = "verified"
     if len(usable) > 1:
         _, second = usable[1]
         values_differ = (
