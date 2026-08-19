@@ -21,12 +21,14 @@ than failing the workflow.
 
 The initial regression set is `6396, 9635, 6042, 3123, 9366`.
 
-Two fixed observational sets broaden coverage without changing the reviewed
+Three fixed observational sets broaden coverage without changing the reviewed
 baseline:
 
 - `holdout-30`: the first 30-company cross-industry set.
 - `holdout-b-40`: a disjoint 40-company set covering railways, property,
   retail/hospitality, warehousing, manufacturing, utilities, and telecoms.
+- `holdout-c-40`: a third disjoint 40-company set emphasizing railways,
+  property, retail, logistics, hospitality, chemicals, and large IFRS filers.
 
 The holdout sets must remain disjoint from the regression set and from each
 other. Replace delisted codes with currently listed companies before treating
@@ -67,9 +69,14 @@ python real_estate_diagnostics.py \
 `EDINET_API_KEY` is required. The GitHub Actions workflow runs both commands and
 uploads JSON and Markdown diagnostics. It never writes to Firestore.
 
-Pushes to `real-estate-regression`, `real-estate-holdout`, and
-`real-estate-holdout-b` run `regression-5`, `holdout-30`, and `holdout-b-40`
-respectively.
+Pushes to `real-estate-regression`, `real-estate-holdout`,
+`real-estate-holdout-b`, and `real-estate-holdout-c` run `regression-5`,
+`holdout-30`, `holdout-b-40`, and `holdout-c-40` respectively.
+
+Latest-document searches use the official security-code to EDINET-code list.
+Each daily document-list request is retried up to three times; an exhausted
+date is recorded in `EdinetSearcher.fetch_failures` and printed as a warning
+instead of being silently skipped.
 
 ## Baseline update rule
 
@@ -93,6 +100,13 @@ status and reasons in `不動産_検証状態` and `不動産_検証理由`.
 The legacy extractor remains in diagnostics for comparison only. Its value is
 not used as ground truth outside the five manually reviewed regression records.
 
+For IFRS disclosures split into acquisition cost, accumulated depreciation and
+impairment, and fair-value tables, all source tables must be in the same file,
+within five table positions, use the same explicit unit, and identify the same
+latest balance date. Book value is then acquisition cost plus the negative
+accumulated amount. Rental income and financial-instrument fair-value rows are
+explicitly excluded from real-estate book and market values.
+
 ## Outcome classifications
 
 `不動産_取得分類` records why a value was or was not published:
@@ -114,7 +128,7 @@ not used as ground truth outside the five manually reviewed regression records.
 These are parser outcomes, not manual correctness labels. Only the tracked
 regression records have been reviewed as ground truth.
 
-## Observed blind-set result (2026-08-16)
+## Observed blind-set results
 
 Before the second blind-set analysis, the structural extractor safely
 published 18 of 40 records. Generic support was then added for:
@@ -132,13 +146,44 @@ remaining 14 were one nearby omission, one unsupported table structure, and 12
 records with no target disclosure marker. They remain unpublished rather than
 being filled from weak evidence.
 
-Final verification:
+Verification through the second holdout:
 
 - all 5 reviewed regression records matched both pinned and latest runs;
 - all 30 first-holdout records retained their prior status and values;
 - all 39 unchanged records in the second holdout reproduced exactly after its
   delisted code was replaced;
-- 204 local unit tests passed.
+- 204 local unit tests passed at that stage.
+
+On 2026-08-20, a third blind set of 40 currently listed companies was added.
+The initial run safely published 18 records, identified nine nearby omission
+disclosures, nine records with no target marker, and four structural/safety
+holds. The run exposed a reusable IFRS layout in which acquisition cost,
+accumulated depreciation and impairment, and fair value are reported in three
+consecutive dated tables. It also exposed two unsafe lookalikes: investment-
+property rental income and fair value belonging to financial assets. Both are
+covered by fixtures and exclusion rules before publication.
+
+Final verification for this stage must include:
+
+- all five reviewed records matching pinned and latest runs;
+- zero value/status changes in `holdout-30`;
+- zero unintended value/status changes in `holdout-b-40`;
+- only reviewed, structurally explained changes in `holdout-c-40`;
+- all local unit tests passing.
+
+The reviewed final results for this stage were:
+
+- `regression-5`: all five records matched in both pinned and latest modes;
+- `holdout-30`: 22 extracted and eight safely held, with no value or outcome
+  changes from the previous accepted run;
+- `holdout-b-40`: all 26 previously extracted values and all 14 held outcomes
+  reproduced exactly. NSG (`5202`) retained its verified fair-value-model
+  result after financial-asset fair values were explicitly excluded;
+- `holdout-c-40`: 19 extracted and 21 safely held. Nitori (`9843`) was the
+  only newly published record at book 953.42 oku, market 1,126.70 oku, and
+  hidden gain 173.28 oku. Toray (`3402`) was refined to book-value-only while
+  remaining unpublished; the other 38 records retained their values;
+- 210 local unit tests passed.
 
 At this set size, an EDINET latest-document run takes roughly ten minutes.
 Future 100-company observational sets should be split into multiple workflow
