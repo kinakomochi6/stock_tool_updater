@@ -122,6 +122,19 @@ def _contains_any(text, markers):
     return any(marker in text for marker in markers)
 
 
+def _is_direct_real_estate_book_label(label):
+    if _contains_any(label, DIRECT_BOOK_EXCLUDES):
+        return False
+    for marker in REAL_ESTATE_MARKERS:
+        marker_position = label.rfind(marker)
+        if marker_position < 0:
+            continue
+        suffix = label[marker_position + len(marker):]
+        if not suffix or re.fullmatch(r"(?:[（(]?注?\d+[）)]?)?", suffix):
+            return True
+    return False
+
+
 def _column_period_score(header_text, context_text, column_index):
     score = column_index
     current_explicit = _contains_any(header_text, CURRENT_PERIOD_MARKERS)
@@ -202,10 +215,7 @@ def _extract_period_layout(df, context_text):
         is_book = (
             ("期末" in label and ("残高" in label or _contains_any(label, BOOK_MARKERS)))
             or (_contains_any(label, BOOK_MARKERS) and not _contains_any(label, BOOK_EXCLUDES))
-            or (
-                _contains_any(label, REAL_ESTATE_MARKERS)
-                and not _contains_any(label, DIRECT_BOOK_EXCLUDES)
-            )
+            or _is_direct_real_estate_book_label(label)
         )
         if is_book and not _contains_any(label, BOOK_EXCLUDES):
             book_rows.append({"row": row, "label": label, "value": value})

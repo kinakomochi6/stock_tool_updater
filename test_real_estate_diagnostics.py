@@ -404,6 +404,24 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(outcome["classification"], "book_value_only")
         self.assertEqual(publishable_real_estate_values(selection), (0, 0))
 
+    def test_investment_property_rental_income_is_not_a_book_value(self):
+        html = """
+        <table>
+          <tr><th></th><th>前連結会計年度</th><th>当連結会計年度</th></tr>
+          <tr><th>公正価値</th><td>78,452,351</td><td>73,341,609</td></tr>
+          <tr><th>投資不動産からの賃貸収入</th><td>3,119,307</td><td>3,173,249</td></tr>
+          <tr><th>賃貸収入に付随して発生した直接的な費用</th><td>1,389,752</td><td>1,311,155</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table, "投資不動産の公正価値（単位：千円）"
+        )
+
+        self.assertEqual(candidate["layout_result"]["book_raw"], 0)
+        self.assertEqual(candidate["layout_result"]["market_raw"], 73341609)
+        self.assertEqual(candidate["quality_status"], "quarantined")
+
     def test_ifrs_cost_accumulation_and_fair_value_tables_are_combined(self):
         html = """
         <div>
