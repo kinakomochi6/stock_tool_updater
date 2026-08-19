@@ -422,6 +422,28 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(candidate["layout_result"]["market_raw"], 73341609)
         self.assertEqual(candidate["quality_status"], "quarantined")
 
+    def test_financial_asset_fair_value_is_not_real_estate_market_value(self):
+        html = """
+        <table>
+          <tr><th>資産</th><th>注記</th><th>当連結会計年度末</th><th>前連結会計年度末</th></tr>
+          <tr><th>投資不動産</th><td>(18)</td><td>108</td><td>134</td></tr>
+          <tr><th>その他の包括利益を通じて公正価値を測定する金融資産</th>
+            <td>(22)</td><td>26,797</td><td>23,689</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_table_candidate(
+            soup.table, "投資不動産を含む連結貸借対照表（単位：百万円）"
+        )
+        selection = select_real_estate_candidate([candidate])
+
+        self.assertEqual(candidate["layout_result"]["book_raw"], 108)
+        self.assertEqual(candidate["layout_result"]["market_raw"], 0)
+        self.assertEqual(
+            classify_real_estate_outcome([candidate], selection)["classification"],
+            "book_value_only",
+        )
+
     def test_ifrs_cost_accumulation_and_fair_value_tables_are_combined(self):
         html = """
         <div>

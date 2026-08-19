@@ -23,6 +23,10 @@ PREVIOUS_PERIOD_MARKERS = (
 REAL_ESTATE_MARKERS = ("賃貸等不動産", "投資不動産")
 BOOK_MARKERS = ("貸借対照表計上額", "財政状態計算書計上額", "帳簿価額")
 MARKET_MARKERS = ("期末時価", "公正価値", "時価")
+MARKET_ROW_EXCLUDES = (
+    "金融資産", "金融負債", "その他の包括利益", "を通じて", "測定する",
+    "変動", "収益", "費用", "損益",
+)
 BOOK_EXCLUDES = ("期首", "増減", "償却", "損益", "収益", "費用")
 DIRECT_BOOK_EXCLUDES = BOOK_EXCLUDES + (
     "取得原価", "減損", "累計", "売却", "公正価値", "時価",
@@ -219,7 +223,10 @@ def _extract_period_layout(df, context_text):
         )
         if is_book and not _contains_any(label, BOOK_EXCLUDES):
             book_rows.append({"row": row, "label": label, "value": value})
-        if _contains_any(label, MARKET_MARKERS) and "損益" not in label:
+        if (
+            _contains_any(label, MARKET_MARKERS)
+            and not _contains_any(label, MARKET_ROW_EXCLUDES)
+        ):
             market_rows.append({"row": row, "label": label, "value": value})
 
     book, book_resolution = _resolve_rows(book_rows)
