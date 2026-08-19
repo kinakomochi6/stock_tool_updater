@@ -6,6 +6,7 @@ on:
       - real-estate-regression
       - real-estate-holdout
       - real-estate-holdout-b
+      - real-estate-holdout-c
   workflow_dispatch:
     inputs:
       mode:
@@ -65,6 +66,9 @@ jobs:
             elif [ "${{ github.ref_name }}" = "real-estate-holdout-b" ]; then
               MODE="latest"
               TEST_SET="holdout-b-40"
+            elif [ "${{ github.ref_name }}" = "real-estate-holdout-c" ]; then
+              MODE="latest"
+              TEST_SET="holdout-c-40"
             fi
           else
             TEST_SET="regression-5"

@@ -28,11 +28,25 @@ REAL_ESTATE_HOLDOUT_B_40 = (
     "9501", "9502", "9432",
 )
 
+# Third blind set, fixed before search-recall and unsupported-layout work. It
+# mixes disclosure-heavy sectors with manufacturers that often have no target
+# note, so both recall and false-positive resistance are exercised.
+REAL_ESTATE_HOLDOUT_C_40 = (
+    "9003", "9006", "9010", "9023", "9031", "9075",
+    "8803", "8848", "8871", "8923", "3245", "3284", "3452", "3498",
+    "8267", "8273", "8237", "9843", "3092", "3088", "3391", "3549",
+    "9064", "9065", "9076", "9369",
+    "9603", "9706", "9726", "9713",
+    "3401", "3402", "4005", "4042", "4063", "4188", "4901", "4911",
+    "6301", "6501",
+)
+
 
 REAL_ESTATE_TEST_SETS = {
     "regression-5": REAL_ESTATE_REGRESSION_5,
     "holdout-30": REAL_ESTATE_HOLDOUT_30,
     "holdout-b-40": REAL_ESTATE_HOLDOUT_B_40,
+    "holdout-c-40": REAL_ESTATE_HOLDOUT_C_40,
 }
 
 
