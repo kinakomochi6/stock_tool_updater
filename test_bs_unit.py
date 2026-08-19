@@ -1119,6 +1119,46 @@ class EdinetSearcherTests(unittest.TestCase):
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(doc_id, "S100IPO")
 
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_document_list_retries_transient_failure(self, mock_get, mock_sleep):
+        failed = Mock(status_code=503)
+        succeeded = Mock(status_code=200)
+        succeeded.json.return_value = {
+            "results": [{
+                "docTypeCode": "120",
+                "secCode": "72030",
+                "xbrlFlag": "1",
+                "filerName": "Test Company",
+                "docID": "S100ANNUAL",
+                "docDescription": "Annual report",
+            }],
+        }
+        mock_get.side_effect = [failed, succeeded]
+
+        searcher = EdinetSearcher()
+        searcher.fetch_list(["7203"], days_back=0)
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(searcher.fetch_failures, [])
+        self.assertEqual(searcher.find_best_re_doc("7203"), "S100ANNUAL")
+        self.assertIn(1, [call.args[0] for call in mock_sleep.call_args_list])
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_document_list_records_date_after_retry_exhaustion(
+        self, mock_get, mock_sleep
+    ):
+        mock_get.return_value = Mock(status_code=503)
+
+        searcher = EdinetSearcher()
+        searcher.fetch_list(["7203"], days_back=0)
+
+        self.assertEqual(mock_get.call_count, 3)
+        self.assertEqual(len(searcher.fetch_failures), 1)
+        self.assertEqual(searcher.fetch_failures[0]["attempts"], 3)
+        self.assertIn("HTTP 503", searcher.fetch_failures[0]["error"])
+
     def test_periodic_report_is_preferred_to_newer_registration_statement(self):
         searcher = EdinetSearcher({"542A": {"E40000"}})
         searcher.df_docs = pd.DataFrame([

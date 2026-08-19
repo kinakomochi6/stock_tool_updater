@@ -24,6 +24,9 @@ REAL_ESTATE_MARKERS = ("賃貸等不動産", "投資不動産")
 BOOK_MARKERS = ("貸借対照表計上額", "財政状態計算書計上額", "帳簿価額")
 MARKET_MARKERS = ("期末時価", "公正価値", "時価")
 BOOK_EXCLUDES = ("期首", "増減", "償却", "損益", "収益", "費用")
+DIRECT_BOOK_EXCLUDES = BOOK_EXCLUDES + (
+    "取得原価", "減損", "累計", "売却", "公正価値", "時価",
+)
 OMISSION_MARKERS = (
     "該当事項はありません",
     "該当ありません",
@@ -199,6 +202,10 @@ def _extract_period_layout(df, context_text):
         is_book = (
             ("期末" in label and ("残高" in label or _contains_any(label, BOOK_MARKERS)))
             or (_contains_any(label, BOOK_MARKERS) and not _contains_any(label, BOOK_EXCLUDES))
+            or (
+                _contains_any(label, REAL_ESTATE_MARKERS)
+                and not _contains_any(label, DIRECT_BOOK_EXCLUDES)
+            )
         )
         if is_book and not _contains_any(label, BOOK_EXCLUDES):
             book_rows.append({"row": row, "label": label, "value": value})
@@ -224,6 +231,77 @@ def _extract_period_layout(df, context_text):
         "market_resolution": market_resolution,
         "opening_resolution": opening_resolution,
     }
+
+
+def _extract_dated_balance_layout(df, table_text, context_text):
+    combined = normalize_text(context_text) + normalize_text(table_text)
+    if not _contains_any(combined, REAL_ESTATE_MARKERS):
+        return None
+
+    immediate_context = normalize_text(context_text)[-600:]
+    normalized_table = normalize_text(table_text)
+    if "公正価値" in normalized_table or "公正価値" in immediate_context[-200:]:
+        value_kind = "fair_value"
+    elif (
+        "減価償却累計額" in immediate_context
+        or "減損損失累計額" in immediate_context
+        or "減価償却累計額" in normalized_table
+    ):
+        value_kind = "accumulated_depreciation"
+    elif "取得原価" in immediate_context or "取得原価" in normalized_table:
+        value_kind = "acquisition_cost"
+    else:
+        return None
+
+    dated_rows = []
+    for row in range(df.shape[0]):
+        row_text = "".join(normalize_text(df.iloc[row, column]) for column in range(df.shape[1]))
+        period = _period_end_hint(row_text)
+        if not period or "残高" not in row_text:
+            continue
+        numeric_values = [
+            parse_numeric_cell(df.iloc[row, column])
+            for column in range(df.shape[1])
+        ]
+        numeric_values = [value for value in numeric_values if value is not None]
+        if not numeric_values:
+            continue
+        dated_rows.append({
+            "row": row,
+            "label": row_text,
+            "period": period,
+            "value": numeric_values[-1],
+        })
+    if len(dated_rows) < 2:
+        return None
+
+    selected = max(dated_rows, key=lambda row: row["period"])
+    value = selected["value"]
+    result = {
+        "layout": "dated_balance_rows",
+        "value_kind": value_kind,
+        "current_period_explicit": True,
+        "previous_period_explicit": False,
+        "selected_period": selected["period"],
+        "dated_rows": dated_rows,
+        "book_rows": [],
+        "market_rows": [],
+        "book_raw": 0.0,
+        "market_raw": 0.0,
+        "gross_raw": 0.0,
+        "accumulated_raw": 0.0,
+        "book_resolution": "missing",
+        "market_resolution": "missing",
+    }
+    if value_kind == "acquisition_cost" and value > 0:
+        result["gross_raw"] = value
+    elif value_kind == "accumulated_depreciation" and value < 0:
+        result["accumulated_raw"] = value
+    elif value_kind == "fair_value" and value > 0:
+        result["market_raw"] = value
+        result["market_rows"] = [selected]
+        result["market_resolution"] = "dated_balance_row"
+    return result
 
 
 def _extract_horizontal_layout(df, table_text, context_text):
@@ -427,17 +505,28 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
     period_layout = _extract_period_layout(df, context)
     horizontal_layout = _extract_horizontal_layout(df, table_text, context)
     fair_value_layout = _extract_fair_value_model_layout(df, context)
+    dated_balance_layout = _extract_dated_balance_layout(
+        df, table_text, context
+    )
     layouts = [
-        layout for layout in (period_layout, horizontal_layout, fair_value_layout)
-        if layout and layout.get("book_raw", 0) > 0 and layout.get("market_raw", 0) > 0
+        layout for layout in (
+            period_layout, horizontal_layout, fair_value_layout,
+            dated_balance_layout,
+        ) if layout
     ]
     layout = max(
         layouts,
         key=lambda item: (
+            item.get("book_raw", 0) > 0 and item.get("market_raw", 0) > 0,
+            sum(bool(item.get(key, 0)) for key in (
+                "book_raw", "market_raw", "gross_raw", "accumulated_raw",
+            )),
             item.get("current_period_explicit", False),
-            item.get("layout") in ("book_market_columns", "fair_value_model"),
+            item.get("layout") in (
+                "book_market_columns", "fair_value_model", "dated_balance_rows",
+            ),
         ),
-        default=period_layout or horizontal_layout or fair_value_layout,
+        default=None,
     )
     candidate["layout_result"] = layout
     if not layout:
@@ -492,6 +581,104 @@ def extract_table_candidate(table_soup, context_text, file_name="", table_index=
 
 def expand_complementary_candidates(candidates):
     expanded = list(candidates)
+
+    dated_candidates = [
+        (index, candidate, candidate.get("layout_result") or {})
+        for index, candidate in enumerate(candidates)
+        if (candidate.get("layout_result") or {}).get("layout")
+        == "dated_balance_rows"
+    ]
+    for cost_index, cost, cost_layout in dated_candidates:
+        if cost_layout.get("gross_raw", 0) <= 0:
+            continue
+        for accumulated_index, accumulated, accumulated_layout in dated_candidates:
+            if accumulated_layout.get("accumulated_raw", 0) >= 0:
+                continue
+            for fair_index, fair, fair_layout in dated_candidates:
+                if fair_layout.get("market_raw", 0) <= 0:
+                    continue
+                ordered_indices = [
+                    cost.get("table_index"), accumulated.get("table_index"),
+                    fair.get("table_index"),
+                ]
+                if not all(isinstance(index, int) for index in ordered_indices):
+                    continue
+                if not ordered_indices[0] < ordered_indices[1] < ordered_indices[2]:
+                    continue
+                if ordered_indices[2] - ordered_indices[0] > 5:
+                    continue
+                if len({
+                    cost.get("file"), accumulated.get("file"), fair.get("file")
+                }) != 1:
+                    continue
+                source_candidates = (cost, accumulated, fair)
+                if not all(candidate.get("table_relevant") for candidate in source_candidates):
+                    continue
+                if any(
+                    candidate.get(flag)
+                    for candidate in source_candidates
+                    for flag in ("loss_table", "guarantor_section")
+                ):
+                    continue
+                units = [candidate.get("unit", {}) for candidate in source_candidates]
+                if not all(unit.get("explicit") for unit in units):
+                    continue
+                if len({unit.get("multiplier") for unit in units}) != 1:
+                    continue
+                periods = [
+                    layout.get("selected_period")
+                    for layout in (cost_layout, accumulated_layout, fair_layout)
+                ]
+                if not all(periods) or len(set(periods)) != 1:
+                    continue
+                if not all(
+                    layout.get("current_period_explicit")
+                    for layout in (cost_layout, accumulated_layout, fair_layout)
+                ):
+                    continue
+
+                gross = cost_layout["gross_raw"]
+                accumulated_amount = accumulated_layout["accumulated_raw"]
+                book = gross + accumulated_amount
+                market = fair_layout["market_raw"]
+                if book <= 0 or market <= 0:
+                    continue
+                multiplier = units[0]["multiplier"]
+                expanded.append({
+                    "file": cost.get("file", ""),
+                    "table_index": ordered_indices,
+                    "source_candidate_indices": [
+                        cost_index, accumulated_index, fair_index,
+                    ],
+                    "unit": units[0],
+                    "table_relevant": True,
+                    "loss_table": False,
+                    "guarantor_section": False,
+                    "score": max(
+                        candidate.get("score", 0)
+                        for candidate in source_candidates
+                    ) + 220,
+                    "quality_status": "verified",
+                    "quality_reasons": [],
+                    "book_value_yen": int(round(book * multiplier)),
+                    "market_value_yen": int(round(market * multiplier)),
+                    "period_end_hint": periods[0],
+                    "layout_result": {
+                        "layout": "cost_accumulation_fair_value_tables",
+                        "current_period_explicit": True,
+                        "previous_period_explicit": False,
+                        "gross_raw": gross,
+                        "accumulated_raw": accumulated_amount,
+                        "book_raw": book,
+                        "market_raw": market,
+                        "book_rows": cost_layout.get("dated_rows", [])
+                        + accumulated_layout.get("dated_rows", []),
+                        "market_rows": fair_layout.get("market_rows", []),
+                        "book_resolution": "gross_less_accumulated",
+                        "market_resolution": "dated_balance_row",
+                    },
+                })
+
     for left_index, left in enumerate(candidates):
         left_layout = left.get("layout_result") or {}
         for right_index in range(left_index + 1, len(candidates)):

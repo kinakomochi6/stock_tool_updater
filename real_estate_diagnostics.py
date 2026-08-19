@@ -8,6 +8,7 @@ from firebase_master_test import (
     EDINET_API_KEY,
     EdinetSearcher,
     analyze_real_estate_and_securities_html,
+    load_edinet_code_map,
     parse_codes_arg,
 )
 from real_estate_test_sets import (
@@ -185,7 +186,7 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
 
 
 def run_latest(codes, baseline, days_back):
-    searcher = EdinetSearcher()
+    searcher = EdinetSearcher(load_edinet_code_map())
     searcher.fetch_list(codes, days_back=days_back)
     tolerance = float(baseline.get("tolerance_oku", DEFAULT_TOLERANCE_OKU))
     records = []

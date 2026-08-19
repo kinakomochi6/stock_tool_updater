@@ -1389,6 +1389,7 @@ def classify_missing_bs_document(market, description):
 class EdinetSearcher:
     def __init__(self, edinet_code_map=None):
         self.df_docs = pd.DataFrame()
+        self.fetch_failures = []
         self.edinet_code_map = {
             normalize_security_code(code): set(edinet_codes)
             for code, edinet_codes in (edinet_code_map or {}).items()
@@ -1437,6 +1438,7 @@ class EdinetSearcher:
         target_set = {str(c).strip()[:4] for c in target_codes}
         needs_bs = set(target_set)
         needs_re = set(target_set) if require_real_estate else set()
+        self.fetch_failures = []
         
         all_docs = []
         for i in range(days_back + 1):
@@ -1451,48 +1453,67 @@ class EdinetSearcher:
             url = "https://disclosure.edinet-fsa.go.jp/api/v2/documents.json"
             params = {"date": target_date.strftime('%Y-%m-%d'), "type": 2, "Subscription-Key": EDINET_API_KEY}
             
-            try:
-                res = requests.get(url, params=params, timeout=10)
-                if res.status_code == 200:
+            js = None
+            last_error = ""
+            for attempt in range(1, 4):
+                try:
+                    res = requests.get(url, params=params, timeout=10)
+                    if res.status_code != 200:
+                        raise RuntimeError(f"HTTP {res.status_code}")
                     js = res.json()
-                    if "results" in js:
-                        count = 0
-                        for item in js["results"]:
-                            doc_type = str(item.get('docTypeCode', ''))
-                            xbrl_flag = str(item.get('xbrlFlag', ''))
-                            
-                            all_docs.append({
-                                'date': target_date,
-                                'secCode': str(item.get('secCode', '')), 
-                                'edinetCode': str(item.get('edinetCode', '')),
-                                'filerName': item.get('filerName', ''),
-                                'docID': item['docID'],
-                                'docDescription': item.get('docDescription', ''),
-                                'docTypeCode': doc_type,
-                                'xbrlFlag': xbrl_flag,
-                                'periodEnd': str(item.get('periodEnd', '')),
-                                'submitDateTime': str(item.get('submitDateTime', '')),
-                                'withdrawalStatus': str(item.get('withdrawalStatus', '')),
-                            })
-                            count += 1
+                    if "results" not in js:
+                        raise RuntimeError("results field is missing")
+                    break
+                except Exception as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+                    if attempt < 3:
+                        time.sleep(attempt)
 
-                            matched_codes = self._codes_for_document(item) & target_set
-                            if (
-                                doc_type in PERIODIC_BS_DOC_TYPES
-                                and xbrl_flag == '1'
-                                and str(item.get('withdrawalStatus', '')) != '1'
-                            ):
-                                needs_bs.difference_update(matched_codes)
-                            if (
-                                doc_type in ANNUAL_REPORT_DOC_TYPES
-                                and xbrl_flag == '1'
-                                and str(item.get('withdrawalStatus', '')) != '1'
-                            ):
-                                needs_re.difference_update(matched_codes)
+            if js is None:
+                failure = {
+                    "date": target_date.strftime('%Y-%m-%d'),
+                    "attempts": 3,
+                    "error": last_error,
+                }
+                self.fetch_failures.append(failure)
+                print(f"\n  [警告] {failure['date']} の書類一覧取得に失敗: {last_error}")
+                continue
 
-                        if i % 10 == 0: print(f" -> {count}件")
-            except Exception as e: 
-                pass
+            count = 0
+            for item in js["results"]:
+                doc_type = str(item.get('docTypeCode', ''))
+                xbrl_flag = str(item.get('xbrlFlag', ''))
+                
+                all_docs.append({
+                    'date': target_date,
+                    'secCode': str(item.get('secCode', '')), 
+                    'edinetCode': str(item.get('edinetCode', '')),
+                    'filerName': item.get('filerName', ''),
+                    'docID': item['docID'],
+                    'docDescription': item.get('docDescription', ''),
+                    'docTypeCode': doc_type,
+                    'xbrlFlag': xbrl_flag,
+                    'periodEnd': str(item.get('periodEnd', '')),
+                    'submitDateTime': str(item.get('submitDateTime', '')),
+                    'withdrawalStatus': str(item.get('withdrawalStatus', '')),
+                })
+                count += 1
+
+                matched_codes = self._codes_for_document(item) & target_set
+                if (
+                    doc_type in PERIODIC_BS_DOC_TYPES
+                    and xbrl_flag == '1'
+                    and str(item.get('withdrawalStatus', '')) != '1'
+                ):
+                    needs_bs.difference_update(matched_codes)
+                if (
+                    doc_type in ANNUAL_REPORT_DOC_TYPES
+                    and xbrl_flag == '1'
+                    and str(item.get('withdrawalStatus', '')) != '1'
+                ):
+                    needs_re.difference_update(matched_codes)
+
+            if i % 10 == 0: print(f" -> {count}件")
             time.sleep(0.3) 
         
         self.df_docs = pd.DataFrame(all_docs)
