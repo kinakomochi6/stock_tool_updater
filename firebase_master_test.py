@@ -1436,6 +1436,27 @@ class EdinetSearcher:
             candidates["withdrawalStatus"].fillna("").astype(str) != "1"
         ].copy()
 
+    @staticmethod
+    def _period_end_for_document(item):
+        raw_period = item.get('periodEnd', '')
+        period = str(raw_period or '').strip()
+        if period.lower() not in ('', 'none', 'nan', 'nat'):
+            return period
+        description = unicodedata.normalize(
+            'NFKC', str(item.get('docDescription', '') or '')
+        )
+        dates = re.findall(
+            r'(20\d{2})[/.\-](\d{1,2})[/.\-](\d{1,2})',
+            description,
+        )
+        if not dates:
+            return ''
+        year, month, day = max(
+            (int(year), int(month), int(day))
+            for year, month, day in dates
+        )
+        return f'{year:04d}-{month:02d}-{day:02d}'
+
     def fetch_list(
         self, target_codes, days_back=365, require_real_estate=True,
         real_estate_periods=1,
@@ -1503,9 +1524,9 @@ class EdinetSearcher:
                     'docDescription': item.get('docDescription', ''),
                     'docTypeCode': doc_type,
                     'xbrlFlag': xbrl_flag,
-                    'periodEnd': str(item.get('periodEnd', '')),
-                    'submitDateTime': str(item.get('submitDateTime', '')),
-                    'withdrawalStatus': str(item.get('withdrawalStatus', '')),
+                    'periodEnd': self._period_end_for_document(item),
+                    'submitDateTime': str(item.get('submitDateTime', '') or ''),
+                    'withdrawalStatus': str(item.get('withdrawalStatus', '') or ''),
                 })
                 count += 1
 
@@ -1521,7 +1542,7 @@ class EdinetSearcher:
                     and xbrl_flag == '1'
                     and str(item.get('withdrawalStatus', '')) != '1'
                 ):
-                    period_key = str(item.get('periodEnd', '')).strip()
+                    period_key = self._period_end_for_document(item)
                     if not period_key:
                         period_key = f"unknown:{item.get('docID', '')}"
                     for matched_code in matched_codes:
@@ -1593,6 +1614,9 @@ class EdinetSearcher:
         for column in ('periodEnd', 'submitDateTime'):
             if column not in candidates:
                 candidates[column] = ''
+        candidates['periodEnd'] = candidates.apply(
+            lambda row: self._period_end_for_document(row), axis=1
+        )
         candidates = candidates.sort_values(
             by=['periodEnd', 'date', 'submitDateTime', 'correctionRank', 'docID'],
             ascending=[False, False, False, False, False],

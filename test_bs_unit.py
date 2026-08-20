@@ -1128,6 +1128,36 @@ class EdinetSearcherTests(unittest.TestCase):
             ["CURRENT_FIX", "PREVIOUS"],
         )
 
+    def test_real_estate_period_is_recovered_from_correction_description(self):
+        searcher = EdinetSearcher()
+        searcher.df_docs = pd.DataFrame([
+            {
+                "date": "2026-01-23", "secCode": "31230",
+                "docTypeCode": "130", "xbrlFlag": "1", "docID": "OLD_FIX",
+                "periodEnd": "None", "submitDateTime": "2026-01-23",
+                "docDescription": "訂正有価証券報告書－第102期(2024/04/01－2025/03/31)",
+                "withdrawalStatus": "",
+            },
+            {
+                "date": "2026-06-25", "secCode": "31230",
+                "docTypeCode": "120", "xbrlFlag": "1", "docID": "CURRENT",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-25",
+                "docDescription": "有価証券報告書－第103期",
+                "withdrawalStatus": "",
+            },
+        ])
+
+        self.assertEqual(
+            searcher.find_re_docs("3123", limit=2),
+            ["CURRENT", "OLD_FIX"],
+        )
+        self.assertEqual(
+            searcher._period_end_for_document(
+                searcher.df_docs.iloc[0]
+            ),
+            "2025-03-31",
+        )
+
     @patch("firebase_master_test.time.sleep")
     @patch("firebase_master_test.requests.get")
     def test_bs_only_scan_stops_without_waiting_for_annual_report(self, mock_get, _mock_sleep):

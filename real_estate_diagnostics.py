@@ -166,6 +166,23 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
             )
             record.update(normalize_extraction_result(result))
             record["source_diagnostics"] = source_diagnostics
+            current_double = source_diagnostics.get(
+                "independent_comparison", {}
+            )
+            record["automated_verification"] = {
+                "status": (
+                    "current_double_matched"
+                    if current_double.get("status") == "matched"
+                    else "current_extraction_mismatch"
+                    if current_double.get("status") == "mismatch"
+                    else "not_fully_verifiable"
+                ),
+                "current_double_extraction": current_double,
+                "prior_year_continuity": {
+                    "status": "not_available",
+                    "reason": "previous_document_not_loaded",
+                },
+            }
         except Exception as exc:
             record.update({
                 "extraction_status": "extraction_failed",
