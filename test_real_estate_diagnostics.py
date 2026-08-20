@@ -215,6 +215,25 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(selection["current"]["book_value_yen"], 120000000)
         self.assertEqual(selection["current"]["market_value_yen"], 250000000)
 
+    def test_independent_dom_extractor_inherits_period_for_market_column(self):
+        html = """
+        <table>
+          <tr><th></th><th colspan="3">連結貸借対照表計上額</th>
+            <th>連結決算日における時価</th></tr>
+          <tr><th></th><th>期首残高</th><th>増減額</th><th>期末残高</th><th>時価</th></tr>
+          <tr><th>賃貸等不動産</th><td>115,304</td><td>964</td><td>116,268</td><td>234,116</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table,
+            "当連結会計年度（単位：百万円）賃貸等不動産",
+        )
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["current"]["book_value_yen"], 116268000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 234116000000)
+
     def test_independent_dom_extractor_supports_fair_value_model(self):
         html = """
         <table>
@@ -258,10 +277,66 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         ]
         selection = select_dom_period_values(candidates)
 
+        self.assertEqual(selection["status"], "resolved")
         self.assertEqual(selection["current"]["book_value_yen"], 95342000000)
         self.assertEqual(selection["current"]["market_value_yen"], 112670000000)
         self.assertEqual(selection["previous"]["book_value_yen"], 96052000000)
         self.assertEqual(selection["previous"]["market_value_yen"], 114170000000)
+
+    def test_independent_dom_extractor_uses_rollforward_continuity(self):
+        html = """
+        <div>
+          <table><tr><th>連結貸借対照表計上額 期首残高</th><td>4,822</td></tr>
+            <tr><th>期末残高</th><td>2,234</td></tr>
+            <tr><th>期末時価</th><td>2,952</td></tr></table>
+          <table><tr><th>連結貸借対照表計上額 期首残高</th><td>2,234</td></tr>
+            <tr><th>期末残高</th><td>5,374</td></tr>
+            <tr><th>期末時価</th><td>5,479</td></tr></table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidates = [
+            extract_dom_table_candidate(
+                table,
+                "当連結会計年度（単位：百万円）賃貸等不動産",
+                file_name="annual.htm",
+                table_index=index,
+            )
+            for index, table in enumerate(soup.find_all("table"), start=10)
+        ]
+        selection = select_dom_period_values(candidates)
+
+        self.assertEqual(selection["status"], "resolved")
+        self.assertEqual(selection["current"]["book_value_yen"], 5374000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 5479000000)
+        self.assertEqual(selection["previous"]["book_value_yen"], 2234000000)
+        self.assertEqual(selection["previous"]["market_value_yen"], 2952000000)
+
+    def test_independent_dom_extractor_uses_context_dates_for_split_tables(self):
+        html = """
+        <div>
+          <table><tr><th></th><th>帳簿価額</th><th>時価</th></tr>
+            <tr><th>賃貸等不動産</th><td>100</td><td>200</td></tr></table>
+          <table><tr><th></th><th>帳簿価額</th><th>時価</th></tr>
+            <tr><th>賃貸等不動産</th><td>120</td><td>250</td></tr></table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        contexts = (
+            "前連結会計年度（2025年3月31日）（単位：百万円）",
+            "当連結会計年度（2026年3月31日）（単位：百万円）",
+        )
+        candidates = [
+            extract_dom_table_candidate(
+                table, contexts[index] + "賃貸等不動産",
+                file_name="annual.htm", table_index=index,
+            )
+            for index, table in enumerate(soup.find_all("table"))
+        ]
+        selection = select_dom_period_values(candidates)
+
+        self.assertEqual(selection["current"]["book_value_yen"], 120000000)
+        self.assertEqual(selection["previous"]["book_value_yen"], 100000000)
 
     def test_independent_dom_extractor_uses_inline_xbrl_scale(self):
         html = """

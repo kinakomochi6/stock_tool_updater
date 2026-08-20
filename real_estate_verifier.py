@@ -232,12 +232,15 @@ def _row_period_candidates(
             continue
         books = []
         markets = []
+        openings = []
         for row_index, row in enumerate(grid):
             value = _value_yen(row[column], multiplier)
             if value is None:
                 continue
             label = _normalize("".join(cell["text"] for cell in row[:column]))
             item = {"row": row_index, "label": label, "value_yen": value}
+            if "期首残高" in label:
+                openings.append(item)
             is_closing_book = (
                 book_rollforward
                 and any(marker in label for marker in (
@@ -255,6 +258,7 @@ def _row_period_candidates(
                 markets.append(item)
         book, book_rows = _resolve(books)
         market, market_rows = _resolve(markets)
+        opening, opening_rows = _resolve(openings)
         if book > 0 or market > 0:
             results.append({
                 "period_role": role,
@@ -263,7 +267,13 @@ def _row_period_candidates(
                 "market_value_yen": int(round(market)) if market > 0 else 0,
                 "gross_value_yen": 0,
                 "accumulated_value_yen": 0,
-                "evidence": {"column": column, "book_rows": book_rows, "market_rows": market_rows},
+                "opening_value_yen": int(round(opening)) if opening > 0 else 0,
+                "evidence": {
+                    "column": column,
+                    "book_rows": book_rows,
+                    "market_rows": market_rows,
+                    "opening_rows": opening_rows,
+                },
                 "explicit_period": explicit,
                 "method": "dom_period_column",
             })
@@ -318,11 +328,13 @@ def _fair_value_model_candidates(grid, descriptors, multiplier, context_text):
     return results
 
 
-def _horizontal_candidates(grid, descriptors, multiplier):
+def _horizontal_candidates(grid, descriptors, multiplier, context_text):
     descriptor_dates = sorted({
         date for descriptor in descriptors for date in _dates(descriptor)
     })
     semantic_columns = []
+    normalized_context = _normalize(context_text)
+    context_dates = _dates(context_text)
     for column, descriptor in enumerate(descriptors[1:], start=1):
         if _contains(descriptor, BOOK_MARKERS):
             kind = "book_value_yen"
@@ -331,6 +343,13 @@ def _horizontal_candidates(grid, descriptors, multiplier):
         else:
             continue
         role, date, explicit = _period_descriptor(descriptor, descriptor_dates)
+        if not role:
+            if _contains(normalized_context, CURRENT_MARKERS):
+                role, explicit = "current", True
+            elif _contains(normalized_context, PREVIOUS_MARKERS):
+                role, explicit = "previous", True
+        if date is None and context_dates:
+            date = context_dates[-1]
         if role:
             semantic_columns.append((column, kind, role, date, explicit))
     results = {}
@@ -357,6 +376,7 @@ def _horizontal_candidates(grid, descriptors, multiplier):
             "market_value_yen": 0,
             "gross_value_yen": 0,
             "accumulated_value_yen": 0,
+            "opening_value_yen": 0,
             "evidence": {},
             "explicit_period": explicit,
             "method": "dom_book_market_columns",
@@ -370,14 +390,19 @@ def _dated_candidates(grid, table_text, context_text, multiplier):
     combined = _normalize(context_text) + _normalize(table_text)
     if not _contains(combined, REAL_ESTATE_MARKERS):
         return []
-    immediate = _normalize(context_text)[-600:] + _normalize(table_text)[:600]
-    if "公正価値" in immediate:
-        kind = "market_value_yen"
-    elif "減価償却累計額" in immediate or "減損損失累計額" in immediate:
-        kind = "accumulated_value_yen"
-    elif "取得原価" in immediate:
-        kind = "gross_value_yen"
-    else:
+    immediate = _normalize(context_text)[-1500:] + _normalize(table_text)[:800]
+    kind_markers = {
+        "book_value_yen": ("帳簿価額",),
+        "gross_value_yen": ("取得原価",),
+        "accumulated_value_yen": ("減価償却累計額", "減損損失累計額"),
+        "market_value_yen": ("公正価値",),
+    }
+    positions = {
+        kind: max((immediate.rfind(marker) for marker in markers), default=-1)
+        for kind, markers in kind_markers.items()
+    }
+    kind, position = max(positions.items(), key=lambda item: item[1])
+    if position < 0:
         return []
     dated = []
     for row_index, row in enumerate(grid):
@@ -400,6 +425,7 @@ def _dated_candidates(grid, table_text, context_text, multiplier):
             "market_value_yen": 0,
             "gross_value_yen": 0,
             "accumulated_value_yen": 0,
+            "opening_value_yen": 0,
             "evidence": {"row": row_index, "label": label},
             "explicit_period": True,
             "method": "dom_dated_balance",
@@ -441,7 +467,9 @@ def extract_dom_table_candidate(table, context_text, file_name="", table_index=0
     values.extend(_row_period_candidates(
         grid, descriptors, multiplier, context_text, table_text
     ))
-    values.extend(_horizontal_candidates(grid, descriptors, multiplier))
+    values.extend(_horizontal_candidates(
+        grid, descriptors, multiplier, context_text
+    ))
     values.extend(_fair_value_model_candidates(
         grid, descriptors, multiplier, context_text
     ))
@@ -487,6 +515,37 @@ def _pair_values(candidates):
         if value["book_value_yen"] > 0 and value["market_value_yen"] > 0:
             pairs.append({**value, "score": 500, "source": "single_dom_table"})
 
+    complete = [
+        value for value in flattened
+        if value["book_value_yen"] > 0 and value["market_value_yen"] > 0
+    ]
+    for earlier in complete:
+        for later in complete:
+            if earlier is later or earlier["file"] != later["file"]:
+                continue
+            if later["table_index"] - earlier["table_index"] != 1:
+                continue
+            opening = int(later.get("opening_value_yen", 0) or 0)
+            if opening <= 0 or not math.isclose(
+                opening, earlier["book_value_yen"], rel_tol=0.001,
+                abs_tol=1_000_000,
+            ):
+                continue
+            pairs.append({
+                **earlier,
+                "period_role": "previous",
+                "score": 540,
+                "source": "dom_rollforward_continuity_previous",
+                "source_tables": [earlier["table_index"], later["table_index"]],
+            })
+            pairs.append({
+                **later,
+                "period_role": "current",
+                "score": 550,
+                "source": "dom_rollforward_continuity_current",
+                "source_tables": [earlier["table_index"], later["table_index"]],
+            })
+
     tokens = {_period_token(value) for value in flattened}
     for token in tokens:
         period_values = [value for value in flattened if _period_token(value) == token]
@@ -495,6 +554,27 @@ def _pair_values(candidates):
                 if left is right or left["file"] != right["file"]:
                     continue
                 if abs(left["table_index"] - right["table_index"]) > 5:
+                    continue
+                left_book_only = (
+                    left["book_value_yen"] > 0
+                    and left["market_value_yen"] == 0
+                )
+                right_book_only = (
+                    right["book_value_yen"] > 0
+                    and right["market_value_yen"] == 0
+                )
+                left_market_only = (
+                    left["market_value_yen"] > 0
+                    and left["book_value_yen"] == 0
+                )
+                right_market_only = (
+                    right["market_value_yen"] > 0
+                    and right["book_value_yen"] == 0
+                )
+                if not (
+                    (left_book_only and right_market_only)
+                    or (right_book_only and left_market_only)
+                ):
                     continue
                 book = left["book_value_yen"] or right["book_value_yen"]
                 market = left["market_value_yen"] or right["market_value_yen"]
