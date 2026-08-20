@@ -15,6 +15,7 @@ from real_estate_test_sets import (
     REAL_ESTATE_TEST_SETS,
     get_real_estate_test_set_codes,
 )
+from real_estate_verifier import compare_prior_year_continuity
 
 
 VALUE_FIELDS = (
@@ -185,21 +186,94 @@ def _extract_record(code, doc_id, metadata, expected, mode, tolerance_oku):
     return record
 
 
+def _extract_previous_document(doc_id, metadata):
+    if not doc_id:
+        return None
+    diagnostics = {}
+    try:
+        result = analyze_real_estate_and_securities_html(
+            doc_id, real_estate_diagnostics=diagnostics
+        )
+        normalized = normalize_extraction_result(result)
+        return {
+            "doc_id": doc_id,
+            **metadata,
+            **normalized,
+            "independent_selection": diagnostics.get(
+                "independent_selection", {}
+            ),
+            "independent_comparison": diagnostics.get(
+                "independent_comparison", {}
+            ),
+        }
+    except Exception as exc:
+        return {
+            "doc_id": doc_id,
+            **metadata,
+            "extraction_status": "extraction_failed",
+            "error": f"{type(exc).__name__}: {exc}",
+            "independent_selection": {},
+        }
+
+
+def _attach_automated_verification(record, previous_document):
+    source = record.get("source_diagnostics", {})
+    current_double = source.get("independent_comparison", {
+        "status": "not_available",
+        "reason": "independent_extraction_not_run",
+    })
+    latest_independent = source.get("independent_selection", {})
+    previous_independent = (
+        previous_document or {}
+    ).get("independent_selection", {})
+    continuity = compare_prior_year_continuity(
+        latest_independent.get("previous"),
+        previous_independent.get("current"),
+    )
+    if current_double.get("status") == "mismatch":
+        overall = "current_extraction_mismatch"
+    elif current_double.get("status") == "matched" and continuity.get("status") == "matched":
+        overall = "strongly_verified"
+    elif current_double.get("status") == "matched":
+        overall = "current_double_matched"
+    elif continuity.get("status") == "matched":
+        overall = "prior_continuity_only"
+    else:
+        overall = "not_fully_verifiable"
+    record["automated_verification"] = {
+        "status": overall,
+        "current_double_extraction": current_double,
+        "prior_year_continuity": continuity,
+    }
+    record["previous_document"] = previous_document
+
+
 def run_latest(codes, baseline, days_back):
     searcher = EdinetSearcher(load_edinet_code_map())
-    searcher.fetch_list(codes, days_back=days_back)
+    searcher.fetch_list(
+        codes, days_back=days_back, real_estate_periods=2
+    )
     tolerance = float(baseline.get("tolerance_oku", DEFAULT_TOLERANCE_OKU))
     records = []
     for code in codes:
-        doc_id = searcher.find_best_re_doc(code)
-        records.append(_extract_record(
+        doc_ids = searcher.find_re_docs(code, limit=2)
+        doc_id = doc_ids[0] if doc_ids else None
+        record = _extract_record(
             code,
             doc_id,
             _document_metadata(searcher, doc_id) if doc_id else {},
             baseline.get("records", {}).get(code),
             "latest",
             tolerance,
-        ))
+        )
+        previous_doc_id = doc_ids[1] if len(doc_ids) > 1 else None
+        previous_document = _extract_previous_document(
+            previous_doc_id,
+            _document_metadata(searcher, previous_doc_id)
+            if previous_doc_id else {},
+        )
+        _attach_automated_verification(record, previous_document)
+        records.append(record)
     return records
 
 
@@ -234,11 +308,16 @@ def summarize_records(records):
     outcomes = collections.Counter(
         record.get("real_estate_outcome", "unknown") for record in records
     )
+    verification = collections.Counter(
+        record.get("automated_verification", {}).get("status", "not_run")
+        for record in records
+    )
     return {
         "record_count": len(records),
         "extraction_statuses": dict(sorted(extraction.items())),
         "comparison_statuses": dict(sorted(comparisons.items())),
         "real_estate_outcomes": dict(sorted(outcomes.items())),
+        "automated_verification_statuses": dict(sorted(verification.items())),
         "regression_codes": [
             record["code"] for record in records
             if record.get("comparison_status") == "regression"
@@ -288,6 +367,10 @@ def render_markdown(summary, title):
         f"{key}: {value}"
         for key, value in summary["real_estate_outcomes"].items()
     ) or "none"
+    verification = ", ".join(
+        f"{key}: {value}"
+        for key, value in summary["automated_verification_statuses"].items()
+    ) or "none"
     lines = [
         f"# {title}",
         "",
@@ -295,15 +378,21 @@ def render_markdown(summary, title):
         f"- Extraction: {extraction}",
         f"- Comparison: {comparisons}",
         f"- Outcomes: {outcomes}",
+        f"- Automated verification: {verification}",
         "",
-        "| Code | Document | Period | Extraction | Outcome | Comparison | Book (oku) | Market (oku) | Gain (oku) |",
-        "|---|---|---|---|---|---|---:|---:|---:|",
+        "| Code | Document | Period | Extraction | Outcome | Verification | Comparison | Book (oku) | Market (oku) | Gain (oku) |",
+        "|---|---|---|---|---|---|---|---:|---:|---:|",
     ]
     for row in summary["rows"]:
         lines.append(
             "| {code} | {doc_id} | {period_end} | {extraction_status} | {real_estate_outcome} | "
-            "{comparison_status} | {book_value_oku:.2f} | {market_value_oku:.2f} | "
-            "{hidden_gain_oku:.2f} |".format(**row)
+            "{verification} | {comparison_status} | {book_value_oku:.2f} | {market_value_oku:.2f} | "
+            "{hidden_gain_oku:.2f} |".format(
+                verification=row.get("automated_verification", {}).get(
+                    "status", "not_run"
+                ),
+                **row,
+            )
         )
     if summary["regression_codes"]:
         lines.extend(["", "Regression codes: " + ", ".join(summary["regression_codes"])])

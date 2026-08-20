@@ -27,6 +27,12 @@ from real_estate_extractor import (
     publishable_real_estate_values,
     select_real_estate_candidate,
 )
+from real_estate_verifier import (
+    compare_primary_with_dom,
+    compare_prior_year_continuity,
+    extract_dom_table_candidate,
+    select_dom_period_values,
+)
 
 
 class RealEstateDiagnosticsTests(unittest.TestCase):
@@ -169,6 +175,141 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(candidate["quality_status"], "verified")
         self.assertEqual(candidate["book_value_yen"], 120000000)
         self.assertEqual(candidate["market_value_yen"], 250000000)
+
+    def test_independent_dom_extractor_resolves_current_and_previous_periods(self):
+        html = """
+        <table>
+          <tr><th>（単位：百万円）</th><th>前連結会計年度</th><th>当連結会計年度</th></tr>
+          <tr><th>貸借対照表計上額</th><td>120</td><td>150</td></tr>
+          <tr><th>期末時価</th><td>220</td><td>270</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table, "賃貸等不動産", file_name="annual.htm", table_index=3
+        )
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["status"], "resolved")
+        self.assertEqual(selection["current"]["book_value_yen"], 150000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 270000000)
+        self.assertEqual(selection["previous"]["book_value_yen"], 120000000)
+        self.assertEqual(selection["previous"]["market_value_yen"], 220000000)
+
+    def test_independent_dom_extractor_uses_closing_balance_row(self):
+        html = """
+        <table>
+          <tr><th></th><th>前連結会計年度</th><th>当連結会計年度</th></tr>
+          <tr><th>貸借対照表計上額 期首残高</th><td>100</td><td>110</td></tr>
+          <tr><th>期中増減額</th><td>10</td><td>10</td></tr>
+          <tr><th>期末残高</th><td>110</td><td>120</td></tr>
+          <tr><th>期末時価</th><td>200</td><td>250</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table, "（単位：百万円）賃貸等不動産"
+        )
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["current"]["book_value_yen"], 120000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 250000000)
+
+    def test_independent_dom_extractor_supports_fair_value_model(self):
+        html = """
+        <table>
+          <tr><th></th><th>当連結会計年度</th><th>前連結会計年度</th></tr>
+          <tr><th>（公正価値）期首日現在</th><td>134</td><td>136</td></tr>
+          <tr><th>公正価値の変動による純額</th><td>△42</td><td>-</td></tr>
+          <tr><th>3月31日現在</th><td>108</td><td>134</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table,
+            "（単位：百万円）投資不動産は公正価値モデルにより測定",
+        )
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["current"]["book_value_yen"], 108000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 108000000)
+
+    def test_independent_dom_extractor_combines_three_dated_ifrs_tables(self):
+        html = """
+        <div>
+          <table><tr><th>投資不動産</th><th>取得原価（百万円）</th></tr>
+            <tr><th>2025年3月31日残高</th><td>106,354</td></tr>
+            <tr><th>2026年3月31日残高</th><td>107,630</td></tr></table>
+          <table><tr><th>投資不動産</th><th>減価償却累計額（百万円）</th></tr>
+            <tr><th>2025年3月31日残高</th><td>△10,302</td></tr>
+            <tr><th>2026年3月31日残高</th><td>△12,288</td></tr></table>
+          <table><tr><th>投資不動産</th><th>公正価値（百万円）</th></tr>
+            <tr><th>2025年3月31日残高</th><td>114,170</td></tr>
+            <tr><th>2026年3月31日残高</th><td>112,670</td></tr></table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        contexts = ("投資不動産 取得原価", "投資不動産 減価償却累計額", "投資不動産 公正価値")
+        candidates = [
+            extract_dom_table_candidate(
+                table, contexts[index], file_name="annual.htm", table_index=index
+            )
+            for index, table in enumerate(soup.find_all("table"))
+        ]
+        selection = select_dom_period_values(candidates)
+
+        self.assertEqual(selection["current"]["book_value_yen"], 95342000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 112670000000)
+        self.assertEqual(selection["previous"]["book_value_yen"], 96052000000)
+        self.assertEqual(selection["previous"]["market_value_yen"], 114170000000)
+
+    def test_independent_dom_extractor_uses_inline_xbrl_scale(self):
+        html = """
+        <table>
+          <tr><th></th><th>当連結会計年度</th></tr>
+          <tr><th>貸借対照表計上額</th><td><ix:nonFraction unitRef="JPY" scale="6">150</ix:nonFraction></td></tr>
+          <tr><th>期末時価</th><td><ix:nonFraction unitRef="JPY" scale="6">270</ix:nonFraction></td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(soup.table, "賃貸等不動産")
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["current"]["book_value_yen"], 150000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 270000000)
+
+    def test_independent_current_comparison_and_prior_continuity(self):
+        primary = {"book_value_yen": 150000000, "market_value_yen": 270000000}
+        independent = {
+            "current": {
+                "status": "resolved",
+                "book_value_yen": 150000000,
+                "market_value_yen": 270000000,
+            }
+        }
+        self.assertEqual(
+            compare_primary_with_dom(primary, independent)["status"], "matched"
+        )
+
+        latest_previous = {
+            "status": "resolved",
+            "book_value_yen": 120000000,
+            "market_value_yen": 220000000,
+        }
+        previous_current = dict(latest_previous)
+        self.assertEqual(
+            compare_prior_year_continuity(
+                latest_previous, previous_current
+            )["status"],
+            "matched",
+        )
+        previous_current["market_value_yen"] = 250000000
+        self.assertEqual(
+            compare_prior_year_continuity(
+                latest_previous, previous_current
+            )["status"],
+            "mismatch_or_restatement",
+        )
 
     def test_structural_extractor_rejects_profit_table(self):
         html = """

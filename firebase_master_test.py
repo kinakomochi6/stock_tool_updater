@@ -29,6 +29,11 @@ from real_estate_extractor import (
     publishable_real_estate_values,
     select_real_estate_candidate,
 )
+from real_estate_verifier import (
+    compare_primary_with_dom,
+    extract_dom_table_candidate,
+    select_dom_period_values,
+)
 from bs4 import XMLParsedAsHTMLWarning
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -1431,13 +1436,18 @@ class EdinetSearcher:
             candidates["withdrawalStatus"].fillna("").astype(str) != "1"
         ].copy()
 
-    def fetch_list(self, target_codes, days_back=365, require_real_estate=True):
+    def fetch_list(
+        self, target_codes, days_back=365, require_real_estate=True,
+        real_estate_periods=1,
+    ):
         today = datetime.date.today()
         print(f"--- [リスト作成] 最大 {days_back} 日分をスキャンします（対象書類が揃い次第終了） ---")
         
         target_set = {str(c).strip()[:4] for c in target_codes}
         needs_bs = set(target_set)
         needs_re = set(target_set) if require_real_estate else set()
+        real_estate_periods = max(1, int(real_estate_periods))
+        annual_periods_by_code = {code: set() for code in target_set}
         self.fetch_failures = []
         
         all_docs = []
@@ -1511,7 +1521,16 @@ class EdinetSearcher:
                     and xbrl_flag == '1'
                     and str(item.get('withdrawalStatus', '')) != '1'
                 ):
-                    needs_re.difference_update(matched_codes)
+                    period_key = str(item.get('periodEnd', '')).strip()
+                    if not period_key:
+                        period_key = f"unknown:{item.get('docID', '')}"
+                    for matched_code in matched_codes:
+                        annual_periods_by_code[matched_code].add(period_key)
+                        if (
+                            len(annual_periods_by_code[matched_code])
+                            >= real_estate_periods
+                        ):
+                            needs_re.discard(matched_code)
 
             if i % 10 == 0: print(f" -> {count}件")
             time.sleep(0.3) 
@@ -1556,24 +1575,34 @@ class EdinetSearcher:
         return best['docID'], best['docDescription'], best['filerName']
 
     def find_best_re_doc(self, code):
-        if self.df_docs.empty: return None
+        docs = self.find_re_docs(code, limit=1)
+        return docs[0] if docs else None
+
+    def find_re_docs(self, code, limit=2):
+        if self.df_docs.empty: return []
         candidates = self._exclude_withdrawn(self._candidates_for_code(code))
         candidates = candidates[
             candidates['docTypeCode'].isin(ANNUAL_REPORT_DOC_TYPES)
             & (candidates['xbrlFlag'] == '1')
         ].copy()
         
-        if candidates.empty: return None
+        if candidates.empty: return []
         candidates['correctionRank'] = candidates['docTypeCode'].map(
             lambda value: 1 if value in CORRECTION_DOC_TYPES else 0
         )
-        if 'periodEnd' not in candidates:
-            candidates['periodEnd'] = ''
+        for column in ('periodEnd', 'submitDateTime'):
+            if column not in candidates:
+                candidates[column] = ''
         candidates = candidates.sort_values(
-            by=['periodEnd', 'date', 'correctionRank', 'docID'],
-            ascending=[False, False, False, False],
+            by=['periodEnd', 'date', 'submitDateTime', 'correctionRank', 'docID'],
+            ascending=[False, False, False, False, False],
         )
-        return candidates.iloc[0]['docID']
+        candidates['_periodKey'] = candidates['periodEnd'].where(
+            candidates['periodEnd'].fillna('').astype(str).str.len() > 0,
+            candidates['docID'],
+        )
+        candidates = candidates.drop_duplicates('_periodKey', keep='first')
+        return candidates.head(max(1, int(limit)))['docID'].tolist()
 
 # ==========================================
 # 3. 解析機能 (B/S)
@@ -4884,6 +4913,7 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     params = {"type": 1, "Subscription-Key": EDINET_API_KEY}
     final_res = {"Book": 0, "Market": 0, "Sec_Profit": 0}
     structural_candidates = []
+    independent_candidates = []
     scan_stats = {
         "html_files_total": 0,
         "html_files_scanned": 0,
@@ -4986,6 +5016,14 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
                                 file_name=h_file,
                                 table_index=table_index,
                             ))
+                            independent_candidates.append(
+                                extract_dom_table_candidate(
+                                    tbl,
+                                    effective_context,
+                                    file_name=h_file,
+                                    table_index=table_index,
+                                )
+                            )
                             table_diagnostics = {
                                 "file": h_file,
                                 "table_index": table_index,
@@ -5058,6 +5096,10 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
         structural_candidates
     )
     structural_selection = select_real_estate_candidate(structural_candidates)
+    independent_selection = select_dom_period_values(independent_candidates)
+    independent_comparison = compare_primary_with_dom(
+        structural_selection, independent_selection
+    )
     real_estate_outcome = classify_real_estate_outcome(
         structural_candidates,
         structural_selection,
@@ -5083,6 +5125,9 @@ def analyze_real_estate_and_securities_html(doc_id, real_estate_diagnostics=None
     if real_estate_diagnostics is not None:
         real_estate_diagnostics["structural_candidates"] = structural_candidates
         real_estate_diagnostics["structural_selection"] = structural_selection
+        real_estate_diagnostics["independent_candidates"] = independent_candidates
+        real_estate_diagnostics["independent_selection"] = independent_selection
+        real_estate_diagnostics["independent_comparison"] = independent_comparison
         real_estate_diagnostics["scan_stats"] = scan_stats
         real_estate_diagnostics["outcome"] = real_estate_outcome
         real_estate_diagnostics["legacy_book_value_oku"] = legacy_b_oku

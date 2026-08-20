@@ -1072,6 +1072,64 @@ class EdinetDownloadTests(unittest.TestCase):
 class EdinetSearcherTests(unittest.TestCase):
     @patch("firebase_master_test.time.sleep")
     @patch("firebase_master_test.requests.get")
+    def test_real_estate_scan_can_collect_two_distinct_periods(
+        self, mock_get, _mock_sleep
+    ):
+        current = Mock(status_code=200)
+        current.json.return_value = {"results": [{
+            "docTypeCode": "120", "secCode": "72030", "xbrlFlag": "1",
+            "filerName": "Test", "docID": "S100CURRENT",
+            "docDescription": "Annual report", "periodEnd": "2026-03-31",
+        }]}
+        previous = Mock(status_code=200)
+        previous.json.return_value = {"results": [{
+            "docTypeCode": "120", "secCode": "72030", "xbrlFlag": "1",
+            "filerName": "Test", "docID": "S100PREVIOUS",
+            "docDescription": "Annual report", "periodEnd": "2025-03-31",
+        }]}
+        mock_get.side_effect = [current, previous]
+
+        searcher = EdinetSearcher()
+        searcher.fetch_list(
+            ["7203"], days_back=10, real_estate_periods=2
+        )
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(
+            searcher.find_re_docs("7203", limit=2),
+            ["S100CURRENT", "S100PREVIOUS"],
+        )
+
+    def test_real_estate_documents_keep_latest_correction_per_period(self):
+        searcher = EdinetSearcher()
+        searcher.df_docs = pd.DataFrame([
+            {
+                "date": "2026-06-01", "secCode": "72030",
+                "docTypeCode": "120", "xbrlFlag": "1", "docID": "CURRENT",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-01",
+                "withdrawalStatus": "",
+            },
+            {
+                "date": "2026-06-10", "secCode": "72030",
+                "docTypeCode": "130", "xbrlFlag": "1", "docID": "CURRENT_FIX",
+                "periodEnd": "2026-03-31", "submitDateTime": "2026-06-10",
+                "withdrawalStatus": "",
+            },
+            {
+                "date": "2025-06-01", "secCode": "72030",
+                "docTypeCode": "120", "xbrlFlag": "1", "docID": "PREVIOUS",
+                "periodEnd": "2025-03-31", "submitDateTime": "2025-06-01",
+                "withdrawalStatus": "",
+            },
+        ])
+
+        self.assertEqual(
+            searcher.find_re_docs("7203", limit=2),
+            ["CURRENT_FIX", "PREVIOUS"],
+        )
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
     def test_bs_only_scan_stops_without_waiting_for_annual_report(self, mock_get, _mock_sleep):
         response = Mock(status_code=200)
         response.json.return_value = {
