@@ -339,7 +339,7 @@ def _horizontal_candidates(grid, descriptors, multiplier, context_text):
     semantic_columns = []
     normalized_context = _normalize(context_text)
     context_dates = _dates(context_text)
-    for column, descriptor in enumerate(descriptors[1:], start=1):
+    for column, descriptor in enumerate(descriptors):
         if _contains(descriptor, MARKET_MARKERS) and not _contains(descriptor, MARKET_EXCLUDES):
             kind = "market_value_yen"
         elif "期首残高" in descriptor:
@@ -455,7 +455,8 @@ def _dated_candidates(grid, table_text, context_text, multiplier):
 def extract_dom_table_candidate(table, context_text, file_name="", table_index=0):
     table_text = table.get_text(" ", strip=True)
     normalized_table_text = _normalize(table_text)
-    combined = _normalize(context_text) + _normalize(table_text)
+    normalized_context = _normalize(context_text)
+    combined = normalized_context + normalized_table_text
     result = {
         "file": file_name,
         "table_index": table_index,
@@ -469,9 +470,23 @@ def extract_dom_table_candidate(table, context_text, file_name="", table_index=0
     if "保証会社" in combined:
         result["reasons"].append("guarantor_section")
         return result
+    last_real_estate_marker = max(
+        (normalized_context.rfind(marker) for marker in REAL_ESTATE_MARKERS),
+        default=-1,
+    )
+    last_unrelated_marker = max(
+        (normalized_context.rfind(marker) for marker in UNRELATED_ADJACENT_MARKERS),
+        default=-1,
+    )
+    unrelated_table = _contains(
+        normalized_table_text, UNRELATED_ADJACENT_MARKERS
+    )
+    context_moved_to_unrelated_section = (
+        last_unrelated_marker > last_real_estate_marker >= 0
+    )
     if (
         not _contains(normalized_table_text, REAL_ESTATE_MARKERS)
-        and _contains(normalized_table_text, UNRELATED_ADJACENT_MARKERS)
+        and (unrelated_table or context_moved_to_unrelated_section)
     ):
         result["reasons"].append("unrelated_adjacent_section")
         return result

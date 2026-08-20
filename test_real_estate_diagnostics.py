@@ -252,6 +252,29 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(selection["current"]["book_value_yen"], 3729540000000)
         self.assertEqual(selection["current"]["market_value_yen"], 7714645000000)
 
+    def test_independent_dom_extractor_reads_opening_value_from_column_zero(self):
+        html = """
+        <div>
+          <table><tr><th>期首残高</th><th>増減額</th><th>期末残高</th><th>時価</th></tr>
+            <tr><td>100</td><td>10</td><td>110</td><td>200</td></tr></table>
+          <table><tr><th>期首残高</th><th>増減額</th><th>期末残高</th><th>時価</th></tr>
+            <tr><td>110</td><td>10</td><td>120</td><td>250</td></tr></table>
+        </div>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidates = [
+            extract_dom_table_candidate(
+                table,
+                "当連結会計年度（単位：百万円）賃貸等不動産の連結貸借対照表計上額",
+                file_name="annual.htm", table_index=index,
+            )
+            for index, table in enumerate(soup.find_all("table"))
+        ]
+        selection = select_dom_period_values(candidates)
+
+        self.assertEqual(selection["current"]["book_value_yen"], 120000000)
+        self.assertEqual(selection["previous"]["book_value_yen"], 110000000)
+
     def test_independent_dom_extractor_rejects_unrelated_adjacent_section(self):
         html = """
         <table><tr><th>のれん及び無形資産</th><th>2026年3月31日時点の残高</th></tr>
@@ -261,6 +284,20 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         candidate = extract_dom_table_candidate(
             soup.table,
             "投資不動産の公正価値（単位：百万円）",
+        )
+
+        self.assertEqual(candidate["values"], [])
+        self.assertIn("unrelated_adjacent_section", candidate["reasons"])
+
+    def test_independent_dom_extractor_respects_context_section_transition(self):
+        html = """
+        <table><tr><th>帳簿価額合計</th><th>当連結会計年度</th></tr>
+          <tr><th>合計</th><td>27,263</td></tr></table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table,
+            "14.投資不動産 公正価値 15.持分法で会計処理されている投資（単位：百万円）",
         )
 
         self.assertEqual(candidate["values"], [])
