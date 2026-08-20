@@ -234,6 +234,38 @@ class RealEstateDiagnosticsTests(unittest.TestCase):
         self.assertEqual(selection["current"]["book_value_yen"], 116268000000)
         self.assertEqual(selection["current"]["market_value_yen"], 234116000000)
 
+    def test_independent_dom_extractor_recognizes_unspanned_closing_column(self):
+        html = """
+        <table>
+          <tr><th>連結貸借対照表計上額</th><th>連結会計年度増減額</th>
+            <th>連結会計年度末残高</th><th>連結会計年度末の時価</th></tr>
+          <tr><td>3,807,255</td><td>△77,714</td><td>3,729,540</td><td>7,714,645</td></tr>
+        </table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table,
+            "当連結会計年度（2026年3月31日）（単位：百万円）賃貸等不動産",
+        )
+        selection = select_dom_period_values([candidate])
+
+        self.assertEqual(selection["current"]["book_value_yen"], 3729540000000)
+        self.assertEqual(selection["current"]["market_value_yen"], 7714645000000)
+
+    def test_independent_dom_extractor_rejects_unrelated_adjacent_section(self):
+        html = """
+        <table><tr><th>のれん及び無形資産</th><th>2026年3月31日時点の残高</th></tr>
+          <tr><th>取得原価</th><td>1,801</td></tr></table>
+        """
+        soup = BeautifulSoup(html, "lxml")
+        candidate = extract_dom_table_candidate(
+            soup.table,
+            "投資不動産の公正価値（単位：百万円）",
+        )
+
+        self.assertEqual(candidate["values"], [])
+        self.assertIn("unrelated_adjacent_section", candidate["reasons"])
+
     def test_independent_dom_extractor_supports_fair_value_model(self):
         html = """
         <table>

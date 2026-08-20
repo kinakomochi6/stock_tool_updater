@@ -17,6 +17,10 @@ MARKET_EXCLUDES = (
     "金融資産", "金融負債", "その他の包括利益", "を通じて", "測定する",
     "変動", "収益", "費用", "損益",
 )
+UNRELATED_ADJACENT_MARKERS = (
+    "のれん及び無形資産", "持分法で会計処理", "関連会社に対する投資",
+    "金融資産及び金融負債", "契約負債の残高",
+)
 
 
 def _normalize(value):
@@ -336,10 +340,21 @@ def _horizontal_candidates(grid, descriptors, multiplier, context_text):
     normalized_context = _normalize(context_text)
     context_dates = _dates(context_text)
     for column, descriptor in enumerate(descriptors[1:], start=1):
-        if _contains(descriptor, BOOK_MARKERS):
-            kind = "book_value_yen"
-        elif _contains(descriptor, MARKET_MARKERS) and not _contains(descriptor, MARKET_EXCLUDES):
+        if _contains(descriptor, MARKET_MARKERS) and not _contains(descriptor, MARKET_EXCLUDES):
             kind = "market_value_yen"
+        elif "期首残高" in descriptor:
+            kind = "opening_value_yen"
+        elif "増減" in descriptor and not any(
+            marker in descriptor for marker in ("期末残高", "年度末残高")
+        ):
+            continue
+        elif (
+            _contains(descriptor, BOOK_MARKERS)
+            or any(marker in descriptor for marker in (
+                "期末残高", "年度末残高", "報告期間末残高",
+            ))
+        ):
+            kind = "book_value_yen"
         else:
             continue
         role, date, explicit = _period_descriptor(descriptor, descriptor_dates)
@@ -439,6 +454,7 @@ def _dated_candidates(grid, table_text, context_text, multiplier):
 
 def extract_dom_table_candidate(table, context_text, file_name="", table_index=0):
     table_text = table.get_text(" ", strip=True)
+    normalized_table_text = _normalize(table_text)
     combined = _normalize(context_text) + _normalize(table_text)
     result = {
         "file": file_name,
@@ -452,6 +468,12 @@ def extract_dom_table_candidate(table, context_text, file_name="", table_index=0
         return result
     if "保証会社" in combined:
         result["reasons"].append("guarantor_section")
+        return result
+    if (
+        not _contains(normalized_table_text, REAL_ESTATE_MARKERS)
+        and _contains(normalized_table_text, UNRELATED_ADJACENT_MARKERS)
+    ):
+        result["reasons"].append("unrelated_adjacent_section")
         return result
     grid = _table_grid(table)
     if not grid:
