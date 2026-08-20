@@ -128,6 +128,31 @@ explicitly excluded from real-estate book and market values.
 These are parser outcomes, not manual correctness labels. Only the tracked
 regression records have been reviewed as ground truth.
 
+## Automated cross-validation
+
+Latest-document diagnostics use two checks that are independent of the
+publication gate:
+
+1. The DOM/iXBRL verifier reads table cells and inline XBRL facts directly. It
+   does not call pandas or reuse the structural extractor's row-resolution
+   functions. `current_double_matched` means its current-period book and market
+   values agree with the published structural result within the configured
+   tolerance.
+2. The latest filing's previous-period book and market values are compared with
+   the previous annual filing's current-period values. A match upgrades the
+   result to `strongly_verified`.
+
+`mismatch_or_restatement` is a review signal, not proof of a parser defect.
+Corrections, scope changes, acquisitions, disposals, and presentation changes
+can legitimately break year-to-year continuity. `not_available` likewise means
+that a second annual filing or an unambiguous prior-period pair was unavailable;
+it must not be converted to a zero value or treated as a failed current-period
+extraction.
+
+The verifier records evidence in diagnostics only. It does not overwrite,
+approve, or reject the Firestore values selected by the structural publication
+gate.
+
 ## Observed blind-set results
 
 Before the second blind-set analysis, the structural extractor safely
@@ -188,3 +213,30 @@ The reviewed final results for this stage were:
 At this set size, an EDINET latest-document run takes roughly ten minutes.
 Future 100-company observational sets should be split into multiple workflow
 branches so one slow scan does not delay all diagnostics.
+
+## Cross-validation result (2026-08-20)
+
+The independent verifier and two-period continuity checks were run against the
+five reviewed records and all 110 disjoint holdout records after support was
+added for period columns, horizontal book/market layouts, dated IFRS tables,
+split cost/depreciation/fair-value tables, and nearby-table section boundaries.
+
+- `regression-5`: all five latest values matched the reviewed baseline and all
+  five were `strongly_verified`. Pinned values also matched independently.
+- `holdout-30`: 22 extracted, all 22 `strongly_verified`; eight safely held.
+- `holdout-b-40`: 26 extracted; 24 `strongly_verified` and two
+  `current_double_matched`; 14 safely held.
+- `holdout-c-40`: 19 extracted; 18 `strongly_verified` and one
+  `current_double_matched`; 21 safely held.
+- Across the 67 extracted holdout records, the structural and independent
+  current-period values had zero mismatches. Sixty-four also passed prior-year
+  continuity. The remaining three retained exact current double matches: one
+  lacked a second annual period, one had ambiguous prior-period candidates, and
+  one had a prior-year book-value discontinuity while market value matched.
+- The full local regression suite passed 226 tests.
+
+The 43 held records are not counted as extraction failures without a reviewed
+source value. They include omitted or non-applicable disclosures, filings with
+no target note, book-value-only disclosures, and unsupported structures. In
+particular, a disclosed investment-property carrying amount without a disclosed
+fair value is not enough to calculate hidden gain and remains unpublished.
