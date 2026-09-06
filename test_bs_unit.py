@@ -68,6 +68,7 @@ from firebase_master_test import (
     parse_codes_arg,
     parse_taxonomy_relationships,
     remove_bs_values_for_quarantine,
+    retain_only_bs_update_fields,
     reconcile_bank_presentation,
     reconcile_insurance_presentation,
     reconcile_parent_component_overlaps,
@@ -1493,6 +1494,31 @@ class AnalysisClassificationTests(unittest.TestCase):
         )
         self.assertIn("データ最終更新日", inconclusive)
         self.assertNotIn("B/S_検証日時", inconclusive)
+
+    def test_bs_only_payload_never_overwrites_market_or_real_estate_data(self):
+        data = {
+            "★資産合計": 100,
+            "B/S_検証状態": "verified",
+            "B/S_検証理由": [],
+            "時価総額_億": 500,
+            "株価": 1000,
+            "不動産_時価_億": 80,
+            "★企業名": "テスト会社",
+        }
+
+        retain_only_bs_update_fields(data)
+        add_firestore_update_timestamps(
+            data, True, record_data_update=False
+        )
+
+        self.assertEqual(data["★資産合計"], 100)
+        self.assertEqual(data["B/S_検証状態"], "verified")
+        self.assertNotIn("時価総額_億", data)
+        self.assertNotIn("株価", data)
+        self.assertNotIn("不動産_時価_億", data)
+        self.assertNotIn("★企業名", data)
+        self.assertNotIn("データ最終更新日", data)
+        self.assertIn("B/S_検証日時", data)
 
 
 class MappingTests(unittest.TestCase):

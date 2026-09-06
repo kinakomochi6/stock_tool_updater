@@ -2515,6 +2515,13 @@ BS_VALUE_FIELDS = set(DISPLAY_ORDER) | {
     "B/S_分析分類バージョン",
     "B/S_分析分類集計差額_億",
 }
+BS_VALIDATION_FIELDS = {
+    "B/S_検証状態",
+    "B/S_検証理由",
+    "B/S_最大未分類残差_億",
+    "B/S_未分類残差_億",
+    "B/S_検証書類",
+}
 
 OPTIONAL_DUPLICATE_CATEGORIES = [
     ("流動_契約資産", "流動_", "CurrentAssets", "流動_その他流動資産"),
@@ -4328,11 +4335,22 @@ def remove_bs_values_for_quarantine(data):
     return data
 
 
+def retain_only_bs_update_fields(data):
+    """Remove non-B/S fields before a repair-only Firestore merge."""
+    allowed_fields = BS_VALUE_FIELDS | BS_VALIDATION_FIELDS
+    for key in list(data):
+        if key not in allowed_fields:
+            data.pop(key, None)
+    return data
+
+
 def add_firestore_update_timestamps(
     data, publish_bs_values, record_bs_validation=True,
+    record_data_update=True,
 ):
     """Mark the attempt time and only advance accepted-B/S metadata on success."""
-    data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
+    if record_data_update:
+        data["データ最終更新日"] = firestore.SERVER_TIMESTAMP
     if record_bs_validation:
         data["B/S_検証日時"] = firestore.SERVER_TIMESTAMP
     if publish_bs_values:
@@ -5563,9 +5581,6 @@ def main():
         raise ValueError("--total-shards は1以上で指定してください。")
     if args.shard_index < 0 or args.shard_index >= args.total_shards:
         raise ValueError("--shard-index は 0 以上 total-shards 未満で指定してください。")
-    if args.bs_only and not args.dry_run:
-        raise ValueError("--bs-only は財務データをゼロで上書きしないよう --dry-run と併用してください。")
-
     validate_tag_mapping()
     requested_codes = sorted(set(parse_codes_arg(args.codes) or []) | set(get_test_set_codes(args.test_set)))
     if not args.dry_run and not requested_codes and not ALLOW_FULL_FIRESTORE_WRITE:
@@ -5860,17 +5875,23 @@ def main():
                     print(
                         " -> [B/S保留] EDINET取得欠損のため、既存B/S値と検証状態を維持します。"
                     )
+            if args.bs_only:
+                retain_only_bs_update_fields(combined_data)
             if args.dry_run:
                 print(" -> [DRY RUN] Firestore保存をスキップしました。")
+            elif args.bs_only and not bs_validation_conclusive:
+                print(" -> [B/S保留] B/S専用更新の書き込みをスキップしました。")
             else:
                 add_firestore_update_timestamps(
                     combined_data,
                     bs_quality.get("publish_bs_values", False),
                     record_bs_validation=bs_validation_conclusive,
+                    record_data_update=not args.bs_only,
                 )
                 collection_ref.document(str(code)).set(combined_data, merge=True)
             
-            print(f" -> [{company_name}] 財務 ROE: {combined_data['ROE_pct']}% / 時価総額: {combined_data['時価総額_億']}億円 / 4年平均自社株買い: {combined_data['4年平均自社株買い_億']}億円")
+            if not args.bs_only:
+                print(f" -> [{company_name}] 財務 ROE: {combined_data['ROE_pct']}% / 時価総額: {combined_data['時価総額_億']}億円 / 4年平均自社株買い: {combined_data['4年平均自社株買い_億']}億円")
             if bs_quality.get("publish_bs_values", False):
                 print(
                     f" -> [ B/S] 資産合計: {combined_data.get('★資産合計', 0)}億円 "
@@ -5881,10 +5902,13 @@ def main():
                     f" -> [ B/S] 既存値を保持 "
                     f"(検証状態: {bs_quality['status']})"
                 )
-            print(f" -> [隠し資産] 不動産含み益: {combined_data['不動産_含み益_億']}億円 / 有価証券含み益: {combined_data['有価証券_含み益_億']}億円")
+            if not args.bs_only:
+                print(f" -> [隠し資産] 不動産含み益: {combined_data['不動産_含み益_億']}億円 / 有価証券含み益: {combined_data['有価証券_含み益_億']}億円")
             
         except Exception as e:
             print(f" -> [エラー] {code} の処理中にエラーが発生しました: {e}")
+            if args.bs_only and not args.dry_run:
+                raise
             
         time.sleep(1 if args.bs_only else 2)  # EDINET/API制限対策
 

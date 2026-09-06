@@ -21,6 +21,7 @@ on:
       - bs-wave-l
       - bs-wave-m
       - bs-wave-n
+      - bs-repair
   schedule:
     # Midnight JST (15:00 UTC)
     - cron: '0 15 * * *'
@@ -89,7 +90,7 @@ on:
 
 jobs:
   scrape:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'push' && github.ref_name == 'bs-repair') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -116,7 +117,12 @@ jobs:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
           ALLOW_FULL_FIRESTORE_WRITE: "1"
           PYTHONUNBUFFERED: "1"
-        run: python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
+        run: |
+          if [ "${{ github.ref_name }}" = "bs-repair" ]; then
+            python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }} --bs-only
+          else
+            python firebase_master_test.py --total-shards 8 --shard-index ${{ matrix.shard }}
+          fi
 
   manual_guard:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.codes == '' && github.event.inputs.test_set == 'none' }}
@@ -128,7 +134,7 @@ jobs:
           exit 1
 
   diagnose:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (github.event.inputs.codes != '' || github.event.inputs.test_set != 'none')) }}
+    if: ${{ (github.event_name == 'push' && github.ref_name != 'bs-repair') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.codes != '' || github.event.inputs.test_set != 'none')) }}
     runs-on: ubuntu-latest
 
     steps:
