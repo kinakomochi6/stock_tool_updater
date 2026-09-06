@@ -1,5 +1,9 @@
 name: Update Stock Data
 
+concurrency:
+  group: update-stock-data-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
