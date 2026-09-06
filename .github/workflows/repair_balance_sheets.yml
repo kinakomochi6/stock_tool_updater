@@ -20,11 +20,6 @@ jobs:
   repair:
     if: ${{ github.event_name == 'push' || github.event.inputs.confirm_full_bs_repair == 'true' }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
 
     steps:
       - name: Checkout repository
@@ -49,13 +44,11 @@ jobs:
         run: |
           set +e
           python firebase_master_test.py \
-            --total-shards 8 \
-            --shard-index ${{ matrix.shard }} \
             --bs-only 2>&1 | tee repair.log
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
             message=$(tail -n 12 repair.log | tr '\n' ' ' | sed 's/%/%25/g')
-            echo "::error title=B/S repair shard ${{ matrix.shard }} failed::$message"
+            echo "::error title=B/S repair failed::$message"
             exit "$status"
           fi
