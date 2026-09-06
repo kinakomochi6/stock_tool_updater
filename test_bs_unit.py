@@ -44,6 +44,7 @@ from firebase_master_test import (
     ANALYSIS_BS_FIELD,
     ANALYSIS_CATEGORY_MAP,
     DISPLAY_ORDER,
+    EDINET_API_BASE_URL,
     EdinetSearcher,
     TAG_MAPPING,
     BsAnalysisError,
@@ -61,6 +62,7 @@ from firebase_master_test import (
     download_edinet_xbrl_package,
     empty_financial_data,
     evaluate_bs_quality,
+    get_all_listed_codes,
     is_tokyo_pro_market,
     load_edinet_code_map,
     parse_codes_arg,
@@ -1179,6 +1181,7 @@ class EdinetSearcherTests(unittest.TestCase):
 
         self.assertEqual(mock_get.call_count, 1)
         self.assertEqual(len(searcher.df_docs), 1)
+        self.assertTrue(mock_get.call_args.args[0].startswith(EDINET_API_BASE_URL))
 
     @patch("firebase_master_test.time.sleep")
     @patch("firebase_master_test.requests.get")
@@ -1240,12 +1243,71 @@ class EdinetSearcherTests(unittest.TestCase):
         mock_get.return_value = Mock(status_code=503)
 
         searcher = EdinetSearcher()
-        searcher.fetch_list(["7203"], days_back=0)
+        with self.assertRaisesRegex(RuntimeError, "1日分も取得できなかった"):
+            searcher.fetch_list(["7203"], days_back=0)
 
         self.assertEqual(mock_get.call_count, 3)
         self.assertEqual(len(searcher.fetch_failures), 1)
         self.assertEqual(searcher.fetch_failures[0]["attempts"], 3)
         self.assertIn("HTTP 503", searcher.fetch_failures[0]["error"])
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_missing_document_is_inconclusive_when_scan_has_a_gap(
+        self, mock_get, _mock_sleep
+    ):
+        failed = Mock(status_code=503)
+        succeeded = Mock(status_code=200)
+        succeeded.json.return_value = {"results": []}
+        mock_get.side_effect = [failed, failed, failed, succeeded]
+
+        searcher = EdinetSearcher()
+        searcher.fetch_list(["7203"], days_back=1, require_real_estate=False)
+
+        self.assertEqual(len(searcher.fetch_failures), 1)
+        self.assertFalse(searcher.can_conclude_document_missing())
+
+    @patch("firebase_master_test.time.sleep")
+    @patch("firebase_master_test.requests.get")
+    def test_document_list_stops_early_after_three_failed_dates(
+        self, mock_get, _mock_sleep
+    ):
+        mock_get.return_value = Mock(status_code=503)
+
+        searcher = EdinetSearcher()
+        with self.assertRaisesRegex(RuntimeError, "3日連続"):
+            searcher.fetch_list(["7203"], days_back=365)
+
+        self.assertEqual(mock_get.call_count, 9)
+        self.assertEqual(len(searcher.fetch_failures), 3)
+
+
+class ExternalSourceTests(unittest.TestCase):
+    @patch("firebase_master_test.pd.read_excel")
+    @patch("firebase_master_test.requests.get")
+    def test_current_jpx_xlsx_is_validated_and_loaded(self, mock_get, mock_read_excel):
+        response = Mock(content=b"PK\x03\x04test")
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+        mock_read_excel.return_value = pd.DataFrame([{
+            "コード": "7203", "銘柄名": "テスト自動車",
+            "市場・商品区分": "プライム（内国株式）", "33業種区分": "輸送用機器",
+        }])
+
+        companies = get_all_listed_codes()
+
+        self.assertEqual(companies[0]["code"], "7203")
+        self.assertTrue(mock_get.call_args.args[0].endswith("data_j.xlsx"))
+        self.assertEqual(mock_read_excel.call_args.kwargs["engine"], "openpyxl")
+
+    @patch("firebase_master_test.requests.get")
+    def test_non_excel_jpx_response_fails_the_job(self, mock_get):
+        response = Mock(content=b"<html>maintenance</html>")
+        response.raise_for_status.return_value = None
+        mock_get.return_value = response
+
+        with self.assertRaisesRegex(RuntimeError, "Excelファイルではありません"):
+            get_all_listed_codes()
 
     def test_periodic_report_is_preferred_to_newer_registration_statement(self):
         searcher = EdinetSearcher({"542A": {"E40000"}})
@@ -1424,6 +1486,13 @@ class AnalysisClassificationTests(unittest.TestCase):
         self.assertEqual(quarantined["B/S_正常更新日時"], "previous timestamp")
         self.assertEqual(quarantined["B/S_正常更新書類"], "previous document")
         self.assertIn("B/S_検証日時", quarantined)
+
+        inconclusive = {}
+        add_firestore_update_timestamps(
+            inconclusive, False, record_bs_validation=False
+        )
+        self.assertIn("データ最終更新日", inconclusive)
+        self.assertNotIn("B/S_検証日時", inconclusive)
 
 
 class MappingTests(unittest.TestCase):
